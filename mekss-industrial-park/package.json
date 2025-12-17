@@ -1,0 +1,42 @@
+{
+  "name": "mekss-industrial-park",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "@mui/material": "^5.15.0",
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/x-date-pickers": "^6.18.0",
+    "@tanstack/react-query": "^5.12.0",
+    "@tanstack/react-query-devtools": "^5.12.0",
+    "axios": "^1.6.2",
+    "recharts": "^2.10.3",
+    "date-fns": "^2.30.0",
+    "date-fns-jalali": "^2.30.0",
+    "qrcode": "^1.5.3",
+    "jwt-decode": "^4.0.0",
+    "react-otp-input": "^3.1.1",
+    "react-hook-form": "^7.48.2",
+    "react-dropzone": "^14.2.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.8",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5"
+  }
+}

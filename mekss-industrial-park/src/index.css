@@ -1,0 +1,170 @@
+/* RTL Support */
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  direction: rtl;
+  text-align: right;
+}
+
+body {
+  font-family: 'Vazirmatn', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  background-color: #fafafa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fix for Material-UI RTL */
+.MuiTypography-root,
+.MuiButton-root,
+.MuiInputBase-root,
+.MuiFormLabel-root,
+.MuiTab-root,
+.MuiMenuItem-root {
+  font-family: 'Vazirmatn', 'Roboto', 'Helvetica', 'Arial', sans-serif !important;
+}
+
+/* RTL fixes for Material-UI components */
+.MuiDrawer-paperAnchorRight {
+  right: 0;
+  left: auto;
+}
+
+.MuiDrawer-paperAnchorLeft {
+  left: 0;
+  right: auto;
+}
+
+/* Fix for input adornments */
+.MuiInputAdornment-positionStart {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+.MuiInputAdornment-positionEnd {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+/* Fix for list items */
+.MuiListItem-root {
+  padding-right: 16px;
+  padding-left: 16px;
+}
+
+.MuiListItemIcon-root {
+  margin-right: 0;
+  margin-left: 16px;
+}
+
+/* Fix for cards */
+.MuiCardContent-root {
+  padding: 16px;
+}
+
+/* Fix for buttons */
+.MuiButton-root {
+  text-transform: none;
+  font-weight: 500;
+}
+
+/* Fix for chips */
+.MuiChip-root {
+  margin: 2px;
+}
+
+/* Fix for tables */
+.MuiTableCell-root {
+  text-align: right;
+}
+
+.MuiTableCell-head {
+  font-weight: 600;
+}
+
+/* Fix for dialogs */
+.MuiDialog-paper {
+  margin: 32px;
+}
+
+/* Fix for snackbars */
+.MuiSnackbar-root {
+  left: 24px;
+  right: auto;
+}
+
+/* Fix for breadcrumbs */
+.MuiBreadcrumbs-li {
+  display: flex;
+  align-items: center;
+}
+
+.MuiBreadcrumbs-separator {
+  margin: 0 8px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  body {
+    font-size: 13px;
+  }
+  
+  .MuiContainer-root {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 12px;
+  }
+  
+  .MuiContainer-root {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import {
   Box,
@@ -18,7 +18,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  useTheme,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -36,6 +35,10 @@ import {
   Settings as SettingsIcon,
   Person as PersonIcon,
   Logout as LogoutIcon,
+  Message as MessageIcon,
+  AdminPanelSettings as AdminPanelSettingsIcon,
+  Security as SecurityIcon,
+  SupervisorAccount as SuperAdminIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
@@ -81,33 +84,27 @@ const DrawerHeader = styled('div')(({ theme }) => ({
   justifyContent: 'flex-start',
 }));
 
-export const DashboardLayout = ({ children }) => {
-  const theme = useTheme();
+export const DashboardLayout = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
   const isMenuOpen = Boolean(anchorEl);
 
-  const handleDrawerOpen = () => {
-    setOpen(true);
-  };
-
-  const handleDrawerClose = () => {
-    setOpen(false);
-  };
-
-  const handleProfileMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
+  const handleDrawerOpen = () => setOpen(true);
+  const handleDrawerClose = () => setOpen(false);
+  const handleProfileMenuOpen = (event) => setAnchorEl(event.currentTarget);
+  const handleProfileMenuClose = () => setAnchorEl(null);
 
   const handleLogout = () => {
     logout();
     handleProfileMenuClose();
   };
+
+  const handleNavigate = (path) => {
+    navigate(path);
+    handleProfileMenuClose();
+  }
 
   const getMenuItems = () => {
     const baseItems = [
@@ -115,49 +112,38 @@ export const DashboardLayout = ({ children }) => {
     ];
 
     const roleBasedItems = {
-      ADMIN: [
-        { text: 'کارخانه‌ها', icon: <BusinessIcon />, path: '/factories' },
-        { text: 'مجوزهای تردد', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
-        { text: 'فاکتورها', icon: <ReceiptIcon />, path: '/invoices' },
-        { text: 'درخواست‌ها', icon: <AssignmentIcon />, path: '/requests' },
+      FACTORY_MANAGER: [
+        { text: 'برگ خروج', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
+        { text: 'قبض‌ها', icon: <ReceiptIcon />, path: '/invoices' },
+        { text: 'صندوق پیام', icon: <MessageIcon />, path: '/messages' },
+        { text: 'درخواست‌های من', icon: <AssignmentIcon />, path: '/requests' },
         { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
-        { text: 'تبلیغات', icon: <AdUnitsIcon />, path: '/advertisements' },
-        { text: 'هشدارهای اضطراری', icon: <WarningIcon />, path: '/emergency' },
-        { text: 'تحلیل‌ها', icon: <AnalyticsIcon />, path: '/analytics' },
+        { text: 'آگهی‌ها', icon: <AdUnitsIcon />, path: '/advertisements' },
+        { text: 'امداد و حریق', icon: <WarningIcon />, path: '/emergency' },
       ],
       PARK_MANAGER: [
-        { text: 'کارخانه‌ها', icon: <BusinessIcon />, path: '/factories' },
-        { text: 'مجوزهای تردد', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
-        { text: 'فاکتورها', icon: <ReceiptIcon />, path: '/invoices' },
-        { text: 'درخواست‌ها', icon: <AssignmentIcon />, path: '/requests' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
-        { text: 'تبلیغات', icon: <AdUnitsIcon />, path: '/advertisements' },
-        { text: 'هشدارهای اضطراری', icon: <WarningIcon />, path: '/emergency' },
-        { text: 'تحلیل‌ها', icon: <AnalyticsIcon />, path: '/analytics' },
-      ],
-      FACTORY_OWNER: [
-        { text: 'کارخانه من', icon: <BusinessIcon />, path: '/factories' },
-        { text: 'مجوزهای تردد', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
-        { text: 'فاکتورها', icon: <ReceiptIcon />, path: '/invoices' },
-        { text: 'درخواست‌ها', icon: <AssignmentIcon />, path: '/requests' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
-        { text: 'تبلیغات', icon: <AdUnitsIcon />, path: '/advertisements' },
+        { text: 'مدیریت واحدها', icon: <BusinessIcon />, path: '/admin/factories' },
+        { text: 'تایید برگ خروج', icon: <ConfirmationNumberIcon />, path: '/admin/gate-passes' },
+        { text: 'مدیریت قبض‌ها', icon: <ReceiptIcon />, path: '/admin/invoices' },
+        { text: 'تایید درخواست‌ها', icon: <AssignmentIcon />, path: '/admin/requests' },
+        { text: 'ارسال پیام', icon: <MessageIcon />, path: '/admin/messages' },
+        { text: 'مدیریت اطلاعیه‌ها', icon: <CampaignIcon />, path: '/admin/announcements' },
+        { text: 'تایید آگهی‌ها', icon: <AdUnitsIcon />, path: '/admin/advertisements' },
+        { text: 'گزارش‌گیری', icon: <AnalyticsIcon />, path: '/admin/reports' },
       ],
       SECURITY_GUARD: [
-        { text: 'مجوزهای تردد', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
-        { text: 'هشدارهای اضطراری', icon: <WarningIcon />, path: '/emergency' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
+        { text: 'برگ‌های خروج در انتظار', icon: <SecurityIcon />, path: '/guard/gate-passes' },
+        { text: 'مشاهده اعلام حریق', icon: <WarningIcon />, path: '/guard/emergency' },
       ],
-      GOVERNMENT_OFFICIAL: [
-        { text: 'کارخانه‌ها', icon: <BusinessIcon />, path: '/factories' },
-        { text: 'مجوزهای تردد', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
-        { text: 'فاکتورها', icon: <ReceiptIcon />, path: '/invoices' },
-        { text: 'درخواست‌ها', icon: <AssignmentIcon />, path: '/requests' },
-        { text: 'تحلیل‌ها', icon: <AnalyticsIcon />, path: '/analytics' },
-      ],
+      SUPER_ADMIN: [
+          { text: 'مدیریت شهرک‌ها', icon: <AdminPanelSettingsIcon />, path: '/superadmin/parks' },
+          { text: 'مدیریت کاربران', icon: <SuperAdminIcon />, path: '/superadmin/users' },
+          { text: 'تایید آگهی‌ها', icon: <AdUnitsIcon />, path: '/superadmin/advertisements' },
+          { text: 'تنظیمات پیامک', icon: <SettingsIcon />, path: '/superadmin/sms-config' },
+      ]
     };
 
-    return [...baseItems, ...(roleBasedItems[user?.role] || [])];
+    return [...baseItems, ...(roleBasedItems[user?.role || 'FACTORY_MANAGER'] || [])]; // Default to Factory manager for display
   };
 
   const menuItems = getMenuItems();
@@ -166,27 +152,17 @@ export const DashboardLayout = ({ children }) => {
     <Box sx={{ display: 'flex' }}>
       <AppBarStyled position="fixed" open={open}>
         <Toolbar>
+          {/* <img src="/logo.png" alt="Mekss Logo" style={{ height: 40, marginLeft: 16 }} /> */}
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            سیستم مدیریت مجتمع صنعتی MEKSS
+            سامانه مدیریت شهرک صنعتی مکث
           </Typography>
           <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-            <IconButton
-              size="large"
-              aria-label="show new notifications"
-              color="inherit"
-            >
+            <IconButton size="large" color="inherit">
               <Badge badgeContent={0} color="error">
                 <NotificationsIcon />
               </Badge>
             </IconButton>
-            <IconButton
-              size="large"
-              aria-label="account of current user"
-              aria-controls="menu-appbar"
-              aria-haspopup="true"
-              onClick={handleProfileMenuOpen}
-              color="inherit"
-            >
+            <IconButton size="large" onClick={handleProfileMenuOpen} color="inherit">
               <Avatar sx={{ width: 32, height: 32 }}>
                 {user?.name?.charAt(0) || <AccountCircleIcon />}
               </Avatar>
@@ -205,27 +181,19 @@ export const DashboardLayout = ({ children }) => {
       </AppBarStyled>
       
       <Drawer
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-          },
-        }}
+        sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth } }}
         variant="persistent"
         anchor="right"
         open={open}
       >
         <DrawerHeader>
-          <IconButton onClick={handleDrawerClose}>
-            <MenuIcon />
-          </IconButton>
+          <IconButton onClick={handleDrawerClose}><MenuIcon /></IconButton>
         </DrawerHeader>
         <Divider />
         <List>
           {menuItems.map((item) => (
             <ListItem key={item.text} disablePadding>
-              <ListItemButton onClick={() => window.location.href = item.path}>
+              <ListItemButton onClick={() => handleNavigate(item.path)}>
                 <ListItemIcon>{item.icon}</ListItemIcon>
                 <ListItemText primary={item.text} />
               </ListItemButton>
@@ -235,55 +203,33 @@ export const DashboardLayout = ({ children }) => {
         <Divider />
         <List>
           <ListItem disablePadding>
-            <ListItemButton onClick={() => window.location.href = '/profile'}>
-              <ListItemIcon><PersonIcon /></ListItemIcon>
-              <ListItemText primary="پروفایل" />
-            </ListItemButton>
+            <ListItemButton onClick={() => handleNavigate('/profile')}><ListItemIcon><PersonIcon /></ListItemIcon><ListItemText primary="پروفایل" /></ListItemButton>
           </ListItem>
           <ListItem disablePadding>
-            <ListItemButton onClick={() => window.location.href = '/settings'}>
-              <ListItemIcon><SettingsIcon /></ListItemIcon>
-              <ListItemText primary="تنظیمات" />
-            </ListItemButton>
+            <ListItemButton onClick={() => handleNavigate('/settings')}><ListItemIcon><SettingsIcon /></ListItemIcon><ListItemText primary="تنظیمات" /></ListItemButton>
           </ListItem>
           <ListItem disablePadding>
-            <ListItemButton onClick={handleLogout}>
-              <ListItemIcon><LogoutIcon /></ListItemIcon>
-              <ListItemText primary="خروج" />
-            </ListItemButton>
+            <ListItemButton onClick={handleLogout}><ListItemIcon><LogoutIcon /></ListItemIcon><ListItemText primary="خروج" /></ListItemButton>
           </ListItem>
         </List>
       </Drawer>
       
       <Main open={open}>
         <DrawerHeader />
-        {children}
+        <Outlet />
       </Main>
       
-      {/* Profile Menu */}
       <Menu
         anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         keepMounted
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         open={isMenuOpen}
         onClose={handleProfileMenuClose}
       >
-        <MenuItem onClick={() => { window.location.href = '/profile'; handleProfileMenuClose(); }}>
-          <Typography textAlign="center">پروفایل</Typography>
-        </MenuItem>
-        <MenuItem onClick={() => { window.location.href = '/settings'; handleProfileMenuClose(); }}>
-          <Typography textAlign="center">تنظیمات</Typography>
-        </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <Typography textAlign="center">خروج</Typography>
-        </MenuItem>
+        <MenuItem onClick={() => handleNavigate('/profile')}>پروفایل</MenuItem>
+        <MenuItem onClick={() => handleNavigate('/settings')}>تنظیمات</MenuItem>
+        <MenuItem onClick={handleLogout}>خروج</MenuItem>
       </Menu>
     </Box>
   );

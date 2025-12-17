@@ -7,7 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// enums
+// Enums
+generator json {
+  provider = "prisma-json-types-generator"
+}
+
 enum Role {
   SUPER_ADMIN
   PARK_MANAGER
@@ -27,69 +31,153 @@ enum RequestType {
   CONSTRUCTION_PERMIT
   FINAL_INSPECTION
   APPOINTMENT
+  OTHER
 }
 
 enum InvoiceStatus {
   PENDING
   PAID
   OVERDUE
+  CANCELLED
 }
 
 enum GatePassStatus {
   PENDING
   APPROVED
   REJECTED
+  COMPLETED
+  EXPIRED
 }
 
-// main tables
+enum CargoType {
+  RAW_MATERIALS
+  FINISHED_GOODS
+  WASTE
+  SUPPLIES
+  EQUIPMENT
+  OTHER
+}
+
+enum VehicleType {
+  TRUCK
+  VAN
+  CAR
+  MOTORCYCLE
+  OTHER
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum FactoryStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ParkStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MessageStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum AdvertisementCategory {
+  EQUIPMENT
+  SERVICES
+  RAW_MATERIALS
+  JOB_LISTINGS
+  REAL_ESTATE
+  OTHER
+}
+
+enum AdvertisementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+// Main Models
 model User {
   id                String   @id @default(cuid())
-  phone             String   @unique
-  username          String   @unique
+  phoneNumber       String   @unique
+  username          String?  @unique
   password          String   // hashed
   name              String
-  nationalId        String?  // کد ملی
+  nationalId        String?  @unique // کد ملی
+  email             String?  @unique
   role              Role
   isApproved        Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  avatar            String?  // URL to avatar image
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime?
   
-  // relations
-  factories         Factory[]
-  gatePasses        GatePass[] @relation("createdBy")
-  gatePassesApproved GatePass[] @relation("approvedBy")
-  invoices          Invoice[]
-  messagesSent      Message[] @relation("sender")
-  messagesReceived  Message[] @relation("receiver")
-  requestsCreated   Request[] @relation("creator")
-  requestsApproved  Request[] @relation("approver")
-  securityShifts    SecurityGuard[]
+  // Relations
+  managedFactories  Factory[] @relation("FactoryManager")
+  managedParks      IndustrialPark[] @relation("ParkManager")
+  gatePassesCreated GatePass[] @relation("GatePassCreator")
+  gatePassesApproved GatePass[] @relation("GatePassApprover")
+  invoicesCreated   Invoice[] @relation("InvoiceCreator")
+  invoicesPaid      Invoice[] @relation("InvoicePayer")
+  messagesSent      Message[] @relation("MessageSender")
+  messagesReceived  Message[] @relation("MessageReceiver")
+  requestsCreated   Request[] @relation("RequestCreator")
+  requestsApproved  Request[] @relation("RequestApprover")
   announcements     Announcement[]
   advertisements    Advertisement[]
+  securityShifts    SecurityGuard[] @relation("SecurityUser")
+
+  @@index([phoneNumber])
+  @@index([role])
+  @@index([isApproved])
 }
 
 model Factory {
   id                String   @id @default(cuid())
   name              String
-  licenseNumber     String   // شناسه واحد صنعتی
+  licenseNumber     String   // شماره مجوز
+  licenseExpiry     DateTime?
   nationalId        String   // شناسه ملی شرکت
-  activityType      String
+  activityType      String   // نوع فعالیت
   address           String
   location          Json?    // {lat: number, lng: number}
-  phone1            String
-  phone2            String?
-  fax               String?
+  phoneNumber       String
   email             String?
-  socialMedia       Json?    // {instagram, telegram}
+  website           String?
+  description       String?
+  establishedDate   DateTime?
+  employees         Int      @default(0)
+  status            FactoryStatus @default(PENDING)
+  isApproved        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
-  // relations
+  // Relations
   managerId         String
-  manager           User     @relation(fields: [managerId], references: [id])
+  manager           User     @relation("FactoryManager", fields: [managerId], references: [id])
   parkId            String
   park              IndustrialPark @relation(fields: [parkId], references: [id])
+  employeesList     FactoryEmployee[]
   gatePasses        GatePass[]
   invoices          Invoice[]
   requests          Request[]
+
+  @@index([managerId])
+  @@index([parkId])
+  @@index([status])
+  @@index([isApproved])
 }
 
 model IndustrialPark {
@@ -98,126 +186,241 @@ model IndustrialPark {
   province          String
   city              String
   address           String
+  phoneNumber       String
+  email             String?
   guardPhone        String   // شماره نگهبانی
-  logo              String?  // MinIO URL
+  totalArea         Int      @default(0) // متر مربع
+  totalFactories    Int      @default(0)
+  activeFactories   Int      @default(0)
+  establishedDate   DateTime?
+  description       String?
+  logo              String?  // URL to logo
+  status            ParkStatus @default(ACTIVE)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
-  // relations
+  // Relations
   factories         Factory[]
+  managers          User[]   @relation("ParkManager")
   announcements     Announcement[]
   securityGuards    SecurityGuard[]
+
+  @@index([province, city])
+}
+
+model FactoryEmployee {
+  id                String   @id @default(cuid())
+  name              String
+  phoneNumber       String
+  nationalId        String   @unique
+  email             String?  @unique
+  position          String
+  department        String
+  hireDate          DateTime
+  salary            Decimal  @db.Decimal(15, 2)
+  status            EmployeeStatus @default(ACTIVE)
+  emergencyContact  String?
+  address           String?
+  birthDate         DateTime?
+  avatar            String?  // URL to avatar
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  factoryId         String
+  factory           Factory  @relation(fields: [factoryId], references: [id])
+
+  @@index([factoryId])
+  @@index([status])
+  @@index([phoneNumber])
 }
 
 model GatePass {
   id                String   @id @default(cuid())
-  cargoType         String
+  cargoType         CargoType
+  cargoDescription  String?
   driverName        String
   driverNationalId  String
-  vehicleType       String
+  driverPhone       String
+  vehicleType       VehicleType
   licensePlate      String   // پلاک خودرو
+  licensePlatePhoto String?  // URL to photo
   exitDate          DateTime
+  entryDate         DateTime?
   status            GatePassStatus @default(PENDING)
+  notes             String?
+  qrCode            String?  // Generated QR code data
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
-  // relations
+  // Relations
   factoryId         String
   factory           Factory  @relation(fields: [factoryId], references: [id])
   createdById       String
-  createdBy         User     @relation("createdBy", fields: [createdById], references: [id])
+  createdBy         User     @relation("GatePassCreator", fields: [createdById], references: [id])
   approvedById      String?
-  approvedBy        User?    @relation("approvedBy", fields: [approvedById], references: [id])
-  approvedAt        DateTime?
+  approvedBy        User?    @relation("GatePassApprover", fields: [approvedById], references: [id])
+  verifiedById      String?
+  verifiedBy        User?    @relation("GatePassVerifier", fields: [verifiedById], references: [id])
+  verifiedAt        DateTime?
   
-  @@index([factoryId, createdAt])
+  @@index([factoryId, status])
+  @@index([createdAt])
+  @@index([driverNationalId])
+  @@index([licensePlate])
 }
 
 model Invoice {
   id                String   @id @default(cuid())
+  invoiceNumber     String   @unique
   amount            Decimal  @db.Decimal(15, 2)
+  taxAmount         Decimal  @db.Decimal(15, 2) @default(0)
+  totalAmount       Decimal  @db.Decimal(15, 2)
   description       String
   issueDate         DateTime @default(now())
+  dueDate           DateTime
   status            InvoiceStatus @default(PENDING)
   paymentDate       DateTime?
+  paymentMethod     String?
+  paymentRef        String?  // ZarinPal ref
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
-  // relations
+  // Relations
   factoryId         String
   factory           Factory  @relation(fields: [factoryId], references: [id])
   createdById       String
-  createdBy         User     @relation(fields: [createdById], references: [id])
+  createdBy         User     @relation("InvoiceCreator", fields: [createdById], references: [id])
+  paidById          String?
+  paidBy            User?    @relation("InvoicePayer", fields: [paidById], references: [id])
   
   @@index([factoryId, status])
+  @@index([dueDate])
+  @@index([status])
 }
 
 model Message {
   id                String   @id @default(cuid())
   subject           String
   body              String   @db.Text
-  isRead            Boolean  @default(false)
+  status            MessageStatus @default(UNREAD)
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
-  // relations
+  // Relations
   senderId          String
-  sender            User     @relation("sender", fields: [senderId], references: [id])
+  sender            User     @relation("MessageSender", fields: [senderId], references: [id])
   receiverId        String
-  receiver          User     @relation("receiver", fields: [receiverId], references: [id])
+  receiver          User     @relation("MessageReceiver", fields: [receiverId], references: [id])
   
-  @@index([receiverId, isRead])
+  @@index([receiverId, status])
+  @@index([createdAt])
 }
 
 model Request {
   id                String   @id @default(cuid())
   type              RequestType
+  title             String
+  description       String   @db.Text
   data              Json     // flexible form data
+  attachments       String[] // URLs to files
   status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  priority          String?  // LOW, MEDIUM, HIGH, URGENT
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  submittedAt       DateTime?
   approvedAt        DateTime?
+  rejectedAt        DateTime?
+  rejectionReason   String?
   
-  // relations
+  // Relations
   creatorId         String
-  creator           User     @relation("creator", fields: [creatorId], references: [id])
+  creator           User     @relation("RequestCreator", fields: [creatorId], references: [id])
   approverId        String?
-  approver          User?    @relation("approver", fields: [approverId], references: [id])
+  approver          User?    @relation("RequestApprover", fields: [approverId], references: [id])
   factoryId         String
   factory           Factory  @relation(fields: [factoryId], references: [id])
+
+  @@index([factoryId, status])
+  @@index([creatorId])
+  @@index([createdAt])
 }
 
 model Announcement {
   id                String   @id @default(cuid())
   title             String
   content           String   @db.Text
-  isGlobal          Boolean  @default(false) // true = for all parks
+  isGlobal          Boolean  @default(false)
+  isPinned          Boolean  @default(false)
+  priority          Int      @default(0) // 0=normal, 1=high, 2=urgent
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  expiresAt         DateTime?
   
-  // relations
+  // Relations
   parkId            String?
   park              IndustrialPark? @relation(fields: [parkId], references: [id])
   createdById       String
   createdBy         User     @relation(fields: [createdById], references: [id])
+
+  @@index([parkId, createdAt])
+  @@index([isGlobal, createdAt])
 }
 
 model Advertisement {
   id                String   @id @default(cuid())
   title             String
-  category          String   // فروش ملک، استخدام، ماشین‌آلات
+  category          AdvertisementCategory
   province          String
   city              String
   content           String   @db.Text
-  contactInfo       Json
+  price             Decimal? @db.Decimal(15, 2)
+  contactInfo       Json     // {name, phone, email}
   images            String[] // MinIO URLs
   isApproved        Boolean  @default(false)
+  rejectionReason   String?
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  expiresAt         DateTime?
   
-  // relations
+  // Relations
   createdById       String
   createdBy         User     @relation(fields: [createdById], references: [id])
+
+  @@index([category, isApproved])
+  @@index([province, city])
+  @@index([createdAt])
 }
 
 model SecurityGuard {
   id                String   @id @default(cuid())
   shiftStart        DateTime
   shiftEnd          DateTime
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
   
-  // relations
+  // Relations
   userId            String
-  user              User     @relation(fields: [userId], references: [id])
+  user              User     @relation("SecurityUser", fields: [userId], references: [id])
   parkId            String
   park              IndustrialPark @relation(fields: [parkId], references: [id])
+
+  @@index([userId, shiftStart])
+  @@index([parkId, isActive])
+}
+
+// Audit Log for tracking user actions
+model AuditLog {
+  id                String   @id @default(cuid())
+  userId            String
+  action            String   // CREATE, UPDATE, DELETE, VIEW
+  entity            String   // Factory, User, etc.
+  entityId          String
+  changes           Json?    // For UPDATE actions
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
 }

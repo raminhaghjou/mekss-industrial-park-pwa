@@ -138,7 +138,7 @@ model User {
   announcements     Announcement[]
   advertisements    Advertisement[]
   securityShifts    SecurityGuard[] @relation("SecurityUser")
-  
+
   @@index([phoneNumber])
   @@index([role])
   @@index([isApproved])
@@ -173,7 +173,7 @@ model Factory {
   gatePasses        GatePass[]
   invoices          Invoice[]
   requests          Request[]
-  
+
   @@index([managerId])
   @@index([parkId])
   @@index([status])
@@ -204,7 +204,7 @@ model IndustrialPark {
   managers          User[]   @relation("ParkManager")
   announcements     Announcement[]
   securityGuards    SecurityGuard[]
-  
+
   @@index([province, city])
 }
 
@@ -225,11 +225,11 @@ model FactoryEmployee {
   avatar            String?  // URL to avatar
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  
+
   // Relations
   factoryId         String
   factory           Factory  @relation(fields: [factoryId], references: [id])
-  
+
   @@index([factoryId])
   @@index([status])
   @@index([phoneNumber])
@@ -340,7 +340,7 @@ model Request {
   approver          User?    @relation("RequestApprover", fields: [approverId], references: [id])
   factoryId         String
   factory           Factory  @relation(fields: [factoryId], references: [id])
-  
+
   @@index([factoryId, status])
   @@index([creatorId])
   @@index([createdAt])
@@ -362,7 +362,7 @@ model Announcement {
   park              IndustrialPark? @relation(fields: [parkId], references: [id])
   createdById       String
   createdBy         User     @relation(fields: [createdById], references: [id])
-  
+
   @@index([parkId, createdAt])
   @@index([isGlobal, createdAt])
 }
@@ -386,7 +386,7 @@ model Advertisement {
   // Relations
   createdById       String
   createdBy         User     @relation(fields: [createdById], references: [id])
-  
+
   @@index([category, isApproved])
   @@index([province, city])
   @@index([createdAt])
@@ -404,7 +404,7 @@ model SecurityGuard {
   user              User     @relation("SecurityUser", fields: [userId], references: [id])
   parkId            String
   park              IndustrialPark @relation(fields: [parkId], references: [id])
-  
+
   @@index([userId, shiftStart])
   @@index([parkId, isActive])
 }
@@ -420,7 +420,7 @@ model AuditLog {
   ipAddress         String?
   userAgent         String?
   createdAt         DateTime @default(now())
-  
+
   @@index([userId, createdAt])
   @@index([entity, entityId])
 }

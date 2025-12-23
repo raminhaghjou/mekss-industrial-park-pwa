@@ -32,12 +32,11 @@ export class GatePassService {
     if (user.role === Role.FACTORY_MANAGER) {
       where.factoryId = user.factoryId;
     } else if (user.role === Role.PARK_MANAGER) {
-      // Get factories in user's park
-      const factories = await this.prisma.factory.findMany({
-        where: { parkId: user.parkId },
-        select: { id: true },
-      });
-      where.factoryId = { in: factories.map(f => f.id) };
+      // OPTIMIZED: Replaced N+1 query with a single relation filter.
+      // This avoids fetching all factories first, improving performance.
+      where.factory = {
+        parkId: user.parkId,
+      };
     }
 
     // Apply filters
@@ -369,11 +368,10 @@ export class GatePassService {
     if (user.role === Role.FACTORY_MANAGER) {
       where.factoryId = user.factoryId;
     } else if (user.role === Role.PARK_MANAGER) {
-      const factories = await this.prisma.factory.findMany({
-        where: { parkId: user.parkId },
-        select: { id: true },
-      });
-      where.factoryId = { in: factories.map(f => f.id) };
+      // OPTIMIZED: Replaced N+1 query with a single relation filter.
+      where.factory = {
+        parkId: user.parkId,
+      };
     }
 
     const stats = await this.prisma.gatePass.groupBy({
@@ -419,11 +417,10 @@ export class GatePassService {
     if (user.role === Role.FACTORY_MANAGER) {
       where.factoryId = user.factoryId;
     } else if (user.role === Role.PARK_MANAGER) {
-      const factories = await this.prisma.factory.findMany({
-        where: { parkId: user.parkId },
-        select: { id: true },
-      });
-      where.factoryId = { in: factories.map(f => f.id) };
+      // OPTIMIZED: Replaced N+1 query with a single relation filter.
+      where.factory = {
+        parkId: user.parkId,
+      };
     }
 
     if (filters.startDate) {

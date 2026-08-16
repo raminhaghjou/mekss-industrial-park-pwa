@@ -7,14 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enums
-
 enum Role {
   SUPER_ADMIN
   PARK_MANAGER
-  FACTORY_MANAGER
+  FACTORY_OWNER
   SECURITY_GUARD
-  GUEST
+  GOVERNMENT_OFFICIAL
   EMPLOYEE
 }
 
@@ -31,10 +29,31 @@ enum RequestType {
   OTHER
 }
 
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum RequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum InvoiceStatus {
   PENDING
   PAID
   OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  INITIATED
+  VERIFIED
+  FAILED
   CANCELLED
 }
 
@@ -104,164 +123,189 @@ enum AdvertisementStatus {
   EXPIRED
 }
 
-// Main Models
-model User {
-  id                String   @id @default(cuid())
-  phoneNumber       String   @unique
-  username          String?  @unique
-  password          String   // hashed
-  name              String
-  nationalId        String?  @unique // کد ملی
-  email             String?  @unique
-  role              Role
-  isApproved        Boolean  @default(false)
-  isActive          Boolean  @default(true)
-  avatar            String?  // URL to avatar image
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  lastLoginAt       DateTime?
-  
-  // Relations
-  managedFactories  Factory[] @relation("FactoryManager")
-  managedParks      IndustrialPark[] @relation("ParkManager")
-  gatePassesCreated GatePass[] @relation("GatePassCreator")
-  gatePassesApproved GatePass[] @relation("GatePassApprover")
-  gatePassesVerified GatePass[] @relation("GatePassVerifier")
-  invoicesCreated   Invoice[] @relation("InvoiceCreator")
-  invoicesPaid      Invoice[] @relation("InvoicePayer")
-  messagesSent      Message[] @relation("MessageSender")
-  messagesReceived  Message[] @relation("MessageReceiver")
-  requestsCreated   Request[] @relation("RequestCreator")
-  requestsApproved  Request[] @relation("RequestApprover")
-  announcements     Announcement[]
-  advertisements    Advertisement[]
-  securityShifts    SecurityGuard[] @relation("SecurityUser")
-
-  @@index([phoneNumber])
-  @@index([role])
-  @@index([isApproved])
+enum OtpPurpose {
+  LOGIN
+  PASSWORD_RESET
+  SENSITIVE_ACTION
 }
 
-model Factory {
-  id                String   @id @default(cuid())
-  name              String
-  licenseNumber     String   // شماره مجوز
-  licenseExpiry     DateTime?
-  nationalId        String   // شناسه ملی شرکت
-  activityType      String   // نوع فعالیت
-  address           String
-  location          Json?    // {lat: number, lng: number}
-  phoneNumber       String
-  email             String?
-  website           String?
-  description       String?
-  establishedDate   DateTime?
-  employees         Int      @default(0)
-  status            FactoryStatus @default(PENDING)
-  isApproved        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  managerId         String
-  manager           User     @relation("FactoryManager", fields: [managerId], references: [id])
-  parkId            String
-  park              IndustrialPark @relation(fields: [parkId], references: [id])
-  employeesList     FactoryEmployee[]
-  gatePasses        GatePass[]
-  invoices          Invoice[]
-  requests          Request[]
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  EMERGENCY
+}
 
-  @@index([managerId])
-  @@index([parkId])
-  @@index([status])
-  @@index([isApproved])
+enum EmergencySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EmergencyStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  phoneNumber        String   @unique
+  username           String?  @unique
+  password           String
+  name               String
+  nationalId         String?  @unique
+  email              String?  @unique
+  role               Role     @default(EMPLOYEE)
+  isApproved         Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(false)
+  avatar             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  lastLoginAt        DateTime?
+
+  managedFactories   Factory[]            @relation("FactoryOwner")
+  managedParks       IndustrialPark[]     @relation("ParkManager")
+  gatePassesCreated  GatePass[]           @relation("GatePassCreator")
+  gatePassesApproved GatePass[]           @relation("GatePassApprover")
+  gatePassesVerified GatePass[]           @relation("GatePassVerifier")
+  invoicesCreated    Invoice[]            @relation("InvoiceCreator")
+  invoicesPaid       Invoice[]            @relation("InvoicePayer")
+  messagesSent       Message[]            @relation("MessageSender")
+  messagesReceived   Message[]            @relation("MessageReceiver")
+  requestsCreated    Request[]            @relation("RequestCreator")
+  requestsApproved   Request[]            @relation("RequestApprover")
+  announcements      Announcement[]
+  advertisements     Advertisement[]
+  securityShifts     SecurityGuard[]      @relation("SecurityUser")
+  refreshTokens      RefreshToken[]
+  otpChallenges      OtpChallenge[]
+  notifications      Notification[]
+  emergencies        EmergencyAlert[]
+  auditLogs          AuditLog[]           @relation("AuditActor")
+  paymentAttempts    PaymentTransaction[] @relation("PaymentInitiator")
+
+  @@index([role, isApproved, isActive])
 }
 
 model IndustrialPark {
-  id                String   @id @default(cuid())
-  name              String
-  province          String
-  city              String
-  address           String
-  phoneNumber       String
-  email             String?
-  guardPhone        String   // شماره نگهبانی
-  totalArea         Int      @default(0) // متر مربع
-  totalFactories    Int      @default(0)
-  activeFactories   Int      @default(0)
-  establishedDate   DateTime?
-  description       String?
-  logo              String?  // URL to logo
-  status            ParkStatus @default(ACTIVE)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  factories         Factory[]
-  managers          User[]   @relation("ParkManager")
-  announcements     Announcement[]
-  securityGuards    SecurityGuard[]
+  id              String     @id @default(cuid())
+  code            String     @unique
+  name            String
+  province        String
+  city            String
+  address         String
+  phoneNumber     String
+  email           String?
+  guardPhone      String
+  totalArea       Int        @default(0)
+  totalFactories  Int        @default(0)
+  activeFactories Int        @default(0)
+  establishedDate DateTime?
+  description     String?
+  logo            String?
+  status          ParkStatus @default(ACTIVE)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  factories       Factory[]
+  managers        User[]          @relation("ParkManager")
+  announcements   Announcement[]
+  securityGuards  SecurityGuard[]
 
   @@index([province, city])
+  @@index([status])
+}
+
+model Factory {
+  id              String        @id @default(cuid())
+  name            String
+  licenseNumber   String        @unique
+  licenseExpiry   DateTime?
+  nationalId      String        @unique
+  activityType    String
+  address         String
+  location        Json?
+  phoneNumber     String
+  email           String?
+  website         String?
+  description     String?
+  establishedDate DateTime?
+  employees       Int           @default(0)
+  status          FactoryStatus @default(PENDING)
+  isApproved      Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  managerId       String
+  manager         User              @relation("FactoryOwner", fields: [managerId], references: [id])
+  parkId          String
+  park            IndustrialPark    @relation(fields: [parkId], references: [id])
+  employeesList   FactoryEmployee[]
+  gatePasses      GatePass[]
+  invoices        Invoice[]
+  requests        Request[]
+
+  @@index([managerId])
+  @@index([parkId, status])
+  @@index([isApproved])
 }
 
 model FactoryEmployee {
-  id                String   @id @default(cuid())
-  name              String
-  phoneNumber       String
-  nationalId        String   @unique
-  email             String?  @unique
-  position          String
-  department        String
-  hireDate          DateTime
-  salary            Decimal  @db.Decimal(15, 2)
-  status            EmployeeStatus @default(ACTIVE)
-  emergencyContact  String?
-  address           String?
-  birthDate         DateTime?
-  avatar            String?  // URL to avatar
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String         @id @default(cuid())
+  name             String
+  phoneNumber      String
+  nationalId       String         @unique
+  email            String?        @unique
+  position         String
+  department       String
+  hireDate         DateTime
+  salary           Decimal        @db.Decimal(15, 2)
+  status           EmployeeStatus @default(ACTIVE)
+  emergencyContact String?
+  address          String?
+  birthDate        DateTime?
+  avatar           String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  // Relations
-  factoryId         String
-  factory           Factory  @relation(fields: [factoryId], references: [id])
+  factoryId        String
+  factory          Factory        @relation(fields: [factoryId], references: [id], onDelete: Cascade)
 
-  @@index([factoryId])
-  @@index([status])
+  @@index([factoryId, status])
   @@index([phoneNumber])
 }
 
 model GatePass {
-  id                String   @id @default(cuid())
+  id                String         @id @default(cuid())
   cargoType         CargoType
   cargoDescription  String?
   driverName        String
   driverNationalId  String
   driverPhone       String
   vehicleType       VehicleType
-  licensePlate      String   // پلاک خودرو
-  licensePlatePhoto String?  // URL to photo
+  licensePlate      String
+  licensePlatePhoto String?
   exitDate          DateTime
   entryDate         DateTime?
   status            GatePassStatus @default(PENDING)
   notes             String?
-  qrCode            String?  // Generated QR code data
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
+  qrCode            String?        @unique
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  verifiedAt        DateTime?
+
   factoryId         String
-  factory           Factory  @relation(fields: [factoryId], references: [id])
+  factory           Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
   createdById       String
   createdBy         User     @relation("GatePassCreator", fields: [createdById], references: [id])
   approvedById      String?
   approvedBy        User?    @relation("GatePassApprover", fields: [approvedById], references: [id])
   verifiedById      String?
   verifiedBy        User?    @relation("GatePassVerifier", fields: [verifiedById], references: [id])
-  verifiedAt        DateTime?
-  
+
   @@index([factoryId, status])
   @@index([createdAt])
   @@index([driverNationalId])
@@ -269,155 +313,236 @@ model GatePass {
 }
 
 model Invoice {
-  id                String   @id @default(cuid())
-  invoiceNumber     String   @unique
-  amount            Decimal  @db.Decimal(15, 2)
-  taxAmount         Decimal  @db.Decimal(15, 2) @default(0)
-  totalAmount       Decimal  @db.Decimal(15, 2)
-  description       String
-  issueDate         DateTime @default(now())
-  dueDate           DateTime
-  status            InvoiceStatus @default(PENDING)
-  paymentDate       DateTime?
-  paymentMethod     String?
-  paymentRef        String?  // ZarinPal ref
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  factoryId         String
-  factory           Factory  @relation(fields: [factoryId], references: [id])
-  createdById       String
-  createdBy         User     @relation("InvoiceCreator", fields: [createdById], references: [id])
-  paidById          String?
-  paidBy            User?    @relation("InvoicePayer", fields: [paidById], references: [id])
-  
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  amount        Decimal       @db.Decimal(15, 2)
+  taxAmount     Decimal       @db.Decimal(15, 2) @default(0)
+  totalAmount   Decimal       @db.Decimal(15, 2)
+  description   String
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  status        InvoiceStatus @default(PENDING)
+  paymentDate   DateTime?
+  paymentMethod String?
+  paymentRef    String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  factoryId     String
+  factory       Factory              @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User                 @relation("InvoiceCreator", fields: [createdById], references: [id])
+  paidById      String?
+  paidBy        User?                @relation("InvoicePayer", fields: [paidById], references: [id])
+  payments      PaymentTransaction[]
+
   @@index([factoryId, status])
   @@index([dueDate])
-  @@index([status])
+}
+
+model PaymentTransaction {
+  id             String        @id @default(cuid())
+  authority      String        @unique
+  amount         Decimal       @db.Decimal(15, 2)
+  status         PaymentStatus @default(INITIATED)
+  provider       String        @default("ZARINPAL")
+  referenceId    String?       @unique
+  providerStatus Json?
+  verifiedAt     DateTime?
+  failureReason  String?
+  idempotencyKey String        @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  invoiceId      String
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  initiatedById  String?
+  initiatedBy    User?         @relation("PaymentInitiator", fields: [initiatedById], references: [id])
+
+  @@index([invoiceId, status])
 }
 
 model Message {
-  id                String   @id @default(cuid())
-  subject           String
-  body              String   @db.Text
-  status            MessageStatus @default(UNREAD)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  // Relations
-  senderId          String
-  sender            User     @relation("MessageSender", fields: [senderId], references: [id])
-  receiverId        String
-  receiver          User     @relation("MessageReceiver", fields: [receiverId], references: [id])
-  
+  id         String        @id @default(cuid())
+  subject    String
+  body       String        @db.Text
+  status     MessageStatus @default(UNREAD)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  senderId   String
+  sender     User          @relation("MessageSender", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User          @relation("MessageReceiver", fields: [receiverId], references: [id])
+
   @@index([receiverId, status])
   @@index([createdAt])
 }
 
 model Request {
-  id                String   @id @default(cuid())
-  type              RequestType
-  title             String
-  description       String   @db.Text
-  data              Json     // flexible form data
-  attachments       String[] // URLs to files
-  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  priority          String?  // LOW, MEDIUM, HIGH, URGENT
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  submittedAt       DateTime?
-  approvedAt        DateTime?
-  rejectedAt        DateTime?
-  rejectionReason   String?
-  
-  // Relations
-  creatorId         String
-  creator           User     @relation("RequestCreator", fields: [creatorId], references: [id])
-  approverId        String?
-  approver          User?    @relation("RequestApprover", fields: [approverId], references: [id])
-  factoryId         String
-  factory           Factory  @relation(fields: [factoryId], references: [id])
+  id              String          @id @default(cuid())
+  type            RequestType
+  title           String
+  description     String          @db.Text
+  data            Json
+  attachments     String[]
+  status          RequestStatus   @default(PENDING)
+  priority        RequestPriority @default(MEDIUM)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  creatorId       String
+  creator         User     @relation("RequestCreator", fields: [creatorId], references: [id])
+  approverId      String?
+  approver        User?    @relation("RequestApprover", fields: [approverId], references: [id])
+  factoryId       String
+  factory         Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
 
   @@index([factoryId, status])
-  @@index([creatorId])
-  @@index([createdAt])
+  @@index([creatorId, createdAt])
 }
 
 model Announcement {
-  id                String   @id @default(cuid())
-  title             String
-  content           String   @db.Text
-  isGlobal          Boolean  @default(false)
-  isPinned          Boolean  @default(false)
-  priority          Int      @default(0) // 0=normal, 1=high, 2=urgent
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  expiresAt         DateTime?
-  
-  // Relations
-  parkId            String?
-  park              IndustrialPark? @relation(fields: [parkId], references: [id])
-  createdById       String
-  createdBy         User     @relation(fields: [createdById], references: [id])
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  isGlobal    Boolean  @default(false)
+  isPinned    Boolean  @default(false)
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime?
+
+  parkId      String?
+  park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: SetNull)
+  createdById String
+  createdBy   User            @relation(fields: [createdById], references: [id])
 
   @@index([parkId, createdAt])
   @@index([isGlobal, createdAt])
 }
 
 model Advertisement {
-  id                String   @id @default(cuid())
-  title             String
-  category          AdvertisementCategory
-  province          String
-  city              String
-  content           String   @db.Text
-  price             Decimal? @db.Decimal(15, 2)
-  contactInfo       Json     // {name, phone, email}
-  images            String[] // MinIO URLs
-  isApproved        Boolean  @default(false)
-  rejectionReason   String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  expiresAt         DateTime?
-  
-  // Relations
-  createdById       String
-  createdBy         User     @relation(fields: [createdById], references: [id])
+  id              String              @id @default(cuid())
+  title           String
+  category        AdvertisementCategory
+  province        String
+  city            String
+  content         String              @db.Text
+  price           Decimal?            @db.Decimal(15, 2)
+  contactInfo     Json
+  images          String[]
+  status          AdvertisementStatus @default(PENDING)
+  isApproved      Boolean             @default(false)
+  rejectionReason String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  expiresAt       DateTime?
 
-  @@index([category, isApproved])
+  createdById     String
+  createdBy       User                @relation(fields: [createdById], references: [id])
+
+  @@index([category, status])
   @@index([province, city])
   @@index([createdAt])
 }
 
 model SecurityGuard {
-  id                String   @id @default(cuid())
-  shiftStart        DateTime
-  shiftEnd          DateTime
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  
-  // Relations
-  userId            String
-  user              User     @relation("SecurityUser", fields: [userId], references: [id])
-  parkId            String
-  park              IndustrialPark @relation(fields: [parkId], references: [id])
+  id         String   @id @default(cuid())
+  shiftStart DateTime
+  shiftEnd   DateTime
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
+  userId     String
+  user       User           @relation("SecurityUser", fields: [userId], references: [id], onDelete: Cascade)
+  parkId     String
+  park       IndustrialPark @relation(fields: [parkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shiftStart])
   @@index([userId, shiftStart])
   @@index([parkId, isActive])
 }
 
-// Audit Log for tracking user actions
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model OtpChallenge {
+  id        String     @id @default(cuid())
+  codeHash  String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  attempts  Int        @default(0)
+  consumedAt DateTime?
+  createdAt DateTime   @default(now())
+
+  phoneNumber String
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([phoneNumber, purpose, expiresAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  body      String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model EmergencyAlert {
+  id          String            @id @default(cuid())
+  title       String
+  description String             @db.Text
+  severity    EmergencySeverity
+  status      EmergencyStatus    @default(OPEN)
+  location    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  resolvedAt  DateTime?
+
+  createdById String
+  createdBy   User               @relation(fields: [createdById], references: [id])
+
+  @@index([status, severity, createdAt])
+}
+
 model AuditLog {
-  id                String   @id @default(cuid())
-  userId            String
-  action            String   // CREATE, UPDATE, DELETE, VIEW
-  entity            String   // Factory, User, etc.
-  entityId          String
-  changes           Json?    // For UPDATE actions
-  ipAddress         String?
-  userAgent         String?
-  createdAt         DateTime @default(now())
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  userId    String?
+  user      User?    @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([entity, entityId])

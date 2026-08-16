@@ -1,77 +1,35 @@
-const CACHE_NAME = 'mekss-industrial-park-cache-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
-];
+const CACHE_NAME = 'mekss-static-v2';
+const APP_SHELL = ['/', '/index.html', '/manifest.json', '/offline.html', '/icons/icon.svg'];
 
-// Install Event
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  self.skipWaiting();
 });
 
-// Fetch Event
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        return response || fetch(event.request).then((fetchResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, fetchResponse.clone());
-            return fetchResponse;
-          });
-        });
-      })
-  );
-});
-
-// Activate Event
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))));
+  self.clients.claim();
 });
 
-// --- Push Notification Logic ---
-
-// Listen for push events
-self.addEventListener('push', (event) => {
-  const data = event.data.json(); // Assuming the server sends a JSON payload
-  console.log('Push received:', data);
-
-  const title = data.title || 'Mekss Industrial Park';
-  const options = {
-    body: data.body || 'You have a new notification.',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png', // Icon for the notification tray
-    data: {
-        url: data.url || '/' // URL to open when notification is clicked
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+  // Never cache API, authenticated, mutation, or cross-origin requests.
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+    if (response.ok && (request.destination === 'script' || request.destination === 'style' || request.destination === 'image' || request.destination === 'document')) {
+      caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
     }
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+    return response;
+  }).catch(() => request.mode === 'navigate' ? caches.match('/offline.html') : Response.error())));
 });
 
-// Listen for notification click events
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close(); // Close the notification
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() || {};
+  event.waitUntil(self.registration.showNotification(data.title || 'MEKSS', { body: data.body || 'اعلان جدید دارید.', icon: '/icons/icon.svg', data: { url: data.url || '/' } }));
+});
 
-  // Open the app or a specific URL
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url || '/')
-  );
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow(event.notification.data?.url || '/'));
 });

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false
+  },
+  "include": ["src/main.ts", "src/app.module.ts", "src/core/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "src/advertisement", "src/analytics", "src/announcement", "src/auth", "src/emergency", "src/factory", "src/gate-pass", "src/invoice", "src/message", "src/request", "src/shared"]
+}

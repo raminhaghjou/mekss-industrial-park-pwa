@@ -112,7 +112,7 @@ export const DashboardLayout = () => {
     ];
 
     const roleBasedItems = {
-      FACTORY_MANAGER: [
+      FACTORY_OWNER: [
         { text: 'برگ خروج', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
         { text: 'قبض‌ها', icon: <ReceiptIcon />, path: '/invoices' },
         { text: 'صندوق پیام', icon: <MessageIcon />, path: '/messages' },
@@ -135,6 +135,10 @@ export const DashboardLayout = () => {
         { text: 'برگ‌های خروج در انتظار', icon: <SecurityIcon />, path: '/guard/gate-passes' },
         { text: 'مشاهده اعلام حریق', icon: <WarningIcon />, path: '/guard/emergency' },
       ],
+      GOVERNMENT_OFFICIAL: [
+        { text: 'گزارش‌ها و آمار', icon: <AnalyticsIcon />, path: '/admin/reports' },
+        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
+      ],
       SUPER_ADMIN: [
           { text: 'مدیریت شهرک‌ها', icon: <AdminPanelSettingsIcon />, path: '/superadmin/parks' },
           { text: 'مدیریت کاربران', icon: <SuperAdminIcon />, path: '/superadmin/users' },
@@ -143,7 +147,7 @@ export const DashboardLayout = () => {
       ]
     };
 
-    return [...baseItems, ...(roleBasedItems[user?.role || 'FACTORY_MANAGER'] || [])]; // Default to Factory manager for display
+    return [...baseItems, ...(roleBasedItems[user?.role] || [])];
   };
 
   const menuItems = getMenuItems();

@@ -27,22 +27,22 @@
     "reducedMotion": true,
     "route": "/dashboard",
     "currentResult": {
-      "placeholderData": true,
+      "placeholderData": false,
       "mockData": false,
       "emptyOrConsoleHandler": false,
       "browserOnlyMutation": false,
       "falseSuccess": false,
-      "missingAuthorizationOrScope": true,
+      "missingAuthorizationOrScope": false,
       "missingValidationOrConfirmation": false,
-      "unhandledState": true,
+      "unhandledState": false,
       "inaccessibleControl": true,
       "responsiveOverflow": true,
       "invalidInstallLifecycle": true,
       "unsafeOfflineMutation": true,
-      "failingRequiredCheck": true
+      "failingRequiredCheck": false
     },
     "observedResult": {
-      "serverConfirmed": false,
+      "serverConfirmed": true,
       "durable": false,
       "exactlyIntendedChange": false,
       "preservesUnrelatedRecords": false,
@@ -150,18 +150,15 @@
         "registered": true,
         "mockData": false,
         "fabricatedIdentifier": false,
-        "apiBacked": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
-        "placeholder": true,
+        "placeholder": false,
         "controls": 0,
         "unboundControls": 0,
         "formSubmissions": 0
       },
-      "defects": [
-        "no-api-query-or-mutation",
-        "placeholder-surface"
-      ]
+      "defects": []
     },
     {
       "route": "/admin/factories",
@@ -174,22 +171,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
-        "apiBacked": false,
-        "browserDialog": true,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": true,
+        "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 3,
-        "unboundControls": 1,
+        "controls": 2,
+        "unboundControls": 0,
         "formSubmissions": 0
       },
-      "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "browser-dialog-false-feedback",
-        "visible-unbound-controls"
-      ]
+      "defects": []
     },
     {
       "route": "/admin/invoices",
@@ -202,20 +194,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
-        "apiBacked": false,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
-        "placeholder": true,
-        "controls": 3,
-        "unboundControls": 3,
+        "placeholder": false,
+        "controls": 1,
+        "unboundControls": 1,
         "formSubmissions": 0
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "placeholder-surface",
         "visible-unbound-controls"
       ]
     },
@@ -228,23 +217,18 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
+        "mockData": false,
         "fabricatedIdentifier": false,
-        "apiBacked": false,
-        "browserDialog": true,
-        "consoleOnly": true,
+        "apiBacked": true,
+        "browserDialog": false,
+        "consoleOnly": false,
         "placeholder": false,
         "controls": 2,
         "unboundControls": 1,
         "formSubmissions": 1
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "browser-dialog-false-feedback",
-        "console-only-operation",
-        "visible-unbound-controls",
-        "browser-only-form"
+        "visible-unbound-controls"
       ]
     },
     {
@@ -258,22 +242,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
-        "apiBacked": false,
-        "browserDialog": true,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": true,
+        "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 3,
-        "unboundControls": 1,
+        "controls": 2,
+        "unboundControls": 0,
         "formSubmissions": 0
       },
-      "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "browser-dialog-false-feedback",
-        "visible-unbound-controls"
-      ]
+      "defects": []
     },
     {
       "route": "/admin/requests",
@@ -286,21 +265,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
-        "apiBacked": false,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 3,
-        "unboundControls": 3,
+        "controls": 2,
+        "unboundControls": 0,
         "formSubmissions": 0
       },
-      "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "visible-unbound-controls"
-      ]
+      "defects": []
     },
     {
       "route": "/admin/messages",
@@ -311,22 +286,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
+        "mockData": false,
         "fabricatedIdentifier": false,
-        "apiBacked": false,
-        "browserDialog": true,
+        "apiBacked": true,
+        "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
         "controls": 1,
         "unboundControls": 0,
         "formSubmissions": 1
       },
-      "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "browser-dialog-false-feedback",
-        "browser-only-form"
-      ]
+      "defects": []
     },
     {
       "route": "/admin/announcements",
@@ -339,19 +309,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
+        "mockData": false,
         "fabricatedIdentifier": false,
-        "apiBacked": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
         "controls": 4,
-        "unboundControls": 4,
-        "formSubmissions": 0
+        "unboundControls": 1,
+        "formSubmissions": 1
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
         "visible-unbound-controls"
       ]
     },
@@ -366,20 +334,18 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
+        "mockData": false,
         "fabricatedIdentifier": false,
         "apiBacked": false,
         "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 3,
-        "unboundControls": 3,
+        "controls": 0,
+        "unboundControls": 0,
         "formSubmissions": 0
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "visible-unbound-controls"
+        "no-api-query-or-mutation"
       ]
     },
     {
@@ -393,19 +359,15 @@
         "registered": true,
         "mockData": false,
         "fabricatedIdentifier": false,
-        "apiBacked": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
-        "placeholder": true,
+        "placeholder": false,
         "controls": 1,
-        "unboundControls": 1,
+        "unboundControls": 0,
         "formSubmissions": 0
       },
-      "defects": [
-        "no-api-query-or-mutation",
-        "placeholder-surface",
-        "visible-unbound-controls"
-      ]
+      "defects": []
     },
     {
       "route": "/superadmin/parks",
@@ -418,19 +380,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
-        "apiBacked": false,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 3,
-        "unboundControls": 3,
-        "formSubmissions": 0
+        "controls": 5,
+        "unboundControls": 1,
+        "formSubmissions": 1
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
         "visible-unbound-controls"
       ]
     },
@@ -446,19 +406,17 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
-        "apiBacked": false,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": true,
         "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 2,
-        "unboundControls": 2,
-        "formSubmissions": 0
+        "controls": 8,
+        "unboundControls": 1,
+        "formSubmissions": 1
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
         "visible-unbound-controls"
       ]
     },
@@ -474,20 +432,18 @@
       ],
       "signals": {
         "registered": true,
-        "mockData": true,
-        "fabricatedIdentifier": true,
+        "mockData": false,
+        "fabricatedIdentifier": false,
         "apiBacked": false,
         "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 3,
-        "unboundControls": 3,
+        "controls": 0,
+        "unboundControls": 0,
         "formSubmissions": 0
       },
       "defects": [
-        "mock-or-fabricated-data",
-        "no-api-query-or-mutation",
-        "visible-unbound-controls"
+        "no-api-query-or-mutation"
       ]
     },
     {
@@ -501,19 +457,15 @@
         "registered": true,
         "mockData": false,
         "fabricatedIdentifier": false,
-        "apiBacked": false,
-        "browserDialog": true,
+        "apiBacked": true,
+        "browserDialog": false,
         "consoleOnly": false,
         "placeholder": false,
-        "controls": 1,
+        "controls": 0,
         "unboundControls": 0,
-        "formSubmissions": 1
+        "formSubmissions": 0
       },
-      "defects": [
-        "no-api-query-or-mutation",
-        "browser-dialog-false-feedback",
-        "browser-only-form"
-      ]
+      "defects": []
     }
   ],
   "routeCoverage": {
@@ -534,32 +486,17 @@
       "registered": true,
       "mockData": false,
       "fabricatedIdentifier": false,
-      "apiBacked": false,
+      "apiBacked": true,
       "browserDialog": false,
       "consoleOnly": false,
-      "placeholder": true,
+      "placeholder": false,
       "controls": 0,
       "unboundControls": 0,
       "formSubmissions": 0
     },
-    "defects": [
-      "no-api-query-or-mutation",
-      "placeholder-surface"
-    ]
+    "defects": []
   },
   "missingApiContracts": [
-    {
-      "operation": "industrial park list/create",
-      "token": "@Get('industrial-parks')"
-    },
-    {
-      "operation": "industrial park update/delete",
-      "token": "@Delete('industrial-parks/:id')"
-    },
-    {
-      "operation": "user detail/delete",
-      "token": "@Delete('users/:id')"
-    },
     {
       "operation": "admin advertisement list/detail",
       "token": "@Get('admin/advertisements')"
@@ -569,20 +506,8 @@
       "token": "advertisements/:id/reject"
     },
     {
-      "operation": "durable batch messaging",
-      "token": "@Post('messages/batch')"
-    },
-    {
-      "operation": "scoped reports",
-      "token": "@Get('reports')"
-    },
-    {
       "operation": "notifications/settings",
       "token": "@Get('notifications')"
-    },
-    {
-      "operation": "non-secret SMS health",
-      "token": "@Get('sms/health')"
     }
   ],
   "responsiveFindings": {
@@ -604,18 +529,18 @@
   "accessibilityFindings": {
     "iconButtons": 4,
     "explicitlyNamedIconButtons": 1,
-    "notificationControlHasNoAction": true
+    "notificationControlHasNoAction": false
   },
   "gates": [
     {
       "name": "frontend:typecheck",
       "command": "npm run typecheck",
       "cwd": "mekss-industrial-park",
-      "exitCode": 2,
+      "exitCode": 0,
       "signal": null,
       "timedOut": false,
-      "durationMs": 6849,
-      "output": "> mekss-industrial-park@1.0.0 typecheck\n> tsc --noEmit\n\nsrc/components/dashboard/ChartContainer.jsx(124,14): error TS2304: Cannot find name 'CircularProgress'.\r\nsrc/components/dashboard/QuickActions.jsx(108,17): error TS2322: Type 'string' is not assignable to type 'OverridableStringUnion<\"info\" | \"success\" | \"warning\" | \"error\" | \"inherit\" | \"primary\" | \"secondary\", ButtonPropsColorOverrides>'.\r\nsrc/components/dashboard/StatsCards.jsx(32,33): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Argument of type '({ theme, color }: BoxOwnProps<Theme> & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, \"ref\"> & { ...; }, keyof BoxOwnProps<...>> & MUIStyledCommonProps<...> & { ...; }) => { ...; }' is not assignable to parameter of type 'TemplateStringsArray'.\r\nsrc/components/Layout/MyLayout.jsx(2,71): error TS2307: Cannot find module 'react-admin' or its corresponding type declarations.\r\nsrc/components/Layout/MyLayout.jsx(4,28): error TS2307: Cannot find module '@mui/styles' or its corresponding type declarations.\r\nsrc/layouts/DashboardLayout.jsx(47,89): error TS2339: Property 'open' does not exist on type 'MUIStyledCommonProps<Theme> & ClassAttributes<HTMLElement> & HTMLAttributes<HTMLElement> & { ...; }'.\r\nsrc/layouts/DashboardLayout.jsx(64,97): error TS2339: Property 'open' does not exist on type 'AppBarOwnProps & Omit<PaperOwnProps, \"classes\" | \"color\" | \"position\"> & CommonProps & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>, \"ref\"> & { ...; }, \"children\" | ... 9 more ... | \"enableColorOnDark\"> & MUIStyledCommonProps<...> & { ...; }'.\r\nsrc/layouts/DashboardLayout.jsx(157,38): error TS2322: Type '{ children: Element; position: \"fixed\"; open: boolean; }' is not assignable to type 'IntrinsicAttributes & AppBarOwnProps & Omit<PaperOwnProps, \"classes\" | \"color\" | \"position\"> & CommonProps & Omit<...> & MUIStyledCommonProps<...>'.\r\n  Property 'open' does not exist on type 'IntrinsicAttributes & AppBarOwnProps & Omit<PaperOwnProps, \"classes\" | \"color\" | \"position\"> & CommonProps & Omit<...> & MUIStyledCommonProps<...>'.\r\nsrc/layouts/DashboardLayout.jsx(221,13): error TS2322: Type '{ children: Element[]; open: boolean; }' is not assignable to type 'IntrinsicAttributes & MUIStyledCommonProps<Theme> & ClassAttributes<HTMLElement> & HTMLAttributes<...>'.\r\n  Property 'open' does not exist on type 'IntrinsicAttributes & MUIStyledCommonProps<Theme> & ClassAttributes<HTMLElement> & HTMLAttributes<...>'.\r\nsrc/main.jsx(6,49): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(88,22): error TS2304: Cannot find name 'IconButton'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(88,60): error TS2304: Cannot find name 'IconButton'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(89,22): error TS2304: Cannot find name 'IconButton'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(89,76): error TS2304: Cannot find name 'IconButton'.\r\nsrc/providers/NotificationProvider.jsx(4,29): error TS2554: Expected 1 arguments, but got 0.\r\nsrc/providers/NotificationProvider.jsx(59,11): error TS2322: Type 'string' is not assignable to type 'OverridableStringUnion<AlertColor, AlertPropsColorOverrides>'.\r\nsrc/providers/ThemeProvider.jsx(7,22): error TS2554: Expected 1 arguments, but got 0.\r\nsrc/providers/ThemeProvider.jsx(29,11): error TS2322: Type 'string' is not assignable to type 'PaletteMode'.\r\nsrc/services/api/base.api.js(3,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
+      "durationMs": 6045,
+      "output": "> mekss-industrial-park@1.0.0 typecheck\n> tsc --noEmit"
     },
     {
       "name": "frontend:build",
@@ -624,18 +549,18 @@
       "exitCode": 0,
       "signal": null,
       "timedOut": false,
-      "durationMs": 22132,
-      "output": "> mekss-industrial-park@1.0.0 build\n> vite build\n\nvite v5.4.21 building for production...\ntransforming...\n✓ 11889 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                                      1.20 kB │ gzip:   0.65 kB\ndist/assets/index-BUCPtCWo.css                       1.71 kB │ gzip:   0.78 kB\ndist/assets/vendor-Dq__ej13.js                       0.03 kB │ gzip:   0.05 kB\ndist/assets/AuthSurface-dkTfozI6.js                  1.77 kB │ gzip:   0.87 kB\ndist/assets/MessagesPage-C4twfzIi.js                 2.06 kB │ gzip:   0.75 kB\ndist/assets/EmergencyPage-CPIM-RUj.js                2.23 kB │ gzip:   1.00 kB\ndist/assets/GuardEmergencyPage-D7KZvLNR.js           2.82 kB │ gzip:   0.93 kB\ndist/assets/AnnouncementsPage-BSFN8xBZ.js            3.06 kB │ gzip:   1.18 kB\ndist/assets/NewAdvertisementPage-mpX2vZaE.js         3.21 kB │ gzip:   0.96 kB\ndist/assets/NewRequestPage-iWd92okg.js               3.42 kB │ gzip:   1.00 kB\ndist/assets/AdvertisementsPage-BZFbVnSr.js           3.76 kB │ gzip:   1.08 kB\ndist/assets/SmsConfigPage-Dp_CZLMO.js                3.77 kB │ gzip:   1.05 kB\ndist/assets/SettingsPage-CayuXF53.js                 3.81 kB │ gzip:   0.77 kB\ndist/assets/ApproveAdvertisementsPage-CLhMJnKL.js    4.36 kB │ gzip:   0.97 kB\ndist/assets/ManageAnnouncementsPage-B-zhlYTi.js      4.46 kB │ gzip:   0.98 kB\ndist/assets/SendMessagePage-DUokFQdu.js              4.47 kB │ gzip:   1.06 kB\ndist/assets/ReportsPage-BDRUP3BU.js                  4.48 kB │ gzip:   0.86 kB\ndist/assets/AboutPage-DD0Tuh6y.js                    4.54 kB │ gzip:   1.39 kB\ndist/assets/DashboardPage-BuA0l8gn.js                4.92 kB │ gzip:   0.79 kB\ndist/assets/ProfilePage-C4l5OWjx.js                  5.01 kB │ gzip:   1.22 kB\ndist/assets/RequestsPage-v17lK6xT.js                 5.07 kB │ gzip:   1.08 kB\ndist/assets/InvoicesPage-twzMM021.js                 5.31 kB │ gzip:   1.24 kB\ndist/assets/ManageParksPage-re2nfljO.js              5.47 kB │ gzip:   0.95 kB\ndist/assets/SuperAdminAdsPage-DoRnZ7HM.js            5.78 kB │ gzip:   1.18 kB\ndist/assets/GuardGatePassesPage-Cf9Vf2va.js          6.40 kB │ gzip:   1.26 kB\ndist/assets/CreateInvoicePage-BcCryTcY.js            6.64 kB │ gzip:   1.45 kB\ndist/assets/ManageFactoriesPage-D3PMnWc7.js          6.65 kB │ gzip:   1.24 kB\ndist/assets/ManageUsersPage-Bt4kJP4c.js              6.68 kB │ gzip:   1.19 kB\ndist/assets/ManageInvoicesPage-BmheqMVF.js           7.71 kB │ gzip:   1.35 kB\ndist/assets/ApproveGatePassesPage-RQPG5Ykp.js        8.08 kB │ gzip:   1.46 kB\ndist/assets/ApproveRequestsPage-CIK9shsP.js          8.10 kB │ gzip:   1.42 kB\ndist/assets/VerifyGatePassPage-Cd6EuoUA.js           8.22 kB │ gzip:   1.62 kB\ndist/assets/InvoicePaymentPage-lqxqs9GL.js           8.52 kB │ gzip:   1.36 kB\ndist/assets/LoginPage-D_vvqNnO.js                    8.65 kB │ gzip:   1.83 kB\ndist/assets/RegisterPage-ZN1xhIUj.js                10.89 kB │ gzip:   2.12 kB\ndist/assets/GatePassesPage-BEnE6DC4.js              20.45 kB │ gzip:   3.28 kB\ndist/assets/query-DXyBKyCP.js                       42.03 kB │ gzip:  13.92 kB\ndist/assets/index-DwfzbsLL.js                      195.12 kB │ gzip:  51.07 kB\ndist/assets/router-CXH_-cmD.js                     346.38 kB │ gzip: 107.99 kB\ndist/assets/mui-DtU6v3Sc.js                        412.16 kB │ gzip: 123.57 kB\n✓ built in 20.86s"
+      "durationMs": 11943,
+      "output": "> mekss-industrial-park@1.0.0 build\n> vite build\n\nvite v5.4.21 building for production...\ntransforming...\n✓ 11903 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                                         4.66 kB │ gzip:   1.89 kB\ndist/assets/index-BUCPtCWo.css                          1.71 kB │ gzip:   0.78 kB\ndist/assets/vendor-Dq__ej13.js                          0.03 kB │ gzip:   0.05 kB\ndist/assets/apiError-ee8sd3FZ.js                        0.13 kB │ gzip:   0.12 kB\ndist/assets/factory.api-B6j3xMyr.js                     0.20 kB │ gzip:   0.16 kB\ndist/assets/invoice.api-DtZayl-0.js                     0.24 kB │ gzip:   0.19 kB\ndist/assets/request.api-R-o5Zp7_.js                     0.26 kB │ gzip:   0.17 kB\ndist/assets/emergency.api-22Jd7aJg.js                   0.26 kB │ gzip:   0.17 kB\ndist/assets/announcement.api-Xvs0H4XK.js                0.33 kB │ gzip:   0.19 kB\ndist/assets/gatePass.api-CPcYr0nx.js                    0.43 kB │ gzip:   0.21 kB\ndist/assets/advertisement.api-EQteoIqn.js               0.47 kB │ gzip:   0.24 kB\ndist/assets/ApproveAdvertisementsPage-049WkhVh.js       0.97 kB │ gzip:   0.46 kB\ndist/assets/SuperAdminAdsPage-CZig40rc.js               0.98 kB │ gzip:   0.48 kB\ndist/assets/AuthSurface-Cchuc04l.js                     1.77 kB │ gzip:   0.87 kB\ndist/assets/SettingsPage-oVyB-N3a.js                    2.05 kB │ gzip:   0.69 kB\ndist/assets/ConfirmDialog-D92-b928.js                   2.39 kB │ gzip:   0.79 kB\ndist/assets/EmergencyPage-DIydUbL2.js                   3.37 kB │ gzip:   1.42 kB\ndist/assets/MessagesPage-CWhkY7a1.js                    3.91 kB │ gzip:   1.11 kB\ndist/assets/AnnouncementsPage-DWpJtsSb.js               3.95 kB │ gzip:   1.19 kB\ndist/assets/GuardEmergencyPage-CZuJ7kED.js              4.25 kB │ gzip:   1.26 kB\ndist/assets/SmsConfigPage-BBKfQfuZ.js                   4.54 kB │ gzip:   1.22 kB\ndist/assets/AboutPage-DRdSA7X5.js                       4.61 kB │ gzip:   1.39 kB\ndist/assets/AdvertisementsPage-Bvf6z9cl.js              4.74 kB │ gzip:   1.28 kB\ndist/assets/NewAdvertisementPage-KuH9qcvh.js            5.37 kB │ gzip:   1.54 kB\ndist/assets/ProfilePage-DHe-BH8X.js                     5.65 kB │ gzip:   1.51 kB\ndist/assets/NewRequestPage-4U72t5EA.js                  5.67 kB │ gzip:   1.77 kB\ndist/assets/SendMessagePage-B6MvK3My.js                 6.00 kB │ gzip:   1.63 kB\ndist/assets/InvoicesPage-teAP17wR.js                    6.02 kB │ gzip:   1.34 kB\ndist/assets/RequestsPage-_VxaOIlO.js                    6.17 kB │ gzip:   1.45 kB\ndist/assets/GuardGatePassesPage-GD2SIC3u.js             6.84 kB │ gzip:   1.48 kB\ndist/assets/CreateInvoicePage-BlH2Ic_q.js               6.95 kB │ gzip:   1.64 kB\ndist/assets/DashboardPage-D6K9Y8zx.js                   7.68 kB │ gzip:   1.78 kB\ndist/assets/ManageAnnouncementsPage-C6nBjIjb.js         7.99 kB │ gzip:   1.93 kB\ndist/assets/AdvertisementModerationBoard-CXDcnFGe.js    8.10 kB │ gzip:   1.97 kB\ndist/assets/ManageInvoicesPage-C6HX7Moe.js              8.46 kB │ gzip:   1.76 kB\ndist/assets/LoginPage-CWjg_8Zk.js                       8.78 kB │ gzip:   1.84 kB\ndist/assets/ManageFactoriesPage-DJKqMmIa.js             8.83 kB │ gzip:   1.84 kB\ndist/assets/ApproveGatePassesPage-CXqnHecZ.js           9.50 kB │ gzip:   1.85 kB\ndist/assets/ReportsPage-BFZtWc_v.js                     9.78 kB │ gzip:   1.94 kB\ndist/assets/ApproveRequestsPage-BZ3V0dou.js             9.80 kB │ gzip:   1.93 kB\ndist/assets/InvoicePaymentPage-DkyQH3KI.js              9.87 kB │ gzip:   1.58 kB\ndist/assets/VerifyGatePassPage-CyqVscJn.js              9.98 kB │ gzip:   1.96 kB\ndist/assets/RegisterPage-CxHpBQM_.js                   11.06 kB │ gzip:   2.11 kB\ndist/assets/ManageParksPage-hqiu9A11.js                15.85 kB │ gzip:   2.81 kB\ndist/assets/ManageUsersPage-BXacWBOk.js                17.89 kB │ gzip:   3.35 kB\ndist/assets/GatePassesPage-CyAOagLd.js                 20.19 kB │ gzip:   3.45 kB\ndist/assets/query-DRz3SqLD.js                          55.84 kB │ gzip:  18.04 kB\ndist/assets/index-ChwZvPeH.js                         196.83 kB │ gzip:  51.56 kB\ndist/assets/router-CXH_-cmD.js                        346.38 kB │ gzip: 107.99 kB\ndist/assets/mui-BvM-n88w.js                           422.26 kB │ gzip: 125.66 kB\n✓ built in 11.46s"
     },
     {
       "name": "backend:typecheck",
       "command": "npm run typecheck",
       "cwd": "mekss-backend",
-      "exitCode": 1,
+      "exitCode": 0,
       "signal": null,
       "timedOut": false,
-      "durationMs": 4162,
-      "output": "> mekss-backend@1.0.0 typecheck\n> tsc --noEmit\n\nsrc/advertisement/dto/advertisement-response.dto.ts(114,29): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,33): error TS1005: ':' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,39): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,45): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,49): error TS1002: Unterminated string literal.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(115,3): error TS1005: ':' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(115,14): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(115,22): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(117,3): error TS1136: Property assignment expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(117,47): error TS1109: Expression expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(118,3): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(118,13): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(118,21): error TS1005: ')' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,29): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,33): error TS1005: ':' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,38): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,45): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,54): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,58): error TS1002: Unterminated string literal.\r\nsrc/emergency/dto/emergency-response.dto.ts(73,3): error TS1005: ':' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(73,12): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(73,18): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,1): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,8): error TS1434: Unexpected keyword or identifier.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,14): error TS1434: Unexpected keyword or identifier.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,39): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(77,90): error TS1146: Declaration expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(78,37): error TS1011: An element access expression should take an argument.\r\nsrc/emergency/dto/emergency-response.dto.ts(80,47): error TS1146: Declaration expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(83,48): error TS1146: Declaration expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(86,50): error TS1146: Declaration expected."
+      "durationMs": 3432,
+      "output": "> mekss-backend@1.0.0 typecheck\n> tsc --noEmit"
     },
     {
       "name": "backend:build",
@@ -644,7 +569,7 @@
       "exitCode": 0,
       "signal": null,
       "timedOut": false,
-      "durationMs": 7295,
+      "durationMs": 4496,
       "output": "> mekss-backend@1.0.0 build\n> nest build"
     }
   ],
@@ -653,12 +578,12 @@
     "databaseConnectionUsed": false,
     "auditWritesExecuted": 0,
     "before": {
-      "schemaSha256": "c99205d73399bacf965c7c0ab953b9f9563e3e432bf2684a7835a43a935d7311",
-      "managementServiceSha256": "778ccfac6e6625d59c08ffc638f45fca74ac06ee6f845f97823fc2cbae4fa5ef"
+      "schemaSha256": "f436f0ba98a31b8e2f9c1dc744f52638767f5a46102db7cfa1f9dfbfdc3980bb",
+      "managementServiceSha256": "02c59d3abfa08cca9a9ac761d2179cd93cb8b7a83da5824a74773c2d13612b08"
     },
     "after": {
-      "schemaSha256": "c99205d73399bacf965c7c0ab953b9f9563e3e432bf2684a7835a43a935d7311",
-      "managementServiceSha256": "778ccfac6e6625d59c08ffc638f45fca74ac06ee6f845f97823fc2cbae4fa5ef"
+      "schemaSha256": "f436f0ba98a31b8e2f9c1dc744f52638767f5a46102db7cfa1f9dfbfdc3980bb",
+      "managementServiceSha256": "02c59d3abfa08cca9a9ac761d2179cd93cb8b7a83da5824a74773c2d13612b08"
     },
     "unchanged": true,
     "note": "Source-level exploration intentionally performs no HTTP or database mutation against unfixed data."
@@ -738,15 +663,9 @@
       "surface": "MISSING_API_CONTRACT",
       "minimizedInput": {
         "missingContracts": [
-          "industrial park list/create",
-          "industrial park update/delete",
-          "user detail/delete",
           "admin advertisement list/detail",
           "separate advertisement reject transition",
-          "durable batch messaging",
-          "scoped reports",
-          "notifications/settings",
-          "non-secret SMS health"
+          "notifications/settings"
         ],
         "controller": "management.controller.ts"
       },
@@ -795,53 +714,11 @@
       "minimizedInput": {
         "shellIconButtons": 4,
         "explicitlyNamed": 1,
-        "notificationActionBound": false
+        "notificationActionBound": true
       },
       "expected": "Every icon action has an accessible name and truthful behavior.",
       "observed": "bug condition present on unfixed source"
-    },
-    {
-      "id": "CE-BUILD-1",
-      "surface": "AUTOMATED_CHECK",
-      "minimizedInput": {
-        "command": "npm run typecheck",
-        "cwd": "mekss-industrial-park",
-        "exitCode": 2,
-        "firstOutput": [
-          "> mekss-industrial-park@1.0.0 typecheck",
-          "> tsc --noEmit",
-          "",
-          "src/components/dashboard/ChartContainer.jsx(124,14): error TS2304: Cannot find name 'CircularProgress'.\r",
-          "src/components/dashboard/QuickActions.jsx(108,17): error TS2322: Type 'string' is not assignable to type 'OverridableStringUnion<\"info\" | \"success\" | \"warning\" | \"error\" | \"inherit\" | \"primary\" | \"secondary\", ButtonPropsColorOverrides>'.\r",
-          "src/components/dashboard/StatsCards.jsx(32,33): error TS2769: No overload matches this call.\r",
-          "  The last overload gave the following error.\r",
-          "    Argument of type '({ theme, color }: BoxOwnProps<Theme> & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, \"ref\"> & { ...; }, keyof BoxOwnProps<...>> & MUIStyledCommonProps<...> & { ...; }) => { ...; }' is not assignable to parameter of type 'TemplateStringsArray'.\r"
-        ]
-      },
-      "expected": "Required type/build gate exits successfully.",
-      "observed": "bug condition present on unfixed source"
-    },
-    {
-      "id": "CE-BUILD-2",
-      "surface": "AUTOMATED_CHECK",
-      "minimizedInput": {
-        "command": "npm run typecheck",
-        "cwd": "mekss-backend",
-        "exitCode": 1,
-        "firstOutput": [
-          "> mekss-backend@1.0.0 typecheck",
-          "> tsc --noEmit",
-          "",
-          "src/advertisement/dto/advertisement-response.dto.ts(114,29): error TS1005: ',' expected.\r",
-          "src/advertisement/dto/advertisement-response.dto.ts(114,33): error TS1005: ':' expected.\r",
-          "src/advertisement/dto/advertisement-response.dto.ts(114,39): error TS1005: ',' expected.\r",
-          "src/advertisement/dto/advertisement-response.dto.ts(114,45): error TS1005: ',' expected.\r",
-          "src/advertisement/dto/advertisement-response.dto.ts(114,49): error TS1002: Unterminated string literal.\r"
-        ]
-      },
-      "expected": "Required type/build gate exits successfully.",
-      "observed": "bug condition present on unfixed source"
     }
   ],
-  "generatedAt": "2026-08-22T12:06:18.135Z"
+  "generatedAt": "2026-08-26T13:34:47.294Z"
 }

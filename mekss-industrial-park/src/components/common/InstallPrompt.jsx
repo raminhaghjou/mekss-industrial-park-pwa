@@ -6,7 +6,9 @@ const DISMISS_KEY = 'mekss-install-dismissed-at';
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // one week
 
 const isStandalone = () =>
-  window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  window.matchMedia?.('(display-mode: standalone)').matches ||
+  // iOS Safari exposes a non-standard `navigator.standalone` flag not present in TS DOM lib types.
+  /** @type {{ standalone?: boolean }} */ (window.navigator).standalone === true;
 
 /**
  * Renders a non-blocking Persian install affordance only when the browser has

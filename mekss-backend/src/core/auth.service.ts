@@ -146,9 +146,9 @@ export class AuthService {
   }
 
   private publicUser(user: User): PublicUser {
-    const publicUser = { ...user } as Partial<User>;
-    delete publicUser.password;
-    return publicUser as PublicUser;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, ...publicUser } = user;
+    return publicUser;
   }
 
   private hashToken(value: string): string {

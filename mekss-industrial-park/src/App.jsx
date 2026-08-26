@@ -9,6 +9,8 @@ import { NotificationProvider } from './providers/NotificationProvider';
 import { ThemeProvider as CustomThemeProvider } from './providers/ThemeProvider';
 import { LoadingScreen } from './components/common/LoadingScreen';
 import { RTL } from './components/common/RTL';
+import { OfflineBanner } from './components/common/OfflineBanner';
+import { InstallPrompt } from './components/common/InstallPrompt';
 import { DashboardLayout } from './layouts/DashboardLayout';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
@@ -68,5 +70,5 @@ function AppRoutes() {
 }
 
 export default function App() {
-  return <QueryClientProvider client={queryClient}><CustomThemeProvider><RTL><LocalizationProvider dateAdapter={AdapterDateFns}><Router><AuthProvider><NotificationProvider><Suspense fallback={<LoadingScreen />}><AppRoutes /></Suspense></NotificationProvider></AuthProvider></Router></LocalizationProvider></RTL></CustomThemeProvider><ReactQueryDevtools initialIsOpen={false} /></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><CustomThemeProvider><RTL><LocalizationProvider dateAdapter={AdapterDateFns}><Router><AuthProvider><NotificationProvider><OfflineBanner /><Suspense fallback={<LoadingScreen />}><AppRoutes /></Suspense><InstallPrompt /></NotificationProvider></AuthProvider></Router></LocalizationProvider></RTL></CustomThemeProvider><ReactQueryDevtools initialIsOpen={false} /></QueryClientProvider>;
 }

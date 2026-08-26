@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../providers/AuthProvider';
@@ -20,6 +20,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -46,22 +47,6 @@ import { styled } from '@mui/material/styles';
 
 const drawerWidth = 280;
 
-const Main = styled('main')(({ theme }) => ({
-  flexGrow: 1,
-  padding: theme.spacing(3),
-  marginRight: -drawerWidth,
-  '&[data-open="true"]': {
-    marginRight: 0,
-  },
-}));
-
-const AppBarStyled = styled(AppBar)(() => ({
-  '&[data-open="true"]': {
-    width: `calc(100% - ${drawerWidth}px)`,
-    marginRight: drawerWidth,
-  },
-}));
-
 const DrawerHeader = styled('div')(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
@@ -73,9 +58,18 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 export const DashboardLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(true);
+  const isDesktop = useMediaQuery(
+    /** @param {import('@mui/material').Theme} theme */ (theme) => theme.breakpoints.up('lg'),
+  );
+  const [open, setOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const isMenuOpen = Boolean(anchorEl);
+
+  // Start with the rail open on desktop only; mobile/tablet always begin
+  // closed since their drawer is temporary and overlays the page.
+  useEffect(() => {
+    setOpen(isDesktop);
+  }, [isDesktop]);
 
   const { data: inbox } = useQuery({
     queryKey: ['messages', 'inbox'],
@@ -97,6 +91,10 @@ export const DashboardLayout = () => {
   const handleNavigate = (path) => {
     navigate(path);
     handleProfileMenuClose();
+    // On mobile/tablet the drawer overlays the page, so it must close after
+    // a selection; on desktop the persistent rail stays exactly as the user
+    // left it.
+    if (!isDesktop) setOpen(false);
   }
 
   const getMenuItems = () => {
@@ -145,9 +143,50 @@ export const DashboardLayout = () => {
 
   const menuItems = getMenuItems();
 
+  const drawerContent = (
+    <>
+      <DrawerHeader>
+        <IconButton onClick={handleDrawerClose} aria-label="بستن منو"><MenuIcon /></IconButton>
+      </DrawerHeader>
+      <Divider />
+      <List>
+        {menuItems.map((item) => (
+          <ListItem key={item.text} disablePadding>
+            <ListItemButton onClick={() => handleNavigate(item.path)}>
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItemButton>
+          </ListItem>
+        ))}
+      </List>
+      <Divider />
+      <List>
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => handleNavigate('/profile')}><ListItemIcon><PersonIcon /></ListItemIcon><ListItemText primary="پروفایل" /></ListItemButton>
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemButton onClick={() => handleNavigate('/settings')}><ListItemIcon><SettingsIcon /></ListItemIcon><ListItemText primary="تنظیمات" /></ListItemButton>
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemButton onClick={handleLogout}><ListItemIcon><LogoutIcon /></ListItemIcon><ListItemText primary="خروج" /></ListItemButton>
+        </ListItem>
+      </List>
+    </>
+  );
+
+  const desktopOpen = isDesktop && open;
+
   return (
     <Box sx={{ display: 'flex' }}>
-      <AppBarStyled position="fixed" data-open={open}>
+      <AppBar
+        position="fixed"
+        sx={{
+          ...(desktopOpen && {
+            width: { lg: `calc(100% - ${drawerWidth}px)` },
+            marginRight: { lg: `${drawerWidth}px` },
+          }),
+        }}
+      >
         <Toolbar>
           {/* <img src="/logo.png" alt="Mekss Logo" style={{ height: 40, marginLeft: 16 }} /> */}
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
@@ -159,7 +198,7 @@ export const DashboardLayout = () => {
                 <NotificationsIcon />
               </Badge>
             </IconButton>
-            <IconButton size="large" onClick={handleProfileMenuOpen} color="inherit">
+            <IconButton size="large" onClick={handleProfileMenuOpen} color="inherit" aria-label="منوی حساب کاربری">
               <Avatar sx={{ width: 32, height: 32 }}>
                 {user?.name?.charAt(0) || <AccountCircleIcon />}
               </Avatar>
@@ -167,7 +206,7 @@ export const DashboardLayout = () => {
           </Box>
           <IconButton
             color="inherit"
-            aria-label="open drawer"
+            aria-label="باز کردن منو"
             edge="end"
             onClick={handleDrawerOpen}
             sx={{ ...(open && { display: 'none' }) }}
@@ -175,47 +214,33 @@ export const DashboardLayout = () => {
             <MenuIcon />
           </IconButton>
         </Toolbar>
-      </AppBarStyled>
-      
+      </AppBar>
+
       <Drawer
-        sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth } }}
-        variant="persistent"
+        sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, maxWidth: '85vw', boxSizing: 'border-box' } }}
+        variant={isDesktop ? 'persistent' : 'temporary'}
         anchor="right"
         open={open}
+        onClose={handleDrawerClose}
+        ModalProps={{ keepMounted: true }}
       >
-        <DrawerHeader>
-          <IconButton onClick={handleDrawerClose}><MenuIcon /></IconButton>
-        </DrawerHeader>
-        <Divider />
-        <List>
-          {menuItems.map((item) => (
-            <ListItem key={item.text} disablePadding>
-              <ListItemButton onClick={() => handleNavigate(item.path)}>
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-        <Divider />
-        <List>
-          <ListItem disablePadding>
-            <ListItemButton onClick={() => handleNavigate('/profile')}><ListItemIcon><PersonIcon /></ListItemIcon><ListItemText primary="پروفایل" /></ListItemButton>
-          </ListItem>
-          <ListItem disablePadding>
-            <ListItemButton onClick={() => handleNavigate('/settings')}><ListItemIcon><SettingsIcon /></ListItemIcon><ListItemText primary="تنظیمات" /></ListItemButton>
-          </ListItem>
-          <ListItem disablePadding>
-            <ListItemButton onClick={handleLogout}><ListItemIcon><LogoutIcon /></ListItemIcon><ListItemText primary="خروج" /></ListItemButton>
-          </ListItem>
-        </List>
+        {drawerContent}
       </Drawer>
-      
-      <Main data-open={open}>
+
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          p: 3,
+          ...(desktopOpen && { marginRight: { lg: 0 } }),
+          ...(!desktopOpen && { marginRight: { lg: `-${drawerWidth}px` } }),
+        }}
+      >
         <DrawerHeader />
         <Outlet />
-      </Main>
-      
+      </Box>
+
       <Menu
         anchorEl={anchorEl}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}

@@ -1,0 +1,31 @@
+{
+  "name": "mekss-industrial-park-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "check:backend:lint": "node scripts/run-checks.mjs backend:lint",
+    "check:frontend:lint": "node scripts/run-checks.mjs frontend:lint",
+    "lint:check": "node scripts/run-checks.mjs lint:check",
+    "check:backend:type": "node scripts/run-checks.mjs backend:typecheck",
+    "check:frontend:type": "node scripts/run-checks.mjs frontend:typecheck",
+    "typecheck": "node scripts/run-checks.mjs typecheck",
+    "check:backend:build": "node scripts/run-checks.mjs backend:build",
+    "check:frontend:build": "node scripts/run-checks.mjs frontend:build",
+    "build": "node scripts/run-checks.mjs build",
+    "test:backend:unit": "node scripts/run-checks.mjs backend:unit",
+    "test:frontend:unit": "node scripts/run-checks.mjs frontend:unit",
+    "test:unit": "node scripts/run-checks.mjs test:unit",
+    "test:property:exploration": "node scripts/run-checks.mjs frontend:property:exploration",
+    "test:property:preservation": "node scripts/run-checks.mjs backend:property:preservation",
+    "test:property": "node scripts/run-checks.mjs test:property",
+    "test:property:baseline": "node scripts/run-checks.mjs test:property:baseline",
+    "test:backend:integration": "node scripts/run-checks.mjs backend:integration",
+    "test:frontend:integration": "node scripts/run-checks.mjs frontend:integration",
+    "test:integration": "node scripts/run-checks.mjs test:integration",
+    "test:browser": "node scripts/run-checks.mjs frontend:browser",
+    "test:docker:config": "node scripts/run-checks.mjs docker:config",
+    "test:docker": "node scripts/run-checks.mjs docker:smoke",
+    "acceptance:baseline": "node scripts/run-checks.mjs acceptance:baseline",
+    "acceptance:local": "node scripts/run-checks.mjs acceptance:local"
+  }
+}

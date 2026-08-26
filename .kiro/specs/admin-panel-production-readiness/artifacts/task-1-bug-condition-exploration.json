@@ -1,0 +1,847 @@
+{
+  "task": "1. [Required] Write the bug condition exploration property test",
+  "property": "Property 1: Bug Condition - Truthful Production-Ready Administration",
+  "validates": [
+    "Requirements 1.1-1.16",
+    "Requirements 2.1-2.16"
+  ],
+  "expectedOutcome": "FAIL on unfixed code",
+  "seed": "0x5eed2025",
+  "generatedCaseCount": 256,
+  "failingCaseCount": 256,
+  "minimizedGeneratedCounterexample": {
+    "surface": "USER_MANAGEMENT",
+    "role": "FACTORY_OWNER",
+    "tenantScope": "OUT_OF_SCOPE",
+    "payloadValidity": "INVALID",
+    "apiOutcome": "FORBIDDEN",
+    "recordCount": 0,
+    "viewport": 320,
+    "directionSensitiveContent": "MIXED_BIDI",
+    "connectivity": "OFFLINE",
+    "installEventAvailable": true,
+    "installed": false,
+    "inputMode": "KEYBOARD",
+    "theme": "DARK",
+    "zoom": 2,
+    "reducedMotion": true,
+    "route": "/dashboard",
+    "currentResult": {
+      "placeholderData": true,
+      "mockData": false,
+      "emptyOrConsoleHandler": false,
+      "browserOnlyMutation": false,
+      "falseSuccess": false,
+      "missingAuthorizationOrScope": true,
+      "missingValidationOrConfirmation": false,
+      "unhandledState": true,
+      "inaccessibleControl": true,
+      "responsiveOverflow": true,
+      "invalidInstallLifecycle": true,
+      "unsafeOfflineMutation": true,
+      "failingRequiredCheck": true
+    },
+    "observedResult": {
+      "serverConfirmed": false,
+      "durable": false,
+      "exactlyIntendedChange": false,
+      "preservesUnrelatedRecords": false,
+      "persianRtlAccessibleFeedback": false,
+      "explicitSafeState": false,
+      "nonMutating": true,
+      "falseSuccess": false,
+      "disclosesProtectedData": false
+    }
+  },
+  "dimensionCoverage": {
+    "surface": [
+      "USER_MANAGEMENT",
+      "PARK_MANAGEMENT",
+      "ADVERTISEMENT_MODERATION",
+      "ACCESSIBLE_INTERACTION",
+      "AUTOMATED_CHECK",
+      "OTHER_VISIBLE_ADMIN_OPERATION",
+      "OFFLINE_ADMIN_STATE",
+      "PERSIAN_RTL_PRESENTATION",
+      "ROLE_DASHBOARD",
+      "PWA_INSTALLATION",
+      "RESPONSIVE_NAVIGATION"
+    ],
+    "role": [
+      "FACTORY_OWNER",
+      "SUPER_ADMIN",
+      "EMPLOYEE",
+      "GOVERNMENT_OFFICIAL",
+      "PARK_MANAGER",
+      "SECURITY_GUARD"
+    ],
+    "tenantScope": [
+      "OUT_OF_SCOPE",
+      "IN_SCOPE"
+    ],
+    "payloadValidity": [
+      "INVALID",
+      "VALID"
+    ],
+    "apiOutcome": [
+      "FORBIDDEN",
+      "NOT_FOUND",
+      "VALIDATION",
+      "SERVER_ERROR",
+      "SUCCESS",
+      "NETWORK",
+      "CONFLICT"
+    ],
+    "recordCount": [
+      0,
+      1,
+      25
+    ],
+    "viewport": [
+      320,
+      768,
+      1440
+    ],
+    "directionSensitiveContent": [
+      "MIXED_BIDI",
+      "PERSIAN",
+      "LTR_IDENTIFIER"
+    ],
+    "connectivity": [
+      "OFFLINE",
+      "ONLINE"
+    ],
+    "installEventAvailable": [
+      true,
+      false
+    ],
+    "installed": [
+      false,
+      true
+    ],
+    "inputMode": [
+      "KEYBOARD",
+      "TOUCH"
+    ],
+    "theme": [
+      "DARK",
+      "LIGHT"
+    ],
+    "zoom": [
+      2,
+      1
+    ],
+    "reducedMotion": [
+      true,
+      false
+    ]
+  },
+  "routeInventory": [
+    {
+      "route": "/dashboard",
+      "file": "src/pages/dashboard/DashboardPage.jsx",
+      "operations": [
+        "role summaries",
+        "pending work",
+        "recent priorities",
+        "quick actions"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": true,
+        "controls": 0,
+        "unboundControls": 0,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "no-api-query-or-mutation",
+        "placeholder-surface"
+      ]
+    },
+    {
+      "route": "/admin/factories",
+      "file": "src/pages/admin/ManageFactoriesPage.jsx",
+      "operations": [
+        "list",
+        "edit",
+        "approve",
+        "reject"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": true,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 3,
+        "unboundControls": 1,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "browser-dialog-false-feedback",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/admin/invoices",
+      "file": "src/pages/admin/ManageInvoicesPage.jsx",
+      "operations": [
+        "list",
+        "create navigation",
+        "edit",
+        "delete"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": true,
+        "controls": 3,
+        "unboundControls": 3,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "placeholder-surface",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/admin/invoices/create",
+      "file": "src/pages/admin/CreateInvoicePage.jsx",
+      "operations": [
+        "create",
+        "back navigation"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": true,
+        "consoleOnly": true,
+        "placeholder": false,
+        "controls": 2,
+        "unboundControls": 1,
+        "formSubmissions": 1
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "browser-dialog-false-feedback",
+        "console-only-operation",
+        "visible-unbound-controls",
+        "browser-only-form"
+      ]
+    },
+    {
+      "route": "/admin/gate-passes",
+      "file": "src/pages/admin/ApproveGatePassesPage.jsx",
+      "operations": [
+        "list",
+        "view",
+        "approve",
+        "reject"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": true,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 3,
+        "unboundControls": 1,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "browser-dialog-false-feedback",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/admin/requests",
+      "file": "src/pages/admin/ApproveRequestsPage.jsx",
+      "operations": [
+        "list",
+        "view",
+        "approve",
+        "reject"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 3,
+        "unboundControls": 3,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/admin/messages",
+      "file": "src/pages/admin/SendMessagePage.jsx",
+      "operations": [
+        "select recipients",
+        "send"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": true,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 1,
+        "unboundControls": 0,
+        "formSubmissions": 1
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "browser-dialog-false-feedback",
+        "browser-only-form"
+      ]
+    },
+    {
+      "route": "/admin/announcements",
+      "file": "src/pages/admin/ManageAnnouncementsPage.jsx",
+      "operations": [
+        "list",
+        "create",
+        "edit",
+        "delete"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 4,
+        "unboundControls": 4,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/admin/advertisements",
+      "file": "src/pages/admin/ApproveAdvertisementsPage.jsx",
+      "operations": [
+        "pending/history list",
+        "view",
+        "approve",
+        "reject"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 3,
+        "unboundControls": 3,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/admin/reports",
+      "file": "src/pages/admin/ReportsPage.jsx",
+      "operations": [
+        "filter",
+        "generate"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": true,
+        "controls": 1,
+        "unboundControls": 1,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "no-api-query-or-mutation",
+        "placeholder-surface",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/superadmin/parks",
+      "file": "src/pages/superadmin/ManageParksPage.jsx",
+      "operations": [
+        "list",
+        "create",
+        "edit",
+        "delete"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 3,
+        "unboundControls": 3,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/superadmin/users",
+      "file": "src/pages/superadmin/ManageUsersPage.jsx",
+      "operations": [
+        "search/list",
+        "create (missing)",
+        "edit",
+        "activate/deactivate",
+        "delete (missing)"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 2,
+        "unboundControls": 2,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/superadmin/advertisements",
+      "file": "src/pages/superadmin/SuperAdminAdsPage.jsx",
+      "operations": [
+        "pending/history list",
+        "park filter",
+        "view",
+        "approve",
+        "reject"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": true,
+        "fabricatedIdentifier": true,
+        "apiBacked": false,
+        "browserDialog": false,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 3,
+        "unboundControls": 3,
+        "formSubmissions": 0
+      },
+      "defects": [
+        "mock-or-fabricated-data",
+        "no-api-query-or-mutation",
+        "visible-unbound-controls"
+      ]
+    },
+    {
+      "route": "/superadmin/sms-config",
+      "file": "src/pages/superadmin/SmsConfigPage.jsx",
+      "operations": [
+        "edit secret fields",
+        "save"
+      ],
+      "signals": {
+        "registered": true,
+        "mockData": false,
+        "fabricatedIdentifier": false,
+        "apiBacked": false,
+        "browserDialog": true,
+        "consoleOnly": false,
+        "placeholder": false,
+        "controls": 1,
+        "unboundControls": 0,
+        "formSubmissions": 1
+      },
+      "defects": [
+        "no-api-query-or-mutation",
+        "browser-dialog-false-feedback",
+        "browser-only-form"
+      ]
+    }
+  ],
+  "routeCoverage": {
+    "expected": 14,
+    "inspected": 14,
+    "registered": 14
+  },
+  "dashboardFindings": {
+    "route": "/dashboard",
+    "file": "src/pages/dashboard/DashboardPage.jsx",
+    "operations": [
+      "role summaries",
+      "pending work",
+      "recent priorities",
+      "quick actions"
+    ],
+    "signals": {
+      "registered": true,
+      "mockData": false,
+      "fabricatedIdentifier": false,
+      "apiBacked": false,
+      "browserDialog": false,
+      "consoleOnly": false,
+      "placeholder": true,
+      "controls": 0,
+      "unboundControls": 0,
+      "formSubmissions": 0
+    },
+    "defects": [
+      "no-api-query-or-mutation",
+      "placeholder-surface"
+    ]
+  },
+  "missingApiContracts": [
+    {
+      "operation": "industrial park list/create",
+      "token": "@Get('industrial-parks')"
+    },
+    {
+      "operation": "industrial park update/delete",
+      "token": "@Delete('industrial-parks/:id')"
+    },
+    {
+      "operation": "user detail/delete",
+      "token": "@Delete('users/:id')"
+    },
+    {
+      "operation": "admin advertisement list/detail",
+      "token": "@Get('admin/advertisements')"
+    },
+    {
+      "operation": "separate advertisement reject transition",
+      "token": "advertisements/:id/reject"
+    },
+    {
+      "operation": "durable batch messaging",
+      "token": "@Post('messages/batch')"
+    },
+    {
+      "operation": "scoped reports",
+      "token": "@Get('reports')"
+    },
+    {
+      "operation": "notifications/settings",
+      "token": "@Get('notifications')"
+    },
+    {
+      "operation": "non-secret SMS health",
+      "token": "@Get('sms/health')"
+    }
+  ],
+  "responsiveFindings": {
+    "startsPersistentOpen": true,
+    "fixedDrawerWidth": true,
+    "negativeDesktopMarginAtAllWidths": true,
+    "responsiveDrawerVariant": false,
+    "minimumViewport": 320
+  },
+  "pwaFindings": {
+    "serviceWorkerRegistrations": 1,
+    "hasBeforeInstallPrompt": false,
+    "hasAppInstalled": false,
+    "detectsStandalone": false,
+    "hasConnectivityState": false,
+    "blocksOfflineMutations": false,
+    "serviceWorkerBypassesApiAndMutations": true
+  },
+  "accessibilityFindings": {
+    "iconButtons": 4,
+    "explicitlyNamedIconButtons": 1,
+    "notificationControlHasNoAction": true
+  },
+  "gates": [
+    {
+      "name": "frontend:typecheck",
+      "command": "npm run typecheck",
+      "cwd": "mekss-industrial-park",
+      "exitCode": 2,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 6849,
+      "output": "> mekss-industrial-park@1.0.0 typecheck\n> tsc --noEmit\n\nsrc/components/dashboard/ChartContainer.jsx(124,14): error TS2304: Cannot find name 'CircularProgress'.\r\nsrc/components/dashboard/QuickActions.jsx(108,17): error TS2322: Type 'string' is not assignable to type 'OverridableStringUnion<\"info\" | \"success\" | \"warning\" | \"error\" | \"inherit\" | \"primary\" | \"secondary\", ButtonPropsColorOverrides>'.\r\nsrc/components/dashboard/StatsCards.jsx(32,33): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Argument of type '({ theme, color }: BoxOwnProps<Theme> & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, \"ref\"> & { ...; }, keyof BoxOwnProps<...>> & MUIStyledCommonProps<...> & { ...; }) => { ...; }' is not assignable to parameter of type 'TemplateStringsArray'.\r\nsrc/components/Layout/MyLayout.jsx(2,71): error TS2307: Cannot find module 'react-admin' or its corresponding type declarations.\r\nsrc/components/Layout/MyLayout.jsx(4,28): error TS2307: Cannot find module '@mui/styles' or its corresponding type declarations.\r\nsrc/layouts/DashboardLayout.jsx(47,89): error TS2339: Property 'open' does not exist on type 'MUIStyledCommonProps<Theme> & ClassAttributes<HTMLElement> & HTMLAttributes<HTMLElement> & { ...; }'.\r\nsrc/layouts/DashboardLayout.jsx(64,97): error TS2339: Property 'open' does not exist on type 'AppBarOwnProps & Omit<PaperOwnProps, \"classes\" | \"color\" | \"position\"> & CommonProps & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>, \"ref\"> & { ...; }, \"children\" | ... 9 more ... | \"enableColorOnDark\"> & MUIStyledCommonProps<...> & { ...; }'.\r\nsrc/layouts/DashboardLayout.jsx(157,38): error TS2322: Type '{ children: Element; position: \"fixed\"; open: boolean; }' is not assignable to type 'IntrinsicAttributes & AppBarOwnProps & Omit<PaperOwnProps, \"classes\" | \"color\" | \"position\"> & CommonProps & Omit<...> & MUIStyledCommonProps<...>'.\r\n  Property 'open' does not exist on type 'IntrinsicAttributes & AppBarOwnProps & Omit<PaperOwnProps, \"classes\" | \"color\" | \"position\"> & CommonProps & Omit<...> & MUIStyledCommonProps<...>'.\r\nsrc/layouts/DashboardLayout.jsx(221,13): error TS2322: Type '{ children: Element[]; open: boolean; }' is not assignable to type 'IntrinsicAttributes & MUIStyledCommonProps<Theme> & ClassAttributes<HTMLElement> & HTMLAttributes<...>'.\r\n  Property 'open' does not exist on type 'IntrinsicAttributes & MUIStyledCommonProps<Theme> & ClassAttributes<HTMLElement> & HTMLAttributes<...>'.\r\nsrc/main.jsx(6,49): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(88,22): error TS2304: Cannot find name 'IconButton'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(88,60): error TS2304: Cannot find name 'IconButton'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(89,22): error TS2304: Cannot find name 'IconButton'.\r\nsrc/pages/admin/ManageInvoicesPage.jsx(89,76): error TS2304: Cannot find name 'IconButton'.\r\nsrc/providers/NotificationProvider.jsx(4,29): error TS2554: Expected 1 arguments, but got 0.\r\nsrc/providers/NotificationProvider.jsx(59,11): error TS2322: Type 'string' is not assignable to type 'OverridableStringUnion<AlertColor, AlertPropsColorOverrides>'.\r\nsrc/providers/ThemeProvider.jsx(7,22): error TS2554: Expected 1 arguments, but got 0.\r\nsrc/providers/ThemeProvider.jsx(29,11): error TS2322: Type 'string' is not assignable to type 'PaletteMode'.\r\nsrc/services/api/base.api.js(3,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
+    },
+    {
+      "name": "frontend:build",
+      "command": "npm run build",
+      "cwd": "mekss-industrial-park",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 22132,
+      "output": "> mekss-industrial-park@1.0.0 build\n> vite build\n\nvite v5.4.21 building for production...\ntransforming...\n✓ 11889 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                                      1.20 kB │ gzip:   0.65 kB\ndist/assets/index-BUCPtCWo.css                       1.71 kB │ gzip:   0.78 kB\ndist/assets/vendor-Dq__ej13.js                       0.03 kB │ gzip:   0.05 kB\ndist/assets/AuthSurface-dkTfozI6.js                  1.77 kB │ gzip:   0.87 kB\ndist/assets/MessagesPage-C4twfzIi.js                 2.06 kB │ gzip:   0.75 kB\ndist/assets/EmergencyPage-CPIM-RUj.js                2.23 kB │ gzip:   1.00 kB\ndist/assets/GuardEmergencyPage-D7KZvLNR.js           2.82 kB │ gzip:   0.93 kB\ndist/assets/AnnouncementsPage-BSFN8xBZ.js            3.06 kB │ gzip:   1.18 kB\ndist/assets/NewAdvertisementPage-mpX2vZaE.js         3.21 kB │ gzip:   0.96 kB\ndist/assets/NewRequestPage-iWd92okg.js               3.42 kB │ gzip:   1.00 kB\ndist/assets/AdvertisementsPage-BZFbVnSr.js           3.76 kB │ gzip:   1.08 kB\ndist/assets/SmsConfigPage-Dp_CZLMO.js                3.77 kB │ gzip:   1.05 kB\ndist/assets/SettingsPage-CayuXF53.js                 3.81 kB │ gzip:   0.77 kB\ndist/assets/ApproveAdvertisementsPage-CLhMJnKL.js    4.36 kB │ gzip:   0.97 kB\ndist/assets/ManageAnnouncementsPage-B-zhlYTi.js      4.46 kB │ gzip:   0.98 kB\ndist/assets/SendMessagePage-DUokFQdu.js              4.47 kB │ gzip:   1.06 kB\ndist/assets/ReportsPage-BDRUP3BU.js                  4.48 kB │ gzip:   0.86 kB\ndist/assets/AboutPage-DD0Tuh6y.js                    4.54 kB │ gzip:   1.39 kB\ndist/assets/DashboardPage-BuA0l8gn.js                4.92 kB │ gzip:   0.79 kB\ndist/assets/ProfilePage-C4l5OWjx.js                  5.01 kB │ gzip:   1.22 kB\ndist/assets/RequestsPage-v17lK6xT.js                 5.07 kB │ gzip:   1.08 kB\ndist/assets/InvoicesPage-twzMM021.js                 5.31 kB │ gzip:   1.24 kB\ndist/assets/ManageParksPage-re2nfljO.js              5.47 kB │ gzip:   0.95 kB\ndist/assets/SuperAdminAdsPage-DoRnZ7HM.js            5.78 kB │ gzip:   1.18 kB\ndist/assets/GuardGatePassesPage-Cf9Vf2va.js          6.40 kB │ gzip:   1.26 kB\ndist/assets/CreateInvoicePage-BcCryTcY.js            6.64 kB │ gzip:   1.45 kB\ndist/assets/ManageFactoriesPage-D3PMnWc7.js          6.65 kB │ gzip:   1.24 kB\ndist/assets/ManageUsersPage-Bt4kJP4c.js              6.68 kB │ gzip:   1.19 kB\ndist/assets/ManageInvoicesPage-BmheqMVF.js           7.71 kB │ gzip:   1.35 kB\ndist/assets/ApproveGatePassesPage-RQPG5Ykp.js        8.08 kB │ gzip:   1.46 kB\ndist/assets/ApproveRequestsPage-CIK9shsP.js          8.10 kB │ gzip:   1.42 kB\ndist/assets/VerifyGatePassPage-Cd6EuoUA.js           8.22 kB │ gzip:   1.62 kB\ndist/assets/InvoicePaymentPage-lqxqs9GL.js           8.52 kB │ gzip:   1.36 kB\ndist/assets/LoginPage-D_vvqNnO.js                    8.65 kB │ gzip:   1.83 kB\ndist/assets/RegisterPage-ZN1xhIUj.js                10.89 kB │ gzip:   2.12 kB\ndist/assets/GatePassesPage-BEnE6DC4.js              20.45 kB │ gzip:   3.28 kB\ndist/assets/query-DXyBKyCP.js                       42.03 kB │ gzip:  13.92 kB\ndist/assets/index-DwfzbsLL.js                      195.12 kB │ gzip:  51.07 kB\ndist/assets/router-CXH_-cmD.js                     346.38 kB │ gzip: 107.99 kB\ndist/assets/mui-DtU6v3Sc.js                        412.16 kB │ gzip: 123.57 kB\n✓ built in 20.86s"
+    },
+    {
+      "name": "backend:typecheck",
+      "command": "npm run typecheck",
+      "cwd": "mekss-backend",
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 4162,
+      "output": "> mekss-backend@1.0.0 typecheck\n> tsc --noEmit\n\nsrc/advertisement/dto/advertisement-response.dto.ts(114,29): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,33): error TS1005: ':' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,39): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,45): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(114,49): error TS1002: Unterminated string literal.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(115,3): error TS1005: ':' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(115,14): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(115,22): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(117,3): error TS1136: Property assignment expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(117,47): error TS1109: Expression expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(118,3): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(118,13): error TS1005: ',' expected.\r\nsrc/advertisement/dto/advertisement-response.dto.ts(118,21): error TS1005: ')' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,29): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,33): error TS1005: ':' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,38): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,45): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,54): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(72,58): error TS1002: Unterminated string literal.\r\nsrc/emergency/dto/emergency-response.dto.ts(73,3): error TS1005: ':' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(73,12): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(73,18): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,1): error TS1005: ',' expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,8): error TS1434: Unexpected keyword or identifier.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,14): error TS1434: Unexpected keyword or identifier.\r\nsrc/emergency/dto/emergency-response.dto.ts(76,39): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(77,90): error TS1146: Declaration expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(78,37): error TS1011: An element access expression should take an argument.\r\nsrc/emergency/dto/emergency-response.dto.ts(80,47): error TS1146: Declaration expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(83,48): error TS1146: Declaration expected.\r\nsrc/emergency/dto/emergency-response.dto.ts(86,50): error TS1146: Declaration expected."
+    },
+    {
+      "name": "backend:build",
+      "command": "npm run build",
+      "cwd": "mekss-backend",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7295,
+      "output": "> mekss-backend@1.0.0 build\n> nest build"
+    }
+  ],
+  "persistenceEvidence": {
+    "httpRequestsExecuted": 0,
+    "databaseConnectionUsed": false,
+    "auditWritesExecuted": 0,
+    "before": {
+      "schemaSha256": "c99205d73399bacf965c7c0ab953b9f9563e3e432bf2684a7835a43a935d7311",
+      "managementServiceSha256": "778ccfac6e6625d59c08ffc638f45fca74ac06ee6f845f97823fc2cbae4fa5ef"
+    },
+    "after": {
+      "schemaSha256": "c99205d73399bacf965c7c0ab953b9f9563e3e432bf2684a7835a43a935d7311",
+      "managementServiceSha256": "778ccfac6e6625d59c08ffc638f45fca74ac06ee6f845f97823fc2cbae4fa5ef"
+    },
+    "unchanged": true,
+    "note": "Source-level exploration intentionally performs no HTTP or database mutation against unfixed data."
+  },
+  "counterexamples": [
+    {
+      "id": "CE-01",
+      "surface": "PARK_MANAGEMENT",
+      "minimizedInput": {
+        "route": "/superadmin/parks",
+        "fixtureId": "API-FIXTURE-PARK-9",
+        "renderedSourceId": "P-01",
+        "source": "ManageParksPage.jsx:17-20"
+      },
+      "expected": "Persisted fixture IDs are queried and CRUD controls call industrial-park contracts.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-02",
+      "surface": "USER_MANAGEMENT",
+      "minimizedInput": {
+        "route": "/superadmin/users",
+        "fixtureId": "API-FIXTURE-USER-9",
+        "renderedSourceId": "U-001",
+        "rawNonCanonicalRole": "FACTORY_MANAGER",
+        "source": "ManageUsersPage.jsx:19-24"
+      },
+      "expected": "Persisted users and canonical roles are loaded; create and safe lifecycle actions are durable.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-03",
+      "surface": "ADVERTISEMENT_MODERATION",
+      "minimizedInput": {
+        "route": "/admin/advertisements",
+        "fixtureId": "API-FIXTURE-AD-9",
+        "renderedSourceId": 1,
+        "unboundActions": [
+          "مشاهده",
+          "تایید",
+          "رد"
+        ],
+        "source": "ApproveAdvertisementsPage.jsx:13-17,48-53"
+      },
+      "expected": "Scoped records load from the API and exactly one confirmed moderation transition occurs.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-04",
+      "surface": "ROLE_DASHBOARD",
+      "minimizedInput": {
+        "route": "/dashboard",
+        "role": "SUPER_ADMIN",
+        "apiFixture": {
+          "pendingAdvertisements": 7
+        },
+        "observed": "heading-only",
+        "source": "DashboardPage.jsx:34-49"
+      },
+      "expected": "Scoped summaries, pending work, recent priorities, and quick actions render from analytics.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-05",
+      "surface": "OTHER_VISIBLE_ADMIN_OPERATION",
+      "minimizedInput": {
+        "route": "/admin/invoices/create",
+        "operation": "submit",
+        "observed": "console.log + alert; no request",
+        "source": "CreateInvoicePage.jsx:51-57"
+      },
+      "expected": "A validated server-confirmed mutation occurs or the operation is explicitly unavailable.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-06",
+      "surface": "MISSING_API_CONTRACT",
+      "minimizedInput": {
+        "missingContracts": [
+          "industrial park list/create",
+          "industrial park update/delete",
+          "user detail/delete",
+          "admin advertisement list/detail",
+          "separate advertisement reject transition",
+          "durable batch messaging",
+          "scoped reports",
+          "notifications/settings",
+          "non-secret SMS health"
+        ],
+        "controller": "management.controller.ts"
+      },
+      "expected": "Every visible operation has an active /api/v1 contract or an explicit unavailable state.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-07",
+      "surface": "RESPONSIVE_NAVIGATION",
+      "minimizedInput": {
+        "viewport": 320,
+        "drawerWidth": 280,
+        "variant": "persistent",
+        "startsOpen": true,
+        "marginRight": -280
+      },
+      "expected": "Temporary/compact navigation avoids horizontal task-area loss and preserves context.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-08",
+      "surface": "PWA_INSTALLATION",
+      "minimizedInput": {
+        "installEventAvailable": true,
+        "installed": false,
+        "beforeinstallpromptHandler": false
+      },
+      "expected": "A user-gesture-only Persian install affordance follows the browser event lifecycle.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-09",
+      "surface": "OFFLINE_ADMIN_STATE",
+      "minimizedInput": {
+        "connectivity": "OFFLINE",
+        "operation": "approve",
+        "connectivityProvider": false,
+        "mutationGuard": false
+      },
+      "expected": "Offline mutations are blocked and stale data refreshes before decisions resume.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-10",
+      "surface": "ACCESSIBLE_INTERACTION",
+      "minimizedInput": {
+        "shellIconButtons": 4,
+        "explicitlyNamed": 1,
+        "notificationActionBound": false
+      },
+      "expected": "Every icon action has an accessible name and truthful behavior.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-BUILD-1",
+      "surface": "AUTOMATED_CHECK",
+      "minimizedInput": {
+        "command": "npm run typecheck",
+        "cwd": "mekss-industrial-park",
+        "exitCode": 2,
+        "firstOutput": [
+          "> mekss-industrial-park@1.0.0 typecheck",
+          "> tsc --noEmit",
+          "",
+          "src/components/dashboard/ChartContainer.jsx(124,14): error TS2304: Cannot find name 'CircularProgress'.\r",
+          "src/components/dashboard/QuickActions.jsx(108,17): error TS2322: Type 'string' is not assignable to type 'OverridableStringUnion<\"info\" | \"success\" | \"warning\" | \"error\" | \"inherit\" | \"primary\" | \"secondary\", ButtonPropsColorOverrides>'.\r",
+          "src/components/dashboard/StatsCards.jsx(32,33): error TS2769: No overload matches this call.\r",
+          "  The last overload gave the following error.\r",
+          "    Argument of type '({ theme, color }: BoxOwnProps<Theme> & Omit<Omit<DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>, \"ref\"> & { ...; }, keyof BoxOwnProps<...>> & MUIStyledCommonProps<...> & { ...; }) => { ...; }' is not assignable to parameter of type 'TemplateStringsArray'.\r"
+        ]
+      },
+      "expected": "Required type/build gate exits successfully.",
+      "observed": "bug condition present on unfixed source"
+    },
+    {
+      "id": "CE-BUILD-2",
+      "surface": "AUTOMATED_CHECK",
+      "minimizedInput": {
+        "command": "npm run typecheck",
+        "cwd": "mekss-backend",
+        "exitCode": 1,
+        "firstOutput": [
+          "> mekss-backend@1.0.0 typecheck",
+          "> tsc --noEmit",
+          "",
+          "src/advertisement/dto/advertisement-response.dto.ts(114,29): error TS1005: ',' expected.\r",
+          "src/advertisement/dto/advertisement-response.dto.ts(114,33): error TS1005: ':' expected.\r",
+          "src/advertisement/dto/advertisement-response.dto.ts(114,39): error TS1005: ',' expected.\r",
+          "src/advertisement/dto/advertisement-response.dto.ts(114,45): error TS1005: ',' expected.\r",
+          "src/advertisement/dto/advertisement-response.dto.ts(114,49): error TS1002: Unterminated string literal.\r"
+        ]
+      },
+      "expected": "Required type/build gate exits successfully.",
+      "observed": "bug condition present on unfixed source"
+    }
+  ],
+  "generatedAt": "2026-08-22T12:06:18.135Z"
+}

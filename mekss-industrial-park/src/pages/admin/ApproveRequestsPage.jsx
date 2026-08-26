@@ -1,4 +1,5 @@
 import React from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Box,
   Typography,
@@ -14,30 +15,45 @@ import {
   Chip,
   Tabs,
   Tab,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon, Visibility as ViewIcon } from '@mui/icons-material';
+import { CheckCircle as ApproveIcon, Cancel as RejectIcon } from '@mui/icons-material';
+import { requestApi } from '../../services/api/request.api';
+import { useNotification } from '../../providers/NotificationProvider';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { getErrorMessage } from '../../utils/apiError';
 
-const mockRequests = [
-  { id: 'REQ-101', factory: 'واحد صنعتی پولاد', type: 'تعمیرات', subject: 'درخواست تعمیر آسفالت', date: '۱۴۰۲/۰۳/۱۵', status: 'APPROVED' },
-  { id: 'REQ-102', factory: 'کارخانه پلاستیک سازی نوین', type: 'خدمات', subject: 'درخواست نیروی نظافت', date: '۱۴۰۲/۰۴/۰۱', status: 'PENDING' },
-  { id: 'REQ-103', factory: 'تولیدی پوشاک تابان', type: 'مجوز', subject: 'درخواست مجوز ورود ماشین‌آلات', date: '۱۴۰۲/۰۳/۲۰', status: 'REJECTED' },
-];
-
-const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error' };
-const statusLabels = { PENDING: 'در انتظار', APPROVED: 'تایید شده', REJECTED: 'رد شده' };
+const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error', CANCELLED: 'default' };
+const statusLabels = { PENDING: 'در انتظار', APPROVED: 'تایید شده', REJECTED: 'رد شده', CANCELLED: 'لغو شده' };
 
 const ApproveRequestsPage = () => {
-    const [tab, setTab] = React.useState(0);
+  const [tab, setTab] = React.useState(0);
+  const [rejectTarget, setRejectTarget] = React.useState(null);
+  const { showNotification } = useNotification();
+  const queryClient = useQueryClient();
 
-    const handleTabChange = (event, newValue) => {
-        setTab(newValue);
-    };
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['requests', 'managed'],
+    queryFn: () => requestApi.getRequests().then((res) => res.data),
+  });
 
-    const filteredRequests = mockRequests.filter(req => {
-        if(tab === 0) return req.status === 'PENDING';
-        if(tab === 1) return req.status !== 'PENDING';
-        return false;
-    });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['requests', 'managed'] });
+
+  const approveMutation = useMutation({
+    mutationFn: (/** @type {string} */ id) => requestApi.approveRequest(id),
+    onSuccess: () => { showNotification('درخواست با موفقیت تایید شد.', 'success'); invalidate(); },
+    onError: (err) => showNotification(getErrorMessage(err, 'تایید درخواست ناموفق بود.'), 'error'),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (/** @type {{id: string, reason: string}} */ { id, reason }) => requestApi.rejectRequest(id, { reason }),
+    onSuccess: () => { showNotification('درخواست رد شد.', 'success'); setRejectTarget(null); invalidate(); },
+    onError: (err) => showNotification(getErrorMessage(err, 'رد درخواست ناموفق بود.'), 'error'),
+  });
+
+  const requests = data || [];
+  const filteredRequests = requests.filter((req) => (tab === 0 ? req.status === 'PENDING' : req.status !== 'PENDING'));
 
   return (
     <Box>
@@ -45,55 +61,77 @@ const ApproveRequestsPage = () => {
         تایید درخواست‌ها
       </Typography>
       <Paper>
-         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tab} onChange={handleTabChange}>
-                <Tab label="در انتظار بررسی" />
-                <Tab label="تاریخچه" />
-            </Tabs>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={tab} onChange={(_, value) => setTab(value)}>
+            <Tab label="در انتظار بررسی" />
+            <Tab label="تاریخچه" />
+          </Tabs>
         </Box>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>شناسه</TableCell>
-                <TableCell>واحد صنعتی</TableCell>
-                <TableCell>موضوع</TableCell>
-                <TableCell>تاریخ</TableCell>
-                <TableCell>وضعیت</TableCell>
-                <TableCell align="center">عملیات</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredRequests.map((req) => (
-                <TableRow key={req.id}>
-                  <TableCell>{req.id}</TableCell>
-                  <TableCell>{req.factory}</TableCell>
-                  <TableCell>{req.subject}</TableCell>
-                  <TableCell>{req.date}</TableCell>
-                  <TableCell>
-                    <Chip label={statusLabels[req.status]} color={statusColors[req.status]} size="small" />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="مشاهده جزئیات">
-                      <IconButton><ViewIcon /></IconButton>
-                    </Tooltip>
-                    {req.status === 'PENDING' && (
-                      <>
-                        <Tooltip title="تایید">
-                          <IconButton color="success"><ApproveIcon /></IconButton>
-                        </Tooltip>
-                        <Tooltip title="رد کردن">
-                          <IconButton color="error"><RejectIcon /></IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </TableCell>
+        {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+        {isError && <Alert severity="error" sx={{ m: 2 }}>{getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}</Alert>}
+        {!isLoading && !isError && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>واحد صنعتی</TableCell>
+                  <TableCell>موضوع</TableCell>
+                  <TableCell>تاریخ</TableCell>
+                  <TableCell>وضعیت</TableCell>
+                  <TableCell align="center">عملیات</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {filteredRequests.length === 0 && (
+                  <TableRow><TableCell colSpan={5} align="center">موردی برای نمایش وجود ندارد.</TableCell></TableRow>
+                )}
+                {filteredRequests.map((req) => (
+                  <TableRow key={req.id}>
+                    <TableCell>{req.factory?.name || '—'}</TableCell>
+                    <TableCell>{req.title}</TableCell>
+                    <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
+                    <TableCell>
+                      <Chip label={statusLabels[req.status] || req.status} color={statusColors[req.status] || 'default'} size="small" />
+                    </TableCell>
+                    <TableCell align="center">
+                      {req.status === 'PENDING' && (
+                        <>
+                          <Tooltip title="تایید">
+                            <span>
+                              <IconButton color="success" onClick={() => approveMutation.mutate(req.id)} disabled={approveMutation.isPending}>
+                                <ApproveIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title="رد کردن">
+                            <span>
+                              <IconButton color="error" onClick={() => setRejectTarget(req.id)}>
+                                <RejectIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </Paper>
+      <ConfirmDialog
+        open={Boolean(rejectTarget)}
+        title="رد درخواست"
+        description="لطفا دلیل رد این درخواست را وارد کنید."
+        requireReason
+        reasonLabel="دلیل رد"
+        confirmLabel="رد کردن"
+        confirmColor="error"
+        loading={rejectMutation.isPending}
+        onConfirm={(reason) => rejectMutation.mutate({ id: rejectTarget, reason })}
+        onClose={() => setRejectTarget(null)}
+      />
     </Box>
   );
 };

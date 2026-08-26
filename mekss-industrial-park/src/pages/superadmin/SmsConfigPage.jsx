@@ -1,70 +1,46 @@
 import React from 'react';
-import { Box, Typography, Paper, TextField, Button, Grid, Alert } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
+import { Box, Typography, Paper, Grid, Alert, Chip, CircularProgress } from '@mui/material';
+import { smsApi } from '../../services/api/sms.api';
+import { getErrorMessage } from '../../utils/apiError';
+
+const providerLabels = { mock: 'شبیه‌سازی (محیط توسعه)', kavenegar: 'کاوه‌نگار' };
 
 const SmsConfigPage = () => {
-  const [config, setConfig] = React.useState({
-    apiKey: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-    senderNumber: '100020003000',
-    providerUrl: 'https://api.sms-provider.com/v1/send',
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['sms', 'health'],
+    queryFn: () => smsApi.getHealth().then((res) => res.data),
   });
-
-  const handleChange = (e) => {
-    setConfig({ ...config, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e) => {
-      e.preventDefault();
-      alert('تنظیمات پیامک با موفقیت ذخیره شد.');
-  }
 
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        تنظیمات پنل پیامک
+        وضعیت سرویس پیامک
       </Typography>
-      <Alert severity="info" sx={{mb: 3}}>
-          این تنظیمات برای ارسال پیامک‌های OTP، اطلاع‌رسانی‌ها و هشدارها استفاده می‌شود.
+      <Alert severity="info" sx={{ mb: 3 }}>
+        به دلایل امنیتی، کلید دسترسی و سایر اطلاعات محرمانه سرویس پیامک فقط از طریق متغیرهای محیطی سرور تنظیم می‌شوند و در مرورگر نمایش داده نمی‌شوند.
+        این صفحه فقط وضعیت پیکربندی را نشان می‌دهد.
       </Alert>
-      <Paper sx={{ p: 3 }}>
-        <Box component="form" onSubmit={handleSubmit}>
+      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت وضعیت سرویس پیامک ناموفق بود.')}</Alert>}
+      {!isLoading && !isError && data && (
+        <Paper sx={{ p: 3 }}>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                required
-                label="آدرس سرویس‌دهنده (API URL)"
-                name="providerUrl"
-                value={config.providerUrl}
-                onChange={handleChange}
-              />
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">سرویس‌دهنده</Typography>
+              <Typography variant="h6">{providerLabels[data.provider] || data.provider}</Typography>
             </Grid>
-            <Grid item xs={12} sm={8}>
-              <TextField
-                fullWidth
-                required
-                label="کلید دسترسی (API Key)"
-                name="apiKey"
-                value={config.apiKey}
-                onChange={handleChange}
-                type="password"
-              />
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">وضعیت پیکربندی</Typography>
+              <Chip label={data.configured ? 'پیکربندی شده' : 'پیکربندی نشده'} color={data.configured ? 'success' : 'error'} />
             </Grid>
-             <Grid item xs={12} sm={4}>
-              <TextField
-                fullWidth
-                required
-                label="شماره فرستنده"
-                name="senderNumber"
-                value={config.senderNumber}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sx={{textAlign: 'right'}}>
-                <Button type="submit" variant="contained">ذخیره تنظیمات</Button>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary">شماره فرستنده</Typography>
+              <Typography variant="h6">{data.maskedSender || '—'}</Typography>
             </Grid>
           </Grid>
-        </Box>
-      </Paper>
+        </Paper>
+      )}
     </Box>
   );
 };

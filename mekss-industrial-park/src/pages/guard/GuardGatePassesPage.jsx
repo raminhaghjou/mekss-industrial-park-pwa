@@ -1,4 +1,6 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -13,17 +15,27 @@ import {
   TextField,
   InputAdornment,
   Grid,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { Search as SearchIcon, QrCodeScanner as QrCodeScannerIcon } from '@mui/icons-material';
-
-const mockApprovedPasses = [
-  { id: 'GP-103', factory: 'تولیدی پوشاک تابان', driverName: 'رضا محمدی', plateNumber: '۵۵ب۶۶۶ ایران ۲۲', createdAt: '۱۴۰۲/۰۳/۳۰', status: 'APPROVED' },
-  { id: 'GP-104', factory: 'صنایع غذایی بهاران', driverName: 'سارا موسوی', plateNumber: '۱۱ج۲۲۲ ایران ۴۴', createdAt: '۱۴۰۲/۰۴/۰۲', status: 'APPROVED' },
-];
+import { Search as SearchIcon } from '@mui/icons-material';
+import { gatePassApi } from '../../services/api/gatePass.api';
+import { getErrorMessage } from '../../utils/apiError';
 
 const GuardGatePassesPage = () => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const [search, setSearch] = React.useState('');
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['gate-passes', 'guard'],
+    queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
+  });
+
+  const approvedPasses = (data || []).filter((pass) => pass.status === 'APPROVED').filter((pass) => {
+    if (!search.trim()) return true;
+    const query = search.trim();
+    return pass.licensePlate.includes(query) || pass.id.includes(query);
+  });
 
   return (
     <Box>
@@ -33,54 +45,51 @@ const GuardGatePassesPage = () => {
 
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6}>
-                <TextField
-                    fullWidth
-                    label="جستجو بر اساس شماره پلاک یا شناسه برگ خروج"
-                    InputProps={{
-                        startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
-                    }}
-                />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-                 <Button fullWidth variant="contained" startIcon={<QrCodeScannerIcon />}>
-                    اسکن QR کد
-                </Button>
-            </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="جستجو بر اساس شماره پلاک یا شناسه برگ خروج"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
+            />
+          </Grid>
         </Grid>
       </Paper>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>شناسه</TableCell>
-              <TableCell>واحد صنعتی</TableCell>
-              <TableCell>نام راننده</TableCell>
-              <TableCell>شماره پلاک</TableCell>
-              <TableCell align="center">عملیات</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {mockApprovedPasses.map((pass) => (
-              <TableRow key={pass.id}>
-                <TableCell>{pass.id}</TableCell>
-                <TableCell>{pass.factory}</TableCell>
-                <TableCell>{pass.driverName}</TableCell>
-                <TableCell>{pass.plateNumber}</TableCell>
-                <TableCell align="center">
-                  <Button
-                    variant="outlined"
-                    onClick={() => navigate(`/guard/gate-passes/${pass.id}/verify`)}
-                  >
-                    بررسی و تایید خروج
-                  </Button>
-                </TableCell>
+      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</Alert>}
+      {!isLoading && !isError && (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>واحد صنعتی</TableCell>
+                <TableCell>نام راننده</TableCell>
+                <TableCell>شماره پلاک</TableCell>
+                <TableCell align="center">عملیات</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {approvedPasses.length === 0 && (
+                <TableRow><TableCell colSpan={4} align="center">هیچ برگ خروج تایید‌شده‌ای برای نمایش وجود ندارد.</TableCell></TableRow>
+              )}
+              {approvedPasses.map((pass) => (
+                <TableRow key={pass.id}>
+                  <TableCell>{pass.factory?.name || '—'}</TableCell>
+                  <TableCell>{pass.driverName}</TableCell>
+                  <TableCell>{pass.licensePlate}</TableCell>
+                  <TableCell align="center">
+                    <Button variant="outlined" onClick={() => navigate(`/guard/gate-passes/${pass.id}/verify`)}>
+                      بررسی و تایید خروج
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </Box>
   );
 };

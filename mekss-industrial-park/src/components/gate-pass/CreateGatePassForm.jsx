@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Box,
   Typography,
@@ -7,141 +8,121 @@ import {
   Grid,
   Paper,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
+  MenuItem,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { factoryApi } from '../../services/api/factory.api';
+import { gatePassApi } from '../../services/api/gatePass.api';
+import { useNotification } from '../../providers/NotificationProvider';
+import { getErrorMessage } from '../../utils/apiError';
+
+const cargoTypes = [
+  { value: 'RAW_MATERIALS', label: 'مواد اولیه' },
+  { value: 'FINISHED_GOODS', label: 'محصول نهایی' },
+  { value: 'WASTE', label: 'ضایعات' },
+  { value: 'SUPPLIES', label: 'ملزومات' },
+  { value: 'EQUIPMENT', label: 'تجهیزات' },
+  { value: 'OTHER', label: 'سایر' },
+];
+
+const vehicleTypes = [
+  { value: 'TRUCK', label: 'کامیون' },
+  { value: 'VAN', label: 'وانت' },
+  { value: 'CAR', label: 'سواری' },
+  { value: 'MOTORCYCLE', label: 'موتورسیکلت' },
+  { value: 'OTHER', label: 'سایر' },
+];
+
+const emptyForm = {
+  factoryId: '', cargoType: 'RAW_MATERIALS', cargoDescription: '', driverName: '', driverNationalId: '',
+  driverPhone: '', vehicleType: 'TRUCK', licensePlate: '', exitDate: '',
+};
 
 const CreateGatePassForm = ({ handleBack }) => {
-  const [formData, setFormData] = useState({
-    driverName: '',
-    plateNumber: '',
-    description: '',
+  const { showNotification } = useNotification();
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState(emptyForm);
+
+  const { data: factories, isLoading: loadingFactories, isError: factoriesError } = useQuery({
+    queryKey: ['factories', 'managed'],
+    queryFn: () => factoryApi.getFactories().then((res) => res.data),
   });
-  const [items, setItems] = useState([]);
-  const [currentItem, setCurrentItem] = useState({ name: '', quantity: '' });
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const createMutation = useMutation({
+    mutationFn: (/** @type {typeof emptyForm} */ payload) => gatePassApi.createGatePass(payload),
+    onSuccess: () => {
+      showNotification('برگ خروج با موفقیت ثبت و برای تایید ارسال شد.', 'success');
+      queryClient.invalidateQueries({ queryKey: ['gate-passes'] });
+      handleBack();
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'ثبت برگ خروج ناموفق بود.'), 'error'),
+  });
 
-  const handleItemChange = (e) => {
-    setCurrentItem({ ...currentItem, [e.target.name]: e.target.value });
-  };
-
-  const handleAddItem = () => {
-    if (currentItem.name && currentItem.quantity) {
-      setItems([...items, currentItem]);
-      setCurrentItem({ name: '', quantity: '' });
-    }
-  };
-
-  const handleRemoveItem = (indexToRemove) => {
-    setItems(items.filter((_, index) => index !== indexToRemove));
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: Implement API call to submit the form data
-    console.log({ ...formData, items });
-    alert('برگ خروج با موفقیت ثبت و برای تایید ارسال شد.');
-    handleBack(); // Go back to the list view
+    const required = ['factoryId', 'cargoType', 'driverName', 'driverNationalId', 'driverPhone', 'vehicleType', 'licensePlate', 'exitDate'];
+    if (required.some((field) => !form[field])) {
+      showNotification('لطفا تمام فیلدهای الزامی را پر کنید.', 'error');
+      return;
+    }
+    createMutation.mutate(form);
   };
 
   return (
     <Paper sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <IconButton onClick={handleBack} sx={{ ml: 1 }}>
+        <IconButton onClick={handleBack} sx={{ ml: 1 }} aria-label="بازگشت به لیست">
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h5">
           فرم ایجاد برگ خروج جدید
         </Typography>
       </Box>
+      {factoriesError && <Alert severity="error" sx={{ mb: 2 }}>دریافت لیست واحدهای صنعتی ناموفق بود.</Alert>}
       <Box component="form" onSubmit={handleSubmit}>
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              required
-              label="نام راننده"
-              name="driverName"
-              value={formData.driverName}
-              onChange={handleChange}
-            />
+            <TextField select fullWidth required label="واحد صنعتی" name="factoryId" value={form.factoryId} onChange={handleChange} disabled={loadingFactories}>
+              {(factories || []).map((factory) => <MenuItem key={factory.id} value={factory.id}>{factory.name}</MenuItem>)}
+            </TextField>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              required
-              label="شماره پلاک"
-              name="plateNumber"
-              value={formData.plateNumber}
-              onChange={handleChange}
-            />
+            <TextField select fullWidth required label="نوع بار" name="cargoType" value={form.cargoType} onChange={handleChange}>
+              {cargoTypes.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth required label="نام راننده" name="driverName" value={form.driverName} onChange={handleChange} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth required label="کد ملی راننده" name="driverNationalId" value={form.driverNationalId} onChange={handleChange} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth required label="تلفن راننده" name="driverPhone" value={form.driverPhone} onChange={handleChange} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField select fullWidth required label="نوع خودرو" name="vehicleType" value={form.vehicleType} onChange={handleChange}>
+              {vehicleTypes.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth required label="شماره پلاک" name="licensePlate" value={form.licensePlate} onChange={handleChange} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField fullWidth required label="تاریخ و ساعت خروج" name="exitDate" type="datetime-local" InputLabelProps={{ shrink: true }} value={form.exitDate} onChange={handleChange} />
           </Grid>
           <Grid item xs={12}>
-            <TextField
-              fullWidth
-              required
-              label="توضیحات کلی"
-              name="description"
-              multiline
-              rows={3}
-              value={formData.description}
-              onChange={handleChange}
-            />
+            <TextField fullWidth label="توضیحات بار (اختیاری)" name="cargoDescription" multiline rows={3} value={form.cargoDescription} onChange={handleChange} />
           </Grid>
-
-          {/* Items Section */}
-          <Grid item xs={12}>
-            <Typography variant="h6">اقلام</Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mt: 1, mb: 2 }}>
-              <TextField
-                label="نام کالا"
-                name="name"
-                value={currentItem.name}
-                onChange={handleItemChange}
-                size="small"
-              />
-              <TextField
-                label="تعداد/مقدار"
-                name="quantity"
-                value={currentItem.quantity}
-                onChange={handleItemChange}
-                size="small"
-              />
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={handleAddItem}
-              >
-                افزودن
-              </Button>
-            </Box>
-            {items.length > 0 && (
-              <List dense>
-                {items.map((item, index) => (
-                  <ListItem key={index} divider>
-                    <ListItemText primary={item.name} secondary={`مقدار: ${item.quantity}`} />
-                    <ListItemSecondaryAction>
-                      <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveItem(index)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Grid>
-
           <Grid item xs={12} sx={{ textAlign: 'right' }}>
-            <Button type="submit" variant="contained">
-              ثبت و ارسال برای تایید
+            <Button type="submit" variant="contained" disabled={createMutation.isPending}>
+              {createMutation.isPending ? <CircularProgress size={22} /> : 'ثبت و ارسال برای تایید'}
             </Button>
-            <Button variant="text" onClick={handleBack} sx={{ ml: 2 }}>
+            <Button variant="text" onClick={handleBack} sx={{ ml: 2 }} disabled={createMutation.isPending}>
               انصراف
             </Button>
           </Grid>

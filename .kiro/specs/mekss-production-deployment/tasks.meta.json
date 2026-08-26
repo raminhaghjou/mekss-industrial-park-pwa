@@ -1,0 +1,231 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add check-only workspace, backend, and frontend scripts for linting, type checking, builds, unit/integration tests, browser tests, Compose smoke tests, and the aggregate local acceptance command.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074936011
+      },
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787075066688
+      },
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787127125755
+      }
+    ],
+    "1.2 Implement `validate-production-config` and a complete committed non-secret environment schema.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074936854
+      },
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787127217919
+      }
+    ],
+    "1.3 Add local command-runner tests for the configuration and acceptance entrypoints.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937006
+      }
+    ],
+    "2.1 Update `mekss-backend/prisma/schema.prisma` and committed Prisma migrations to preserve canonical roles, tenant ownership, bootstrap state, durable token/OTP state, payment idempotency, notification outcomes, scoped-file metadata, and append-only audit fields.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937197
+      },
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787075107165
+      },
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787127177001
+      }
+    ],
+    "2.2 Implement explicit migration, development seed, and production bootstrap commands in the backend.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937319
+      }
+    ],
+    "2.3 Add isolated PostgreSQL integration tests for migrations, seeds, and bootstrap.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937449
+      }
+    ],
+    "3.1 Implement bounded `/health/live` and `/health/ready` endpoints with PostgreSQL, Redis, and MinIO probes.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937588
+      }
+    ],
+    "3.2 Normalize correlation propagation, log redaction, and transactional append-only audits in NestJS core and management services.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937668
+      }
+    ],
+    "3.3 Implement durable authentication, authorization, and tenant isolation using the canonical Prisma model.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937784
+      }
+    ],
+    "3.4 Publish and enforce the versioned `/api/v1` OpenAPI/DTO contract and align the frontend client call definitions.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074937893
+      }
+    ],
+    "4.1 Implement typed mock/real ZarinPal adapters and restart-safe idempotent payment transitions.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938000
+      }
+    ],
+    "4.2 Implement typed mock/real Kavenegar adapters and Redis/Bull notification workers with durable outcomes.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938102
+      }
+    ],
+    "4.3 Implement the MinIO/S3 adapter, private bucket bootstrap, and scoped-file API behavior.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938231
+      }
+    ],
+    "4.4 Add an isolated provider/queue/storage suite using only disposable PostgreSQL, Redis, and MinIO services.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938336
+      }
+    ],
+    "5.1 Align the React API client and role-aware UI with the published API contract.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938436
+      }
+    ],
+    "5.2 Configure exactly one PWA/service-worker implementation and safe private-cache boundaries.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938561
+      }
+    ],
+    "5.3 Add a non-interactive frontend browser-test suite and sanitized artifacts.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938650
+      }
+    ],
+    "6.1 Replace/add backend and frontend multi-stage Dockerfiles and `.dockerignore` files.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938760
+      },
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787127226605
+      }
+    ],
+    "6.2 Create root `compose.yaml`, `compose.local.yaml`, and a locally rendered production-shaped override.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074938858
+      }
+    ],
+    "6.3 Add a disposable Compose smoke suite that builds and executes frontend, backend, PostgreSQL, Redis, MinIO, and Nginx locally.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939018
+      }
+    ],
+    "6.4 Write the deterministic check for **Property 1: Production images exclude repository secrets and run unprivileged**.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939126
+      }
+    ],
+    "7.1 Add version-controlled Nginx templates and local certificate/test configuration for the three production host names.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939226
+      }
+    ],
+    "7.2 Add Nginx/Compose integration tests using host-header requests and local test certificates.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939336
+      }
+    ],
+    "8.1 Implement repository-local backup/restore scripts or one-shot jobs for encrypted PostgreSQL and MinIO archives.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939448
+      }
+    ],
+    "8.2 Implement a machine-readable and human-readable local acceptance evidence ledger generator.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939563
+      }
+    ],
+    "9.1 Add CI-compatible local acceptance orchestration for check-only lint/type checks, builds, migrations, unit/integration/API/browser tests, image-boundary checks, Compose smoke, Nginx tests, backup/restore tests, and secret scans.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939670
+      }
+    ],
+    "9.2 Add deliberately failing local fixtures for lint, migration, image-secret/root-user, configuration, routing, and redaction checks.": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939794
+      }
+    ],
+    "10. Checkpoint - Ensure all automated local checks pass": [
+      {
+        "executionId": "38fa6ba4-07aa-4ac3-93fc-d39c81c9cf11",
+        "chatSessionId": "sess_7cfc0b9f-b307-46ac-b0aa-79a69cc773ae",
+        "timestamp": 1787074939901
+      }
+    ]
+  }
+}

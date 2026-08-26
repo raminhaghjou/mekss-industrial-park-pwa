@@ -1,0 +1,315 @@
+{
+  "pbtResults": {
+    "1. [Required] Write the bug condition exploration property test": {
+      "status": "passed",
+      "failingExample": "seed=0x5eed2025; generated=256; failed=256; minimized={\"surface\":\"USER_MANAGEMENT\",\"role\":\"FACTORY_OWNER\",\"tenantScope\":\"OUT_OF_SCOPE\",\"payloadValidity\":\"INVALID\",\"apiOutcome\":\"FORBIDDEN\",\"recordCount\":0,\"viewport\":320,\"directionSensitiveContent\":\"MIXED_BIDI\",\"connectivity\":\"OFFLINE\",\"installEventAvailable\":true,\"installed\":false,\"inputMode\":\"KEYBOARD\",\"theme\":\"DARK\",\"zoom\":2,\"reducedMotion\":true,\"route\":\"/dashboard\",\"currentResult\":{\"placeholderData\":true,\"missingAuthorizationOrScope\":true,\"unhandledState\":true,\"inaccessibleControl\":true,\"responsiveOverflow\":true,\"invalidInstallLifecycle\":true,\"unsafeOfflineMutation\":true,\"failingRequiredCheck\":true},\"observedResult\":{\"serverConfirmed\":false,\"durable\":false,\"explicitSafeState\":false}}",
+      "lastRunTimestamp": 1787400475662
+    },
+    "2. [Required] Write the preservation property tests before implementing the fix": {
+      "status": "passed",
+      "lastRunTimestamp": 1787400476120
+    }
+  },
+  "executionHistory": {
+    "2. [Required] Write the preservation property tests before implementing the fix": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405340417
+      },
+      {
+        "executionId": "ebf5d124-2da5-4682-a00c-fa1a05169a5f",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787413312845
+      }
+    ],
+    "3.1 [Required] Establish deterministic validation commands and isolated test infrastructure": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405340563
+      },
+      {
+        "executionId": "ebf5d124-2da5-4682-a00c-fa1a05169a5f",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787413320705
+      }
+    ],
+    "3.2 [Required] Repair the backend active type/build boundary without exposing stale parallel APIs": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405340684
+      },
+      {
+        "executionId": "ebf5d124-2da5-4682-a00c-fa1a05169a5f",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787413341236
+      }
+    ],
+    "3.3 [Required] Repair the frontend type/build boundary and remove dead framework ambiguity": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405340882
+      },
+      {
+        "executionId": "55a477dd-8c52-4d07-8f80-d9180a79c2f8",
+        "chatSessionId": "sess_969e0ab1-d317-4c8a-909e-e20826c5a2ec",
+        "timestamp": 1787415836775
+      }
+    ],
+    "3.4 [Required] Add the backward-compatible Prisma moderation migration and data-preservation checks": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341036
+      }
+    ],
+    "3.5 [Required] Implement the shared typed backend validation, canonical actor, error, transaction, and audit foundation": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341183
+      }
+    ],
+    "3.6 [Required] Complete the scoped dashboard API contract": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341306
+      }
+    ],
+    "3.7 [Required] Implement transactional industrial-park CRUD APIs": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341419
+      }
+    ],
+    "3.8 [Required] Implement the safe transactional user administration lifecycle": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341536
+      }
+    ],
+    "3.9 [Required] Implement scoped conflict-safe advertisement moderation APIs": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341654
+      }
+    ],
+    "3.10 [Required] Complete factory management and approval contracts": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341764
+      }
+    ],
+    "3.11 [Required] Complete invoice list/create behavior and remove unsupported mutations": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405341897
+      }
+    ],
+    "3.12 [Required] Complete gate-pass and request review contracts": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342003
+      }
+    ],
+    "3.13 [Required] Complete announcement management contracts": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342117
+      }
+    ],
+    "3.14 [Required] Resolve messaging as a truthful durable operation": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342229
+      }
+    ],
+    "3.15 [Required] Complete reports with server-derived scoped analytics": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342367
+      }
+    ],
+    "3.16 [Required] Resolve notifications, settings, and SMS configuration truthfully": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342467
+      }
+    ],
+    "3.17 [Required] Build the shared frontend API, query, mutation, and classified-error layer": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342584
+      }
+    ],
+    "3.18 [Required] Build shared accessible forms, confirmations, localization, bidi, and operation registry primitives": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342731
+      }
+    ],
+    "3.19 [Required] Implement the premium Persian RTL visual system and professional authentication background": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342840
+      }
+    ],
+    "3.20 [Required] Rebuild responsive role-aware navigation and the accessible application shell": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405342954
+      }
+    ],
+    "3.21 [Required] Implement compliant install-prompt lifecycle and offline mutation safety": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343073
+      }
+    ],
+    "3.22 [Required] Replace the role dashboard with real scoped operational data": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343192
+      }
+    ],
+    "3.23 [Required] Replace `ManageParksPage` mocks with complete API-backed park administration": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343312
+      }
+    ],
+    "3.24 [Required] Replace `ManageUsersPage` mocks with complete safe user administration": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343423
+      }
+    ],
+    "3.25 [Required] Replace advertisement mocks with one complete scoped moderation experience": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343534
+      }
+    ],
+    "3.26 [Required] Replace factory management mocks and no-op controls": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343714
+      }
+    ],
+    "3.27 [Required] Replace invoice creation/management mocks and unsupported controls": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343823
+      }
+    ],
+    "3.28 [Required] Replace gate-pass and request approval mocks": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405343951
+      }
+    ],
+    "3.29 [Required] Replace announcement management mocks and no-op controls": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344100
+      }
+    ],
+    "3.30 [Required] Make messaging, reports, notifications, settings, and SMS pages truthful": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344241
+      }
+    ],
+    "3.31 [Required] Enforce the complete visible-operation truthfulness inventory": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344354
+      }
+    ],
+    "3.32 [Required] Complete cross-cutting WCAG 2.2 AA, Persian RTL, responsive, and state validation": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344516
+      }
+    ],
+    "3.33 [Required] Run backend, migration, and API integration/property validation": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344675
+      }
+    ],
+    "3.34 [Required] Run frontend unit, property, integration, and browser validation": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344795
+      }
+    ],
+    "3.35 [Required] Validate the production-shaped Docker stack and runtime boundaries": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405344925
+      }
+    ],
+    "3.36 [Optional] Add extended visual-regression coverage for premium surfaces": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405345035
+      }
+    ],
+    "3.37 [Required] Verify the original bug condition exploration test now passes": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405345158
+      }
+    ],
+    "3.38 [Required] Verify the preservation property tests still pass": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405345297
+      }
+    ],
+    "4. [Required] Checkpoint - Ensure all required tests and acceptance gates pass": [
+      {
+        "executionId": "66807e5d-0a08-4d61-8cfe-38bb74565da5",
+        "chatSessionId": "sess_7eacf4d2-a722-4a19-b065-a8bc187ac8b6",
+        "timestamp": 1787405345413
+      }
+    ]
+  }
+}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Box,
   Typography,
@@ -11,41 +12,44 @@ import {
   TableRow,
   IconButton,
   Tooltip,
-  TextField,
   Tabs,
   Tab,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon, Visibility as ViewIcon } from '@mui/icons-material';
-
-const mockGatePasses = [
-  { id: 'GP-101', factory: 'واحد صنعتی پولاد', driverName: 'علی رضایی', plateNumber: '۱۲ع۳۴۵ ایران ۶۷', createdAt: '۱۴۰۲/۰۴/۰۲', status: 'PENDING' },
-  { id: 'GP-102', factory: 'کارخانه پلاستیک سازی نوین', driverName: 'مریم حسینی', plateNumber: '۸۸د۴۴۴ ایران ۱۱', createdAt: '۱۴۰۲/۰۴/۰۱', status: 'PENDING' },
-  { id: 'GP-103', factory: 'تولیدی پوشاک تابان', driverName: 'رضا محمدی', plateNumber: '۵۵ب۶۶۶ ایران ۲۲', createdAt: '۱۴۰۲/۰۳/۳۰', status: 'APPROVED' },
-];
+import { CheckCircle as ApproveIcon, Cancel as RejectIcon } from '@mui/icons-material';
+import { gatePassApi } from '../../services/api/gatePass.api';
+import { useNotification } from '../../providers/NotificationProvider';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { getErrorMessage } from '../../utils/apiError';
 
 const ApproveGatePassesPage = () => {
   const [tab, setTab] = React.useState(0);
+  const [rejectTarget, setRejectTarget] = React.useState(null);
+  const { showNotification } = useNotification();
+  const queryClient = useQueryClient();
 
-  const handleTabChange = (event, newValue) => {
-    setTab(newValue);
-  };
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['gate-passes', 'managed'],
+    queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
+  });
 
-  const handleApprove = (passId) => {
-    alert(`برگ خروج ${passId} تایید شد.`);
-  };
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['gate-passes', 'managed'] });
 
-  const handleReject = (passId) => {
-    const reason = prompt("لطفا دلیل رد درخواست را وارد کنید:");
-    if (reason) {
-      alert(`برگ خروج ${passId} به دلیل "${reason}" رد شد.`);
-    }
-  };
+  const approveMutation = useMutation({
+    mutationFn: (/** @type {string} */ id) => gatePassApi.approveGatePass(id),
+    onSuccess: () => { showNotification('برگ خروج با موفقیت تایید شد.', 'success'); invalidate(); },
+    onError: (err) => showNotification(getErrorMessage(err, 'تایید برگ خروج ناموفق بود.'), 'error'),
+  });
 
-  const filteredPasses = mockGatePasses.filter(p => {
-      if(tab === 0) return p.status === 'PENDING';
-      if(tab === 1) return p.status !== 'PENDING';
-      return false;
-  })
+  const rejectMutation = useMutation({
+    mutationFn: (/** @type {{id: string, reason: string}} */ { id, reason }) => gatePassApi.rejectGatePass(id, { reason }),
+    onSuccess: () => { showNotification('برگ خروج رد شد.', 'success'); setRejectTarget(null); invalidate(); },
+    onError: (err) => showNotification(getErrorMessage(err, 'رد برگ خروج ناموفق بود.'), 'error'),
+  });
+
+  const passes = data || [];
+  const filteredPasses = passes.filter((p) => (tab === 0 ? p.status === 'PENDING' : p.status !== 'PENDING'));
 
   return (
     <Box>
@@ -54,52 +58,74 @@ const ApproveGatePassesPage = () => {
       </Typography>
       <Paper>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tab} onChange={handleTabChange}>
-                <Tab label="در انتظار تایید" />
-                <Tab label="تاریخچه" />
-            </Tabs>
+          <Tabs value={tab} onChange={(_, value) => setTab(value)}>
+            <Tab label="در انتظار تایید" />
+            <Tab label="تاریخچه" />
+          </Tabs>
         </Box>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>شناسه</TableCell>
-                <TableCell>واحد صنعتی</TableCell>
-                <TableCell>نام راننده</TableCell>
-                <TableCell>شماره پلاک</TableCell>
-                <TableCell>تاریخ درخواست</TableCell>
-                <TableCell align="center">عملیات</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredPasses.map((pass) => (
-                <TableRow key={pass.id}>
-                  <TableCell>{pass.id}</TableCell>
-                  <TableCell>{pass.factory}</TableCell>
-                  <TableCell>{pass.driverName}</TableCell>
-                  <TableCell>{pass.plateNumber}</TableCell>
-                  <TableCell>{pass.createdAt}</TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="مشاهده جزئیات">
-                      <IconButton><ViewIcon /></IconButton>
-                    </Tooltip>
-                    {pass.status === 'PENDING' && (
-                      <>
-                        <Tooltip title="تایید">
-                          <IconButton color="success" onClick={() => handleApprove(pass.id)}><ApproveIcon /></IconButton>
-                        </Tooltip>
-                        <Tooltip title="رد کردن">
-                          <IconButton color="error" onClick={() => handleReject(pass.id)}><RejectIcon /></IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </TableCell>
+        {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+        {isError && <Alert severity="error" sx={{ m: 2 }}>{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</Alert>}
+        {!isLoading && !isError && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>واحد صنعتی</TableCell>
+                  <TableCell>نام راننده</TableCell>
+                  <TableCell>شماره پلاک</TableCell>
+                  <TableCell>تاریخ خروج</TableCell>
+                  <TableCell align="center">عملیات</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {filteredPasses.length === 0 && (
+                  <TableRow><TableCell colSpan={5} align="center">موردی برای نمایش وجود ندارد.</TableCell></TableRow>
+                )}
+                {filteredPasses.map((pass) => (
+                  <TableRow key={pass.id}>
+                    <TableCell>{pass.factory?.name || '—'}</TableCell>
+                    <TableCell>{pass.driverName}</TableCell>
+                    <TableCell>{pass.licensePlate}</TableCell>
+                    <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
+                    <TableCell align="center">
+                      {pass.status === 'PENDING' && (
+                        <>
+                          <Tooltip title="تایید">
+                            <span>
+                              <IconButton color="success" onClick={() => approveMutation.mutate(pass.id)} disabled={approveMutation.isPending}>
+                                <ApproveIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title="رد کردن">
+                            <span>
+                              <IconButton color="error" onClick={() => setRejectTarget(pass.id)}>
+                                <RejectIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </Paper>
+      <ConfirmDialog
+        open={Boolean(rejectTarget)}
+        title="رد برگ خروج"
+        description="لطفا دلیل رد این برگ خروج را وارد کنید."
+        requireReason
+        reasonLabel="دلیل رد"
+        confirmLabel="رد کردن"
+        confirmColor="error"
+        loading={rejectMutation.isPending}
+        onConfirm={(reason) => rejectMutation.mutate({ id: rejectTarget, reason })}
+        onClose={() => setRejectTarget(null)}
+      />
     </Box>
   );
 };

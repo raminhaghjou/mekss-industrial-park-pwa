@@ -149,6 +149,22 @@ enum EmergencyStatus {
   RESOLVED
 }
 
+enum NotificationChannel {
+  SMS
+  IN_APP
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
 model User {
   id                 String   @id @default(cuid())
   phoneNumber        String   @unique
@@ -161,33 +177,39 @@ model User {
   isApproved         Boolean  @default(false)
   isActive           Boolean  @default(true)
   mustChangePassword Boolean  @default(false)
+  // A single, non-null sentinel identifies the exact-once production bootstrap account.
+  bootstrapKey       String?  @unique
+  bootstrapCreatedAt DateTime?
   avatar             String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   lastLoginAt        DateTime?
 
-  managedFactories   Factory[]            @relation("FactoryOwner")
-  managedParks       IndustrialPark[]     @relation("ParkManager")
-  gatePassesCreated  GatePass[]           @relation("GatePassCreator")
-  gatePassesApproved GatePass[]           @relation("GatePassApprover")
-  gatePassesVerified GatePass[]           @relation("GatePassVerifier")
-  invoicesCreated    Invoice[]            @relation("InvoiceCreator")
-  invoicesPaid       Invoice[]            @relation("InvoicePayer")
-  messagesSent       Message[]            @relation("MessageSender")
-  messagesReceived   Message[]            @relation("MessageReceiver")
-  requestsCreated    Request[]            @relation("RequestCreator")
-  requestsApproved   Request[]            @relation("RequestApprover")
-  announcements      Announcement[]
-  advertisements     Advertisement[]
-  securityShifts     SecurityGuard[]      @relation("SecurityUser")
+  managedFactories        Factory[]            @relation("FactoryOwner")
+  managedParks            IndustrialPark[]     @relation("ParkManager")
+  gatePassesCreated       GatePass[]           @relation("GatePassCreator")
+  gatePassesApproved      GatePass[]           @relation("GatePassApprover")
+  gatePassesVerified      GatePass[]           @relation("GatePassVerifier")
+  invoicesCreated         Invoice[]            @relation("InvoiceCreator")
+  invoicesPaid            Invoice[]            @relation("InvoicePayer")
+  messagesSent            Message[]            @relation("MessageSender")
+  messagesReceived        Message[]            @relation("MessageReceiver")
+  requestsCreated         Request[]            @relation("RequestCreator")
+  requestsApproved        Request[]            @relation("RequestApprover")
+  announcements           Announcement[]
+  advertisements          Advertisement[]      @relation("AdvertisementCreator")
+  moderatedAdvertisements Advertisement[]      @relation("AdvertisementModerator")
+  securityShifts          SecurityGuard[]       @relation("SecurityUser")
   refreshTokens      RefreshToken[]
   otpChallenges      OtpChallenge[]
   notifications      Notification[]
   emergencies        EmergencyAlert[]
   auditLogs          AuditLog[]           @relation("AuditActor")
   paymentAttempts    PaymentTransaction[] @relation("PaymentInitiator")
+  uploadedFiles      ScopedFile[]         @relation("ScopedFileUploader")
 
   @@index([role, isApproved, isActive])
+  @@index([bootstrapCreatedAt])
 }
 
 model IndustrialPark {
@@ -213,7 +235,9 @@ model IndustrialPark {
   factories       Factory[]
   managers        User[]          @relation("ParkManager")
   announcements   Announcement[]
+  advertisements  Advertisement[] @relation("AdvertisementPark")
   securityGuards  SecurityGuard[]
+  scopedFiles     ScopedFile[]
 
   @@index([province, city])
   @@index([status])
@@ -247,7 +271,9 @@ model Factory {
   gatePasses      GatePass[]
   invoices        Invoice[]
   requests        Request[]
+  scopedFiles     ScopedFile[]      @relation("FactoryScopedFiles")
 
+  @@unique([id, parkId])
   @@index([managerId])
   @@index([parkId, status])
   @@index([isApproved])
@@ -360,6 +386,7 @@ model PaymentTransaction {
   initiatedBy    User?         @relation("PaymentInitiator", fields: [initiatedById], references: [id])
 
   @@index([invoiceId, status])
+  @@index([status, createdAt])
 }
 
 model Message {
@@ -444,11 +471,18 @@ model Advertisement {
   expiresAt       DateTime?
 
   createdById     String
-  createdBy       User                @relation(fields: [createdById], references: [id])
+  createdBy       User                @relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  parkId          String?
+  park            IndustrialPark?     @relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: SetNull)
+  moderatedById   String?
+  moderatedBy     User?               @relation("AdvertisementModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedAt     DateTime?
 
   @@index([category, status])
   @@index([province, city])
   @@index([createdAt])
+  @@index([parkId, status])
+  @@index([moderatedById, moderatedAt])
 }
 
 model SecurityGuard {
@@ -481,37 +515,86 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
+  @@index([userId, revokedAt, expiresAt])
 }
 
 model OtpChallenge {
-  id        String     @id @default(cuid())
-  codeHash  String
-  purpose   OtpPurpose
-  expiresAt DateTime
-  attempts  Int        @default(0)
-  consumedAt DateTime?
-  createdAt DateTime   @default(now())
+  id                    String     @id @default(cuid())
+  codeHash              String
+  purpose               OtpPurpose
+  expiresAt             DateTime
+  attempts              Int        @default(0)
+  lastAttemptAt         DateTime?
+  attemptWindowStartedAt DateTime  @default(now())
+  lockedUntil           DateTime?
+  consumedAt            DateTime?
+  createdAt             DateTime   @default(now())
 
-  phoneNumber String
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber           String
+  userId                String?
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([phoneNumber, purpose, expiresAt])
+  @@index([phoneNumber, purpose, lockedUntil])
+  @@index([phoneNumber, purpose, consumedAt, createdAt])
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  title     String
-  body      String
-  type      NotificationType @default(INFO)
-  isRead    Boolean          @default(false)
-  createdAt DateTime         @default(now())
-  readAt    DateTime?
+  id         String           @id @default(cuid())
+  title      String
+  body       String
+  type       NotificationType @default(INFO)
+  isRead     Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  readAt     DateTime?
 
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
 
   @@index([userId, isRead, createdAt])
+}
+
+model NotificationDelivery {
+  id                String                     @id @default(cuid())
+  jobId             String                     @unique
+  channel           NotificationChannel
+  provider          String
+  status            NotificationDeliveryStatus @default(PENDING)
+  attempt           Int                        @default(0)
+  providerErrorCode String?
+  correlationId     String?
+  terminalAt        DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  notificationId    String
+  notification      Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId, status])
+  @@index([status, terminalAt])
+  @@index([correlationId])
+}
+
+model ScopedFile {
+  id           String   @id @default(cuid())
+  objectKey    String   @unique
+  domain       String
+  originalName String
+  contentType  String
+  byteSize     BigInt
+  createdAt    DateTime @default(now())
+
+  parkId       String
+  park         IndustrialPark @relation(fields: [parkId], references: [id], onDelete: Restrict)
+  factoryId    String
+  factory      Factory        @relation("FactoryScopedFiles", fields: [factoryId, parkId], references: [id, parkId], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User           @relation("ScopedFileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([parkId, factoryId, createdAt])
+  @@index([factoryId, createdAt])
+  @@index([uploadedById, createdAt])
 }
 
 model EmergencyAlert {
@@ -532,18 +615,24 @@ model EmergencyAlert {
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  entity    String
-  entityId  String
-  changes   Json?
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  id              String      @id @default(cuid())
+  // This durable actor representation permits the system-bootstrap actor without a user row.
+  actorIdentifier String      @default("system")
+  action          String
+  entity          String
+  entityId        String
+  changes         Json?
+  result          AuditResult @default(SUCCESS)
+  correlationId   String?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime    @default(now())
 
-  userId    String?
-  user      User?    @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
+  userId          String?
+  user            User?       @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+  @@index([actorIdentifier, createdAt])
   @@index([entity, entityId])
+  @@index([correlationId])
 }

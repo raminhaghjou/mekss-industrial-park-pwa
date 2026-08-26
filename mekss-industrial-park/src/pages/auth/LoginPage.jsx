@@ -3,8 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import {
-  Container,
-  Paper,
   TextField,
   Button,
   Typography,
@@ -20,21 +18,10 @@ import {
   Phone as PhoneIcon,
   Lock as LockIcon,
 } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
-
-const LoginContainer = styled(Container)(({ theme }) => ({
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}));
-
-const LoginPaper = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(4),
-  maxWidth: 400,
-  width: '100%',
-  textAlign: 'center',
-}));
+import {
+  AuthCard as LoginPaper,
+  AuthSurface as LoginContainer,
+} from '../../components/auth/AuthSurface';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -264,3 +251,5 @@ export const LoginPage = () => {
     </LoginContainer>
   );
 };
+
+export default LoginPage;

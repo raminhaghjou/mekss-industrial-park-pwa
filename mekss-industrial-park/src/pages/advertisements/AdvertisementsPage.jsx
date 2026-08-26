@@ -1,52 +1,54 @@
 import React from 'react';
-import { Box, Typography, Button, Paper, Grid, Card, CardContent, CardActions } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { Box, Typography, Button, Grid, Card, CardContent, CircularProgress, Alert } from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
+import { advertisementApi } from '../../services/api/advertisement.api';
+import { getErrorMessage } from '../../utils/apiError';
 
-const mockAds = [
-  { id: 1, title: 'فروش دستگاه پرس دست دوم', description: 'یک دستگاه پرس هیدرولیک در حد نو به فروش می‌رسد.', contact: '۰۹۱۲۳۴۵۶۷۸۹' },
-  { id: 2, title: 'نیازمند نیروی فنی', description: 'به یک نفر نیروی فنی آقا مسلط به برق صنعتی نیازمندیم.', contact: 'داخلی ۱۲۳' },
-  { id: 3, title: 'اجاره انبار', description: 'یک سوله ۱۰۰۰ متری جهت اجاره موجود است.', contact: '۰۹۳۵۰۰۰۰۰۰۰' },
-];
+const categoryLabels = {
+  EQUIPMENT: 'تجهیزات', SERVICES: 'خدمات', RAW_MATERIALS: 'مواد اولیه', JOB_LISTINGS: 'فرصت شغلی', REAL_ESTATE: 'املاک', OTHER: 'سایر',
+};
 
 const AdvertisementsPage = () => {
   const navigate = useNavigate();
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['advertisements', 'public'],
+    queryFn: () => advertisementApi.getPublicAdvertisements().then((res) => res.data),
+  });
+
+  const ads = data || [];
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
-          تابلو آگهی‌ها
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/advertisements/new')}
-        >
+        <Typography variant="h4">تابلو آگهی‌ها</Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/advertisements/new')}>
           ثبت آگهی جدید
         </Button>
       </Box>
-      <Grid container spacing={3}>
-        {mockAds.map((ad) => (
-          <Grid item xs={12} sm={6} md={4} key={ad.id}>
-            <Card>
-              <CardContent>
-                <Typography variant="h5" component="div">
-                  {ad.title}
-                </Typography>
-                <Typography sx={{ mt: 1.5 }} color="text.secondary">
-                  {ad.description}
-                </Typography>
-                <Typography sx={{ mt: 2 }} variant="body2">
-                  اطلاعات تماس: {ad.contact}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button size="small">مشاهده جزئیات</Button>
-              </CardActions>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت آگهی‌ها ناموفق بود.')}</Alert>}
+      {!isLoading && !isError && ads.length === 0 && <Typography color="text.secondary">هیچ آگهی تایید‌شده‌ای برای نمایش وجود ندارد.</Typography>}
+      {!isLoading && !isError && ads.length > 0 && (
+        <Grid container spacing={3}>
+          {ads.map((ad) => (
+            <Grid item xs={12} sm={6} md={4} key={ad.id}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h5" component="div">{ad.title}</Typography>
+                  <Typography sx={{ mt: 1.5 }} color="text.secondary">{categoryLabels[ad.category] || ad.category} — {ad.city}</Typography>
+                  <Typography sx={{ mt: 1.5 }}>{ad.content}</Typography>
+                  {ad.contactInfo?.phone && (
+                    <Typography sx={{ mt: 2 }} variant="body2">اطلاعات تماس: {ad.contactInfo.phone}</Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
     </Box>
   );
 };

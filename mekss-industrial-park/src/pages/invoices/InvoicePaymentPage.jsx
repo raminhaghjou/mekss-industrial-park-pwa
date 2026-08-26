@@ -1,20 +1,43 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Paper, Button, Grid, Divider, Alert } from '@mui/material';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Box, Typography, Paper, Button, Grid, Divider, Alert, CircularProgress } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, CreditCard as CreditCardIcon } from '@mui/icons-material';
-
-// Mock Data - Find the invoice based on ID from URL params
-const mockInvoices = [
-  { id: 'INV-001', title: ' قبض برق - خرداد ۱۴۰۲', amount: '۱,۵۰۰,۰۰۰', dueDate: '۱۴۰۲/۰۴/۱۰', status: 'UNPAID' },
-  { id: 'INV-002', title: 'هزینه شارژ و نگهداری', amount: '۵,۰۰۰,۰۰۰', dueDate: '۱۴۰۲/۰۴/۱۵', status: 'UNPAID' },
-];
+import { invoiceApi } from '../../services/api/invoice.api';
+import { useNotification } from '../../providers/NotificationProvider';
+import { getErrorMessage } from '../../utils/apiError';
 
 const InvoicePaymentPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const invoice = mockInvoices.find(inv => inv.id === id);
+  const { showNotification } = useNotification();
 
-  if (!invoice) {
+  const { data: invoices, isLoading, isError } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: () => invoiceApi.getInvoices().then((res) => res.data),
+  });
+
+  const invoice = (invoices || []).find((inv) => inv.id === id);
+
+  const payMutation = useMutation({
+    mutationFn: () => invoiceApi.startPayment(id, `${id}-${Date.now()}`),
+    onSuccess: (res) => {
+      const { paymentUrl } = res.data;
+      if (paymentUrl) {
+        window.location.href = paymentUrl;
+      } else {
+        showNotification('پرداخت با موفقیت شروع شد.', 'success');
+        navigate('/invoices');
+      }
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'شروع پرداخت ناموفق بود.'), 'error'),
+  });
+
+  if (isLoading) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
+  }
+
+  if (isError || !invoice) {
     return (
       <Box>
         <Alert severity="error">قبض مورد نظر یافت نشد.</Alert>
@@ -24,12 +47,6 @@ const InvoicePaymentPage = () => {
       </Box>
     );
   }
-
-  const handlePayment = () => {
-    // Simulate payment process
-    alert(`شبیه‌سازی پرداخت قبض ${invoice.id} به مبلغ ${invoice.amount} ریال. در حالت واقعی به درگاه پرداخت متصل می‌شوید.`);
-    navigate('/invoices');
-  };
 
   return (
     <Box>
@@ -44,49 +61,40 @@ const InvoicePaymentPage = () => {
         </Typography>
         <Divider sx={{ mb: 3 }} />
         <Grid container spacing={2}>
-          <Grid item xs={6}>
-            <Typography variant="body1"><strong>شناسه قبض:</strong></Typography>
-          </Grid>
-          <Grid item xs={6}>
-            <Typography variant="body1" align="right">{invoice.id}</Typography>
-          </Grid>
+          <Grid item xs={6}><Typography variant="body1"><strong>شماره قبض:</strong></Typography></Grid>
+          <Grid item xs={6}><Typography variant="body1" align="right">{invoice.invoiceNumber}</Typography></Grid>
 
-          <Grid item xs={6}>
-            <Typography variant="body1"><strong>عنوان:</strong></Typography>
-          </Grid>
-          <Grid item xs={6}>
-            <Typography variant="body1" align="right">{invoice.title}</Typography>
-          </Grid>
+          <Grid item xs={6}><Typography variant="body1"><strong>شرح:</strong></Typography></Grid>
+          <Grid item xs={6}><Typography variant="body1" align="right">{invoice.description}</Typography></Grid>
 
-          <Grid item xs={6}>
-            <Typography variant="body1"><strong>مهلت پرداخت:</strong></Typography>
-          </Grid>
-          <Grid item xs={6}>
-            <Typography variant="body1" align="right">{invoice.dueDate}</Typography>
-          </Grid>
+          <Grid item xs={6}><Typography variant="body1"><strong>مهلت پرداخت:</strong></Typography></Grid>
+          <Grid item xs={6}><Typography variant="body1" align="right">{new Date(invoice.dueDate).toLocaleDateString('fa-IR')}</Typography></Grid>
 
           <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
 
-          <Grid item xs={6}>
-            <Typography variant="h6"><strong>مبلغ قابل پرداخت:</strong></Typography>
-          </Grid>
+          <Grid item xs={6}><Typography variant="h6"><strong>مبلغ قابل پرداخت:</strong></Typography></Grid>
           <Grid item xs={6}>
             <Typography variant="h6" align="right" color="primary.main">
-              {invoice.amount} ریال
+              {Number(invoice.totalAmount).toLocaleString('fa-IR')} ریال
             </Typography>
           </Grid>
         </Grid>
 
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<CreditCardIcon />}
-            onClick={handlePayment}
-          >
-            پرداخت آنلاین
-          </Button>
-        </Box>
+        {invoice.status === 'PAID' ? (
+          <Alert severity="success" sx={{ mt: 4 }}>این قبض قبلا پرداخت شده است.</Alert>
+        ) : (
+          <Box sx={{ mt: 4, textAlign: 'center' }}>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={payMutation.isPending ? <CircularProgress size={22} color="inherit" /> : <CreditCardIcon />}
+              onClick={() => payMutation.mutate()}
+              disabled={payMutation.isPending}
+            >
+              پرداخت آنلاین
+            </Button>
+          </Box>
+        )}
       </Paper>
     </Box>
   );

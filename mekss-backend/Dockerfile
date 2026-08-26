@@ -1,68 +1,42 @@
-# Build stage
-FROM node:18-alpine AS builder
+# Build stage: install the full lockfile dependency set before Prisma generation and Nest compilation.
+FROM node:20-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
-
-# Set working directory
+RUN apk add --no-cache openssl python3 make g++
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install all dependencies
-RUN npm ci --only=production && npm cache clean --force
+COPY prisma ./prisma
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+RUN npx prisma generate && npm run build
 
-# Copy source code
-COPY . .
+# Runtime stage: keep only production dependencies and generated runtime artifacts.
+FROM node:20-alpine AS runtime
 
-# Generate Prisma client
-RUN npx prisma generate
-
-# Build the application
-RUN npm run build
-
-# Production stage
-FROM node:18-alpine
-
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
-
-# Set working directory
+RUN apk add --no-cache dumb-init openssl \
+    && addgroup --gid 1001 --system mekss \
+    && adduser --uid 1001 --system --ingroup mekss mekss
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+COPY --from=builder --chown=mekss:mekss /app/dist ./dist
+COPY --from=builder --chown=mekss:mekss /app/prisma ./prisma
+COPY --from=builder --chown=mekss:mekss /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=mekss:mekss /app/node_modules/@prisma/client ./node_modules/@prisma/client
+RUN mkdir -p uploads logs && chown -R mekss:mekss uploads logs
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules ./node_modules
-
-# Create uploads directory
-RUN mkdir -p uploads && chown -R nextjs:nodejs uploads
-
-# Switch to non-root user
-USER nextjs
-
-# Expose port
+USER 1001
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=12 \
+  CMD node -e "require('http').get('http://127.0.0.1:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
-# Start application
-CMD ["dumb-init", "node", "dist/main"]
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/main"]
 
-# Labels for metadata
-LABEL maintainer="Mekss Team" \
-      version="1.0.0" \
-      description="Mekss Industrial Park Management System Backend"
+LABEL org.opencontainers.image.title="MEKSS backend" \
+      org.opencontainers.image.description="MEKSS Industrial Park NestJS API"

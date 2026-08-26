@@ -1,0 +1,149 @@
+{
+  "task": "2. [Required] Write the preservation property tests before implementing the fix",
+  "property": "Property 2: Preservation - Security, Data, Deployment, and Other Roles",
+  "validates": ["Requirements 3.1-3.16"],
+  "expectedOutcome": "PASS on unfixed code",
+  "seed": "0x5eed2002",
+  "generatedCaseCountPerMatrix": 256,
+  "methodology": "Observation-first, source-and-runtime semantic baseline; no HTTP request and no database connection",
+  "observations": {
+    "authentication": {
+      "canonicalRoles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL", "EMPLOYEE"],
+      "controllerTokens": [
+        "@Post('register')", "@Post('login')", "@Post('otp/send')", "@Post('otp/verify')",
+        "@Post('password/forgot')", "@Post('password/reset')", "@Post('refresh')", "@Get('me')",
+        "@Put('me')", "@Post('change-password')", "@Post('logout')"
+      ],
+      "serviceTokens": [
+        "this.assertCanAuthenticate(user)", "if (!user.isActive)", "if (!user.isApproved)",
+        "Invalid refresh token", "REFRESH_TOKEN_ROTATED", "PASSWORD_CHANGED", "PASSWORD_RESET",
+        "LOGOUT", "const { password, ...publicUser } = user"
+      ],
+      "frontendSessionTokens": [
+        "localStorage.setItem('accessToken'", "localStorage.setItem('refreshToken'",
+        "localStorage.removeItem('accessToken'", "localStorage.removeItem('refreshToken'",
+        "authApi.getProfile()", "authApi.refreshToken({ refreshToken })", "navigate('/login')"
+      ],
+      "apiClientTokens": [
+        "config.headers.Authorization = `Bearer ${token}`", "error.response?.status === 401",
+        "!originalRequest._retry", "originalRequest._retry = true", "/auth/refresh",
+        "localStorage.removeItem('accessToken')", "window.location.href = '/login'"
+      ]
+    },
+    "apiContracts": [
+      { "method": "GET", "path": "users", "roles": ["SUPER_ADMIN"] },
+      { "method": "POST", "path": "users", "roles": ["SUPER_ADMIN"] },
+      { "method": "PATCH", "path": "users/:id", "roles": ["SUPER_ADMIN"] },
+      { "method": "GET", "path": "factories", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL"] },
+      { "method": "POST", "path": "factories", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "PUT", "path": "factories/:id", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "method": "GET", "path": "gate-passes", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL"] },
+      { "method": "POST", "path": "gate-passes", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "method": "POST", "path": "gate-passes/:id/approve", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "POST", "path": "gate-passes/:id/reject", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "POST", "path": "gate-passes/:id/verify", "roles": ["SUPER_ADMIN", "SECURITY_GUARD"] },
+      { "method": "GET", "path": "invoices", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "GOVERNMENT_OFFICIAL"] },
+      { "method": "POST", "path": "invoices", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "POST", "path": "invoices/:id/pay", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "method": "GET", "path": "requests", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL"] },
+      { "method": "POST", "path": "requests", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "method": "POST", "path": "requests/:id/approve", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "POST", "path": "requests/:id/reject", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "GET", "path": "announcements", "roles": [] },
+      { "method": "POST", "path": "announcements", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "GET", "path": "advertisements", "roles": [] },
+      { "method": "POST", "path": "advertisements", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "method": "POST", "path": "advertisements/:id/approve", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "GET", "path": "emergency", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL"] },
+      { "method": "POST", "path": "emergency", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD"] },
+      { "method": "POST", "path": "emergency/:id/acknowledge", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "SECURITY_GUARD"] },
+      { "method": "POST", "path": "emergency/:id/resolve", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "GET", "path": "analytics/dashboard", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL"] }
+    ],
+    "scopePolicyTokens": [
+      "user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL",
+      "user.role === Role.FACTORY_OWNER", "return { managerId: user.id }",
+      "user.role === Role.PARK_MANAGER", "managers: { some: { id: user.id } }",
+      "securityGuards: { some: { userId: user.id, isActive: true } }",
+      "You do not have access to this factory", "You do not have access to this park"
+    ],
+    "schema": {
+      "models": [
+        "User", "IndustrialPark", "Factory", "FactoryEmployee", "GatePass", "Invoice",
+        "PaymentTransaction", "Message", "Request", "Announcement", "Advertisement",
+        "SecurityGuard", "RefreshToken", "OtpChallenge", "Notification", "NotificationDelivery",
+        "ScopedFile", "EmergencyAlert", "AuditLog"
+      ],
+      "invariantTokens": [
+        "id                 String   @id @default(cuid())", "phoneNumber        String   @unique",
+        "bootstrapKey       String?  @unique", "code            String     @unique",
+        "licenseNumber   String        @unique", "nationalId      String        @unique",
+        "invoiceNumber String        @unique", "idempotencyKey String        @unique",
+        "status          AdvertisementStatus @default(PENDING)", "createdById     String",
+        "tokenHash String   @unique", "onDelete: Restrict", "actorIdentifier String      @default(\"system\")"
+      ]
+    },
+    "docker": {
+      "services": ["postgres", "redis", "minio", "migrate", "backend", "frontend"],
+      "composeTokens": [
+        "postgres:15-alpine", "redis:7-alpine", "minio/minio:", "npx prisma migrate deploy",
+        "DATABASE_URL:", "REDIS_HOST: redis", "MINIO_ENDPOINT: minio", "condition: service_healthy",
+        "condition: service_completed_successfully", "postgres-data:", "redis-data:", "minio-data:"
+      ],
+      "dockerfileTokens": [
+        "FROM node:20-alpine AS builder", "RUN npm ci", "RUN npx prisma generate && npm run build",
+        "FROM node:20-alpine AS runtime", "RUN npm ci --omit=dev", "USER 1001", "CMD [\"node\", \"dist/main\"]"
+      ]
+    },
+    "nonBugRouteRoles": [
+      { "path": "/login", "roles": [] },
+      { "path": "/register", "roles": [] },
+      { "path": "gate-passes", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD"] },
+      { "path": "invoices", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "GOVERNMENT_OFFICIAL"] },
+      { "path": "requests/new/:type", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "path": "advertisements/new", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
+      { "path": "guard/gate-passes", "roles": ["SUPER_ADMIN", "SECURITY_GUARD"] },
+      { "path": "guard/gate-passes/:id/verify", "roles": ["SUPER_ADMIN", "SECURITY_GUARD"] },
+      { "path": "guard/emergency", "roles": ["SUPER_ADMIN", "SECURITY_GUARD"] }
+    ],
+    "serviceWorker": {
+      "cacheName": "mekss-static-v2",
+      "shell": ["/", "/index.html", "/manifest.json", "/offline.html", "/icons/icon.svg"],
+      "bypass": ["non-GET", "cross-origin", "/api/* including authenticated API"],
+      "handled": ["same-origin static GET", "same-origin navigation GET"],
+      "registrations": 1
+    }
+  },
+  "baselineCommands": [
+    {
+      "command": "npm run test:unit -- --runInBand core/auth.guard.spec.ts",
+      "cwd": "mekss-backend",
+      "result": "PASS",
+      "tests": 3
+    },
+    {
+      "command": "npm run test:unit -- src/pages/auth/auth-route-exports.test.jsx",
+      "cwd": "mekss-industrial-park",
+      "result": "PASS",
+      "tests": 1
+    }
+  ],
+  "safety": {
+    "databaseConnectionUsed": false,
+    "databaseUrlRead": false,
+    "httpRequestsExecuted": 0,
+    "mutationsExecuted": 0,
+    "dockerServicesStarted": false,
+    "note": "Schema/data preservation is encoded from Prisma declarations and source contracts only; no live or development database was opened."
+  },
+  "testRun": {
+    "status": "PASS",
+    "command": "npm run test:unit -- --runInBand preservation/admin-production-readiness.preservation.spec.ts",
+    "exitCode": 0,
+    "tests": 6,
+    "suites": 1,
+    "seedOutput": "[preservation] seed=0x5eed2002 generated=256 result=PASS database=not-connected",
+    "finalResult": "1 suite passed; 6 tests passed; 0 snapshots",
+    "initialHarnessCorrection": "Added an explicit type for JSON route entries after the first compile-only run; no property case or production behavior failed."
+  }
+}

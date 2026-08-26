@@ -8,82 +8,51 @@ import {
   TableRow,
   Paper,
   Chip,
-  IconButton,
-  Tooltip,
+  Typography,
 } from '@mui/material';
-import { Visibility as VisibilityIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
 const statusColors = {
   PENDING: 'warning',
   APPROVED: 'success',
   REJECTED: 'error',
+  COMPLETED: 'info',
+  EXPIRED: 'default',
 };
 
 const statusLabels = {
   PENDING: 'در انتظار',
   APPROVED: 'تایید شده',
   REJECTED: 'رد شده',
+  COMPLETED: 'تکمیل شده',
+  EXPIRED: 'منقضی شده',
 };
 
 const GatePassList = ({ passes }) => {
   if (!passes || passes.length === 0) {
-    return <p>هیچ برگ خروجی برای نمایش وجود ندارد.</p>;
+    return <Typography color="text.secondary" sx={{ p: 2 }}>هیچ برگ خروجی برای نمایش وجود ندارد.</Typography>;
   }
 
   return (
     <TableContainer component={Paper}>
-      <Table sx={{ minWidth: 650 }} aria-label="simple table">
+      <Table sx={{ minWidth: 650 }} aria-label="gate pass list">
         <TableHead>
           <TableRow>
-            <TableCell>شناسه</TableCell>
             <TableCell>نام راننده</TableCell>
             <TableCell>شماره پلاک</TableCell>
-            <TableCell>توضیحات</TableCell>
-            <TableCell>تاریخ ایجاد</TableCell>
+            <TableCell>نوع بار</TableCell>
+            <TableCell>تاریخ خروج</TableCell>
             <TableCell>وضعیت</TableCell>
-            <TableCell align="center">عملیات</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {passes.map((pass) => (
-            <TableRow
-              key={pass.id}
-              sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-            >
-              <TableCell component="th" scope="row">
-                {pass.id}
-              </TableCell>
-              <TableCell>{pass.driverName}</TableCell>
-              <TableCell>{pass.plateNumber}</TableCell>
-              <TableCell>{pass.description}</TableCell>
-              <TableCell>{pass.createdAt}</TableCell>
+            <TableRow key={pass.id} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+              <TableCell component="th" scope="row">{pass.driverName}</TableCell>
+              <TableCell>{pass.licensePlate}</TableCell>
+              <TableCell>{pass.cargoDescription || pass.cargoType}</TableCell>
+              <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
               <TableCell>
-                <Chip
-                  label={statusLabels[pass.status]}
-                  color={statusColors[pass.status]}
-                  size="small"
-                />
-              </TableCell>
-              <TableCell align="center">
-                <Tooltip title="مشاهده جزئیات">
-                  <IconButton size="small">
-                    <VisibilityIcon />
-                  </IconButton>
-                </Tooltip>
-                {pass.status === 'PENDING' && (
-                  <>
-                    <Tooltip title="ویرایش">
-                      <IconButton size="small">
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="حذف">
-                      <IconButton size="small" color="error">
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </>
-                )}
+                <Chip label={statusLabels[pass.status] || pass.status} color={statusColors[pass.status] || 'default'} size="small" />
               </TableCell>
             </TableRow>
           ))}

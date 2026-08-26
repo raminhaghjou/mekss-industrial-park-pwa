@@ -31,5 +31,13 @@
       "@analytics/*": ["src/analytics/*"],
       "@shared/*": ["src/shared/*"]
     }
-  }
+  },
+  "include": [
+    "src/main.ts",
+    "src/app.module.ts",
+    "src/core/**/*.ts",
+    "src/preservation/**/*.ts",
+    "test/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
 }

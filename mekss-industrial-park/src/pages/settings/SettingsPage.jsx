@@ -1,21 +1,9 @@
 import React from 'react';
-import { Box, Typography, Paper, FormGroup, FormControlLabel, Switch, Divider } from '@mui/material';
+import { Box, Typography, Paper, FormGroup, FormControlLabel, Switch, Alert } from '@mui/material';
+import { useTheme } from '../../providers/ThemeProvider';
 
 export const SettingsPage = () => {
-  // Mock state for settings
-  const [settings, setSettings] = React.useState({
-    emailNotifications: true,
-    smsNotifications: false,
-    pushNotifications: true,
-    darkMode: false,
-  });
-
-  const handleChange = (event) => {
-    setSettings({
-      ...settings,
-      [event.target.name]: event.target.checked,
-    });
-  };
+  const { mode, toggleMode } = useTheme();
 
   return (
     <Box>
@@ -24,58 +12,17 @@ export const SettingsPage = () => {
       </Typography>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>
-          تنظیمات اطلاع‌رسانی
-        </Typography>
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.emailNotifications}
-                onChange={handleChange}
-                name="emailNotifications"
-              />
-            }
-            label="دریافت اعلان از طریق ایمیل"
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.smsNotifications}
-                onChange={handleChange}
-                name="smsNotifications"
-              />
-            }
-            label="دریافت اعلان از طریق پیامک"
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.pushNotifications}
-                onChange={handleChange}
-                name="pushNotifications"
-              />
-            }
-            label="دریافت اعلان Push"
-          />
-        </FormGroup>
-
-        <Divider sx={{ my: 3 }} />
-
-        <Typography variant="h6" gutterBottom>
           تنظیمات ظاهری
         </Typography>
         <FormGroup>
           <FormControlLabel
-            control={
-              <Switch
-                checked={settings.darkMode}
-                onChange={handleChange}
-                name="darkMode"
-              />
-            }
+            control={<Switch checked={mode === 'dark'} onChange={toggleMode} />}
             label="حالت تاریک"
           />
         </FormGroup>
+        <Alert severity="info" sx={{ mt: 3 }}>
+          تنظیمات اطلاع‌رسانی ایمیل و پیامک در این نسخه از سامانه هنوز پیاده‌سازی نشده و به‌زودی ارائه خواهد شد.
+        </Alert>
       </Paper>
     </Box>
   );

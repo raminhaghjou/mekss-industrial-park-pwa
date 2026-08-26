@@ -1,34 +1,28 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, Paper, Tabs, Tab } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { Box, Typography, Button, Paper, Tabs, Tab, CircularProgress, Alert } from '@mui/material';
+import { invoiceApi } from '../../services/api/invoice.api';
+import { getErrorMessage } from '../../utils/apiError';
 
-// Mock Data - Replace with API call
-const mockInvoices = [
-  { id: 'INV-001', title: ' قبض برق - خرداد ۱۴۰۲', amount: '۱,۵۰۰,۰۰۰', dueDate: '۱۴۰۲/۰۴/۱۰', status: 'UNPAID' },
-  { id: 'INV-002', title: 'هزینه شارژ و نگهداری', amount: '۵,۰۰۰,۰۰۰', dueDate: '۱۴۰۲/۰۴/۱۵', status: 'UNPAID' },
-  { id: 'INV-003', title: 'قبض آب - اردیبهشت ۱۴۰۲', amount: '۷۵۰,۰۰۰', dueDate: '۱۴۰۲/۰۳/۱۰', status: 'PAID' },
-  { id: 'INV-004', title: 'قبض گاز - اردیبهشت ۱۴۰۲', amount: '۲,۲۰۰,۰۰۰', dueDate: '۱۴۰۲/۰۳/۱۲', status: 'PAID' },
-];
-
-// Reusable InvoiceList component (can be moved to its own file)
 const InvoiceList = ({ invoices }) => {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    if(!invoices || invoices.length === 0) {
-        return <Typography sx={{p: 2}}>هیچ قبضی برای نمایش وجود ندارد.</Typography>
-    }
+  if (!invoices || invoices.length === 0) {
+    return <Typography sx={{ p: 2 }}>هیچ قبضی برای نمایش وجود ندارد.</Typography>;
+  }
 
   return (
     <Box>
       {invoices.map((invoice) => (
         <Paper key={invoice.id} sx={{ p: 2, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box>
-            <Typography variant="h6">{invoice.title}</Typography>
-            <Typography color="text.secondary">مبلغ: {invoice.amount} ریال</Typography>
-            <Typography color="text.secondary">مهلت پرداخت: {invoice.dueDate}</Typography>
+            <Typography variant="h6">{invoice.description}</Typography>
+            <Typography color="text.secondary">مبلغ: {Number(invoice.totalAmount).toLocaleString('fa-IR')} ریال</Typography>
+            <Typography color="text.secondary">مهلت پرداخت: {new Date(invoice.dueDate).toLocaleDateString('fa-IR')}</Typography>
           </Box>
-          <Box sx={{textAlign: 'right'}}>
-            {invoice.status === 'UNPAID' ? (
+          <Box sx={{ textAlign: 'right' }}>
+            {invoice.status === 'PENDING' || invoice.status === 'OVERDUE' ? (
               <Button variant="contained" color="primary" onClick={() => navigate(`/invoices/pay/${invoice.id}`)}>
                 پرداخت
               </Button>
@@ -42,16 +36,17 @@ const InvoiceList = ({ invoices }) => {
   );
 };
 
-
 const InvoicesPage = () => {
   const [tabValue, setTabValue] = useState(0);
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: () => invoiceApi.getInvoices().then((res) => res.data),
+  });
 
-  const unpaidInvoices = mockInvoices.filter(inv => inv.status === 'UNPAID');
-  const paidInvoices = mockInvoices.filter(inv => inv.status === 'PAID');
+  const invoices = data || [];
+  const unpaidInvoices = invoices.filter((inv) => inv.status === 'PENDING' || inv.status === 'OVERDUE');
+  const paidInvoices = invoices.filter((inv) => inv.status === 'PAID');
 
   return (
     <Box>
@@ -59,26 +54,21 @@ const InvoicesPage = () => {
         مدیریت قبض‌ها
       </Typography>
 
-      <Paper>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="invoice status tabs">
-            <Tab label={`پرداخت نشده (${unpaidInvoices.length})`} />
-            <Tab label={`پرداخت شده (${paidInvoices.length})`} />
-          </Tabs>
-        </Box>
+      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}</Alert>}
 
-        {tabValue === 0 && (
-            <Box sx={{p: 2}}>
-                <InvoiceList invoices={unpaidInvoices} />
-            </Box>
-        )}
-        {tabValue === 1 && (
-            <Box sx={{p: 2}}>
-                <InvoiceList invoices={paidInvoices} />
-            </Box>
-        )}
-
-      </Paper>
+      {!isLoading && !isError && (
+        <Paper>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={tabValue} onChange={(_, value) => setTabValue(value)} aria-label="invoice status tabs">
+              <Tab label={`پرداخت نشده (${unpaidInvoices.length})`} />
+              <Tab label={`پرداخت شده (${paidInvoices.length})`} />
+            </Tabs>
+          </Box>
+          {tabValue === 0 && <Box sx={{ p: 2 }}><InvoiceList invoices={unpaidInvoices} /></Box>}
+          {tabValue === 1 && <Box sx={{ p: 2 }}><InvoiceList invoices={paidInvoices} /></Box>}
+        </Paper>
+      )}
     </Box>
   );
 };

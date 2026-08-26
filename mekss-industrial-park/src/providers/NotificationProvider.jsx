@@ -1,7 +1,11 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { Snackbar, Alert } from '@mui/material';
 
-const NotificationContext = createContext();
+/** @typedef {'error' | 'info' | 'success' | 'warning'} NotificationSeverity */
+
+const NotificationContext = createContext(
+  /** @type {{ showNotification: (message: string, severity?: NotificationSeverity, autoHideDuration?: number) => void, hideNotification: () => void } | null} */ (null),
+);
 
 export const useNotification = () => {
   const context = useContext(NotificationContext);
@@ -12,13 +16,20 @@ export const useNotification = () => {
 };
 
 export const NotificationProvider = ({ children }) => {
-  const [notification, setNotification] = useState({
-    open: false,
-    message: '',
-    severity: 'info',
-    autoHideDuration: 6000,
-  });
+  const [notification, setNotification] = useState(
+    /** @type {{ open: boolean, message: string, severity: NotificationSeverity, autoHideDuration: number }} */ ({
+      open: false,
+      message: '',
+      severity: 'info',
+      autoHideDuration: 6000,
+    }),
+  );
 
+  /**
+   * @param {string} message
+   * @param {NotificationSeverity} [severity]
+   * @param {number} [autoHideDuration]
+   */
   const showNotification = (message, severity = 'info', autoHideDuration = 6000) => {
     setNotification({
       open: true,

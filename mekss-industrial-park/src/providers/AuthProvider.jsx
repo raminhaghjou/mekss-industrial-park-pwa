@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../services/api/auth.api';
 
 const AuthContext = createContext(null);
@@ -13,18 +14,20 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const clearSession = () => {
+  const clearSession = useCallback(() => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     setUser(null);
-  };
+    queryClient.clear();
+  }, [queryClient]);
   const setSession = ({ accessToken, refreshToken, user: nextUser }) => {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     setUser(nextUser);
   };
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       if (!localStorage.getItem('accessToken')) return;
       const response = await authApi.getProfile();
@@ -34,8 +37,8 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
-  useEffect(() => { checkAuth(); }, []);
+  }, [clearSession]);
+  useEffect(() => { checkAuth(); }, [checkAuth]);
 
   const login = async (credentials) => {
     try {

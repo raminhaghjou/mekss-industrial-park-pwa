@@ -14,6 +14,13 @@ const apiClient = axios.create({
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
+    const method = (config.method || 'get').toLowerCase();
+    // Block mutations while offline instead of letting them appear to
+    // "succeed" locally or queue for silent background replay; the caller's
+    // error handler surfaces this as an explicit non-mutating failure.
+    if (method !== 'get' && typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return Promise.reject(new axios.Cancel('Offline: mutation blocked until reconnect'));
+    }
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

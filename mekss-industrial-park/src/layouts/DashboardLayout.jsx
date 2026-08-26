@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../providers/AuthProvider';
+import { messageApi } from '../services/api/message.api';
 import {
   Box,
   Drawer,
@@ -44,36 +46,20 @@ import { styled } from '@mui/material/styles';
 
 const drawerWidth = 280;
 
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(({ theme, open }) => ({
+const Main = styled('main')(({ theme }) => ({
   flexGrow: 1,
   padding: theme.spacing(3),
-  transition: theme.transitions.create('margin', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
   marginRight: -drawerWidth,
-  ...(open && {
-    transition: theme.transitions.create('margin', {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
-    }),
+  '&[data-open="true"]': {
     marginRight: 0,
-  }),
+  },
 }));
 
-const AppBarStyled = styled(AppBar, { shouldForwardProp: (prop) => prop !== 'open' })(({ theme, open }) => ({
-  transition: theme.transitions.create(['margin', 'width'], {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  ...(open && {
+const AppBarStyled = styled(AppBar)(() => ({
+  '&[data-open="true"]': {
     width: `calc(100% - ${drawerWidth}px)`,
     marginRight: drawerWidth,
-    transition: theme.transitions.create(['margin', 'width'], {
-      easing: theme.transitions.easing.easeOut,
-      duration: theme.transitions.duration.enteringScreen,
-    }),
-  }),
+  },
 }));
 
 const DrawerHeader = styled('div')(({ theme }) => ({
@@ -90,6 +76,13 @@ export const DashboardLayout = () => {
   const [open, setOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
   const isMenuOpen = Boolean(anchorEl);
+
+  const { data: inbox } = useQuery({
+    queryKey: ['messages', 'inbox'],
+    queryFn: () => messageApi.getInbox().then((res) => res.data),
+    staleTime: 30_000,
+  });
+  const unreadCount = (inbox || []).filter((message) => message.status === 'UNREAD').length;
 
   const handleDrawerOpen = () => setOpen(true);
   const handleDrawerClose = () => setOpen(false);
@@ -154,15 +147,15 @@ export const DashboardLayout = () => {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <AppBarStyled position="fixed" open={open}>
+      <AppBarStyled position="fixed" data-open={open}>
         <Toolbar>
           {/* <img src="/logo.png" alt="Mekss Logo" style={{ height: 40, marginLeft: 16 }} /> */}
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             سامانه مدیریت شهرک صنعتی مکث
           </Typography>
           <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-            <IconButton size="large" color="inherit">
-              <Badge badgeContent={0} color="error">
+            <IconButton size="large" color="inherit" onClick={() => handleNavigate('/messages')} aria-label="پیام‌ها">
+              <Badge badgeContent={unreadCount} color="error">
                 <NotificationsIcon />
               </Badge>
             </IconButton>
@@ -218,7 +211,7 @@ export const DashboardLayout = () => {
         </List>
       </Drawer>
       
-      <Main open={open}>
+      <Main data-open={open}>
         <DrawerHeader />
         <Outlet />
       </Main>

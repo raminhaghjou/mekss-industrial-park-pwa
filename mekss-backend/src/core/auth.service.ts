@@ -146,8 +146,9 @@ export class AuthService {
   }
 
   private publicUser(user: User): PublicUser {
-    const { password, ...publicUser } = user;
-    return publicUser;
+    const publicUser = { ...user } as Partial<User>;
+    delete publicUser.password;
+    return publicUser as PublicUser;
   }
 
   private hashToken(value: string): string {

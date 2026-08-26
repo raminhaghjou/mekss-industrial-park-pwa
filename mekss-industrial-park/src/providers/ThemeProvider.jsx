@@ -4,7 +4,9 @@ import { CssBaseline } from '@mui/material';
 import { faIR } from '@mui/material/locale';
 import { faIR as faIRDate } from '@mui/x-date-pickers/locales';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext(
+  /** @type {{ theme: import('@mui/material/styles').Theme, mode: 'light' | 'dark', toggleMode: () => void } | null} */ (null),
+);
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -14,11 +16,24 @@ export const useTheme = () => {
   return context;
 };
 
+const STORAGE_KEY = 'mekss-theme-mode';
+
+/** @returns {'light' | 'dark'} */
+const readStoredMode = () => {
+  if (typeof window === 'undefined') return 'light';
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+  return stored === 'dark' || stored === 'light' ? stored : 'light';
+};
+
 export const ThemeProvider = ({ children }) => {
-  const [mode, setMode] = useState('light'); // 'light' or 'dark'
+  const [mode, setMode] = useState(readStoredMode);
 
   const toggleMode = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+    setMode((prevMode) => {
+      const next = prevMode === 'light' ? 'dark' : 'light';
+      if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, next);
+      return next;
+    });
   };
 
   const theme = useMemo(() => {

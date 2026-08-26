@@ -1,18 +1,26 @@
 import React from 'react';
-import { Box, Typography, Button, Paper, Alert } from '@mui/material';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Box, Typography, Button, Paper, Alert, CircularProgress } from '@mui/material';
 import { Warning as WarningIcon } from '@mui/icons-material';
+import { emergencyApi } from '../../services/api/emergency.api';
+import { useNotification } from '../../providers/NotificationProvider';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { getErrorMessage } from '../../utils/apiError';
 
 const EmergencyPage = () => {
+  const { showNotification } = useNotification();
+  const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
-  const handleEmergencyClick = () => {
-    const isConfirmed = window.confirm(
-      "آیا از اعلام وضعیت اضطراری اطمینان دارید؟ این عمل بلافاصله به مدیر شهرک و نگهبانی اطلاع‌رسانی خواهد کرد."
-    );
-    if (isConfirmed) {
-      // TODO: Implement API call to trigger emergency alert
-      alert("وضعیت اضطراری با موفقیت اعلام شد. تیم‌های مربوطه در اسرع وقت به محل اعزام خواهند شد.");
-    }
-  };
+  const createMutation = useMutation({
+    mutationFn: () => emergencyApi.createEmergency({ title: 'اعلام وضعیت اضطراری', description: 'اعلام وضعیت اضطراری توسط کاربر از طریق اپلیکیشن.', severity: 'CRITICAL' }),
+    onSuccess: () => {
+      showNotification('وضعیت اضطراری با موفقیت اعلام شد. تیم‌های مربوطه در اسرع وقت به محل اعزام خواهند شد.', 'success');
+      setConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['emergencies'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'اعلام وضعیت اضطراری ناموفق بود. لطفا با نگهبانی تماس بگیرید.'), 'error'),
+  });
 
   return (
     <Box sx={{ textAlign: 'center' }}>
@@ -27,17 +35,24 @@ const EmergencyPage = () => {
           variant="contained"
           color="error"
           size="large"
-          startIcon={<WarningIcon />}
-          onClick={handleEmergencyClick}
-          sx={{
-            height: 80,
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-          }}
+          startIcon={createMutation.isPending ? <CircularProgress size={22} color="inherit" /> : <WarningIcon />}
+          onClick={() => setConfirmOpen(true)}
+          disabled={createMutation.isPending}
+          sx={{ height: 80, fontSize: '1.5rem', fontWeight: 'bold' }}
         >
           اعلام خطر
         </Button>
       </Paper>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="تایید اعلام وضعیت اضطراری"
+        description="آیا از اعلام وضعیت اضطراری اطمینان دارید؟ این عمل بلافاصله به مدیر شهرک و نگهبانی اطلاع‌رسانی خواهد کرد."
+        confirmLabel="بله، اعلام خطر"
+        confirmColor="error"
+        loading={createMutation.isPending}
+        onConfirm={() => createMutation.mutate()}
+        onClose={() => setConfirmOpen(false)}
+      />
     </Box>
   );
 };

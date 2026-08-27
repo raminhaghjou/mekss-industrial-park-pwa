@@ -26,6 +26,14 @@ enum RequestType {
   CONSTRUCTION_PERMIT
   FINAL_INSPECTION
   APPOINTMENT
+  SERVICE_ORDER
+  OTHER
+}
+
+enum ServiceOrderKind {
+  FOOD
+  CLEANING
+  FREIGHT
   OTHER
 }
 
@@ -107,20 +115,22 @@ enum MessageStatus {
   ARCHIVED
 }
 
-enum AdvertisementCategory {
-  EQUIPMENT
-  SERVICES
-  RAW_MATERIALS
-  JOB_LISTINGS
-  REAL_ESTATE
-  OTHER
-}
-
 enum AdvertisementStatus {
   PENDING
   APPROVED
   REJECTED
   EXPIRED
+}
+
+enum MarketRateKey {
+  USD
+  EUR
+  CNY
+  IRON
+  GOLD
+  SILVER
+  PLATINUM
+  COIN
 }
 
 enum OtpPurpose {
@@ -166,50 +176,65 @@ enum AuditResult {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  phoneNumber        String   @unique
-  username           String?  @unique
+  id                 String    @id @default(cuid())
+  phoneNumber        String    @unique
+  username           String?   @unique
   password           String
   name               String
-  nationalId         String?  @unique
-  email              String?  @unique
-  role               Role     @default(EMPLOYEE)
-  isApproved         Boolean  @default(false)
-  isActive           Boolean  @default(true)
-  mustChangePassword Boolean  @default(false)
+  nationalId         String?   @unique
+  email              String?   @unique
+  role               Role      @default(EMPLOYEE)
+  isApproved         Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
   // A single, non-null sentinel identifies the exact-once production bootstrap account.
-  bootstrapKey       String?  @unique
+  bootstrapKey       String?   @unique
   bootstrapCreatedAt DateTime?
   avatar             String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   lastLoginAt        DateTime?
 
-  managedFactories        Factory[]            @relation("FactoryOwner")
-  managedParks            IndustrialPark[]     @relation("ParkManager")
-  gatePassesCreated       GatePass[]           @relation("GatePassCreator")
-  gatePassesApproved      GatePass[]           @relation("GatePassApprover")
-  gatePassesVerified      GatePass[]           @relation("GatePassVerifier")
-  invoicesCreated         Invoice[]            @relation("InvoiceCreator")
-  invoicesPaid            Invoice[]            @relation("InvoicePayer")
-  messagesSent            Message[]            @relation("MessageSender")
-  messagesReceived        Message[]            @relation("MessageReceiver")
-  requestsCreated         Request[]            @relation("RequestCreator")
-  requestsApproved        Request[]            @relation("RequestApprover")
+  // Sub-user support (section 8): an employee registers under a specific
+  // factory, is approved by that factory's owner, and is restricted to the
+  // request types listed in canApproveRequestTypes rather than a hardcoded role.
+  employeeOfFactoryId    String?
+  employeeOfFactory      Factory?      @relation("FactoryEmployee", fields: [employeeOfFactoryId], references: [id], onDelete: SetNull)
+  canApproveRequestTypes RequestType[] @default([])
+  // Park managers may opt out of receiving unsolicited factory-to-manager messages.
+  messagingRestricted    Boolean       @default(false)
+  // A default driver/vehicle snapshot offered as a starting point on the next gate pass form.
+  defaultDriver          Json?
+
+  managedFactories        Factory[]               @relation("FactoryOwner")
+  managedParks            IndustrialPark[]        @relation("ParkManager")
+  gatePassesCreated       GatePass[]              @relation("GatePassCreator")
+  gatePassesApproved      GatePass[]              @relation("GatePassApprover")
+  gatePassesVerified      GatePass[]              @relation("GatePassVerifier")
+  invoicesCreated         Invoice[]               @relation("InvoiceCreator")
+  invoicesPaid            Invoice[]               @relation("InvoicePayer")
+  messagesSent            Message[]               @relation("MessageSender")
+  messagesReceived        Message[]               @relation("MessageReceiver")
+  requestsCreated         Request[]               @relation("RequestCreator")
+  requestsApproved        Request[]               @relation("RequestApprover")
   announcements           Announcement[]
-  advertisements          Advertisement[]      @relation("AdvertisementCreator")
-  moderatedAdvertisements Advertisement[]      @relation("AdvertisementModerator")
-  securityShifts          SecurityGuard[]       @relation("SecurityUser")
-  refreshTokens      RefreshToken[]
-  otpChallenges      OtpChallenge[]
-  notifications      Notification[]
-  emergencies        EmergencyAlert[]
-  auditLogs          AuditLog[]           @relation("AuditActor")
-  paymentAttempts    PaymentTransaction[] @relation("PaymentInitiator")
-  uploadedFiles      ScopedFile[]         @relation("ScopedFileUploader")
+  advertisements          Advertisement[]         @relation("AdvertisementCreator")
+  moderatedAdvertisements Advertisement[]         @relation("AdvertisementModerator")
+  favoriteAdvertisements  AdvertisementFavorite[]
+  securityShifts          SecurityGuard[]         @relation("SecurityUser")
+  refreshTokens           RefreshToken[]
+  otpChallenges           OtpChallenge[]
+  notifications           Notification[]
+  emergencies             EmergencyAlert[]
+  auditLogs               AuditLog[]              @relation("AuditActor")
+  paymentAttempts         PaymentTransaction[]    @relation("PaymentInitiator")
+  uploadedFiles           ScopedFile[]            @relation("ScopedFileUploader")
+  feedbackSent            Feedback[]              @relation("FeedbackSender")
+  marketRateUpdates       MarketRate[]            @relation("MarketRateUpdater")
 
   @@index([role, isApproved, isActive])
   @@index([bootstrapCreatedAt])
+  @@index([employeeOfFactoryId])
 }
 
 model IndustrialPark {
@@ -232,12 +257,12 @@ model IndustrialPark {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  factories       Factory[]
-  managers        User[]          @relation("ParkManager")
-  announcements   Announcement[]
-  advertisements  Advertisement[] @relation("AdvertisementPark")
-  securityGuards  SecurityGuard[]
-  scopedFiles     ScopedFile[]
+  factories      Factory[]
+  managers       User[]          @relation("ParkManager")
+  announcements  Announcement[]
+  advertisements Advertisement[] @relation("AdvertisementPark")
+  securityGuards SecurityGuard[]
+  scopedFiles    ScopedFile[]
 
   @@index([province, city])
   @@index([status])
@@ -253,6 +278,9 @@ model Factory {
   address         String
   location        Json?
   phoneNumber     String
+  phoneNumber2    String?
+  landline        String?
+  fax             String?
   email           String?
   website         String?
   description     String?
@@ -263,15 +291,26 @@ model Factory {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  managerId       String
-  manager         User              @relation("FactoryOwner", fields: [managerId], references: [id])
-  parkId          String
-  park            IndustrialPark    @relation(fields: [parkId], references: [id])
-  employeesList   FactoryEmployee[]
-  gatePasses      GatePass[]
-  invoices        Invoice[]
-  requests        Request[]
-  scopedFiles     ScopedFile[]      @relation("FactoryScopedFiles")
+  // Public directory / registration-form fields (section 1 & 5).
+  logo           String?
+  ceoName        String?
+  socialMedia    Json?
+  shopUrl        String?
+  latitude       Float?
+  longitude      Float?
+  // Sensitive-field edits are staged here until the managing park manager approves them.
+  pendingChanges Json?
+
+  managerId     String
+  manager       User              @relation("FactoryOwner", fields: [managerId], references: [id])
+  parkId        String
+  park          IndustrialPark    @relation(fields: [parkId], references: [id])
+  employeesList FactoryEmployee[]
+  subUsers      User[]            @relation("FactoryEmployee")
+  gatePasses    GatePass[]
+  invoices      Invoice[]
+  requests      Request[]
+  scopedFiles   ScopedFile[]      @relation("FactoryScopedFiles")
 
   @@unique([id, parkId])
   @@index([managerId])
@@ -297,8 +336,8 @@ model FactoryEmployee {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  factoryId        String
-  factory          Factory        @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  factoryId String
+  factory   Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
 
   @@index([factoryId, status])
   @@index([phoneNumber])
@@ -323,14 +362,14 @@ model GatePass {
   updatedAt         DateTime       @updatedAt
   verifiedAt        DateTime?
 
-  factoryId         String
-  factory           Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
-  createdById       String
-  createdBy         User     @relation("GatePassCreator", fields: [createdById], references: [id])
-  approvedById      String?
-  approvedBy        User?    @relation("GatePassApprover", fields: [approvedById], references: [id])
-  verifiedById      String?
-  verifiedBy        User?    @relation("GatePassVerifier", fields: [verifiedById], references: [id])
+  factoryId    String
+  factory      Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  createdById  String
+  createdBy    User    @relation("GatePassCreator", fields: [createdById], references: [id])
+  approvedById String?
+  approvedBy   User?   @relation("GatePassApprover", fields: [approvedById], references: [id])
+  verifiedById String?
+  verifiedBy   User?   @relation("GatePassVerifier", fields: [verifiedById], references: [id])
 
   @@index([factoryId, status])
   @@index([createdAt])
@@ -342,7 +381,7 @@ model Invoice {
   id            String        @id @default(cuid())
   invoiceNumber String        @unique
   amount        Decimal       @db.Decimal(15, 2)
-  taxAmount     Decimal       @db.Decimal(15, 2) @default(0)
+  taxAmount     Decimal       @default(0) @db.Decimal(15, 2)
   totalAmount   Decimal       @db.Decimal(15, 2)
   description   String
   issueDate     DateTime      @default(now())
@@ -354,13 +393,13 @@ model Invoice {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  factoryId     String
-  factory       Factory              @relation(fields: [factoryId], references: [id], onDelete: Cascade)
-  createdById   String
-  createdBy     User                 @relation("InvoiceCreator", fields: [createdById], references: [id])
-  paidById      String?
-  paidBy        User?                @relation("InvoicePayer", fields: [paidById], references: [id])
-  payments      PaymentTransaction[]
+  factoryId   String
+  factory     Factory              @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User                 @relation("InvoiceCreator", fields: [createdById], references: [id])
+  paidById    String?
+  paidBy      User?                @relation("InvoicePayer", fields: [paidById], references: [id])
+  payments    PaymentTransaction[]
 
   @@index([factoryId, status])
   @@index([dueDate])
@@ -380,27 +419,28 @@ model PaymentTransaction {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  invoiceId      String
-  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  initiatedById  String?
-  initiatedBy    User?         @relation("PaymentInitiator", fields: [initiatedById], references: [id])
+  invoiceId     String
+  invoice       Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  initiatedById String?
+  initiatedBy   User?   @relation("PaymentInitiator", fields: [initiatedById], references: [id])
 
   @@index([invoiceId, status])
   @@index([status, createdAt])
 }
 
 model Message {
-  id         String        @id @default(cuid())
-  subject    String
-  body       String        @db.Text
-  status     MessageStatus @default(UNREAD)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id          String        @id @default(cuid())
+  subject     String
+  body        String        @db.Text
+  attachments String[]      @default([])
+  status      MessageStatus @default(UNREAD)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   senderId   String
-  sender     User          @relation("MessageSender", fields: [senderId], references: [id])
+  sender     User   @relation("MessageSender", fields: [senderId], references: [id])
   receiverId String
-  receiver   User          @relation("MessageReceiver", fields: [receiverId], references: [id])
+  receiver   User   @relation("MessageReceiver", fields: [receiverId], references: [id])
 
   @@index([receiverId, status])
   @@index([createdAt])
@@ -411,10 +451,17 @@ model Request {
   type            RequestType
   title           String
   description     String          @db.Text
+  // Structured per-type fields (Mission/Transfer/DailyLeave/HourlyLeave/SalaryAdvance/
+  // Settlement/ConstructionPermit/FinalInspection/Appointment/ServiceOrder) validated
+  // per-type by CreateRequestDto's discriminated payload, persisted as JSON.
   data            Json
   attachments     String[]
   status          RequestStatus   @default(PENDING)
   priority        RequestPriority @default(MEDIUM)
+  // Whether this request targets the factory's own internal approver chain
+  // (isToParkManager = false) or the managing park manager (true).
+  isToParkManager Boolean         @default(false)
+  appointmentSlot DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   submittedAt     DateTime?
@@ -422,27 +469,28 @@ model Request {
   rejectedAt      DateTime?
   rejectionReason String?
 
-  creatorId       String
-  creator         User     @relation("RequestCreator", fields: [creatorId], references: [id])
-  approverId      String?
-  approver        User?    @relation("RequestApprover", fields: [approverId], references: [id])
-  factoryId       String
-  factory         Factory  @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  creatorId  String
+  creator    User    @relation("RequestCreator", fields: [creatorId], references: [id])
+  approverId String?
+  approver   User?   @relation("RequestApprover", fields: [approverId], references: [id])
+  factoryId  String
+  factory    Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
 
   @@index([factoryId, status])
   @@index([creatorId, createdAt])
+  @@index([isToParkManager, status])
 }
 
 model Announcement {
-  id          String   @id @default(cuid())
-  title       String
-  content     String   @db.Text
-  isGlobal    Boolean  @default(false)
-  isPinned    Boolean  @default(false)
-  priority    Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  expiresAt   DateTime?
+  id        String    @id @default(cuid())
+  title     String
+  content   String    @db.Text
+  isGlobal  Boolean   @default(false)
+  isPinned  Boolean   @default(false)
+  priority  Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
 
   parkId      String?
   park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: SetNull)
@@ -453,36 +501,70 @@ model Announcement {
   @@index([isGlobal, createdAt])
 }
 
+// Admin-manageable ad categories (section 9) replace the previous fixed enum
+// so a super-admin can add/remove categories without a schema migration.
+model AdvertisementCategoryDef {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  advertisements Advertisement[]
+
+  @@index([isActive])
+}
+
 model Advertisement {
-  id              String              @id @default(cuid())
+  id              String                   @id @default(cuid())
   title           String
-  category        AdvertisementCategory
+  categoryId      String
+  category        AdvertisementCategoryDef @relation(fields: [categoryId], references: [id])
   province        String
   city            String
-  content         String              @db.Text
-  price           Decimal?            @db.Decimal(15, 2)
+  address         String?
+  content         String                   @db.Text
+  price           Decimal?                 @db.Decimal(15, 2)
   contactInfo     Json
   images          String[]
-  status          AdvertisementStatus @default(PENDING)
-  isApproved      Boolean             @default(false)
+  status          AdvertisementStatus      @default(PENDING)
+  isApproved      Boolean                  @default(false)
   rejectionReason String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  // Optional paid/admin-approved placement in the ads slider, capped monthly.
+  isFeatured      Boolean                  @default(false)
+  featuredUntil   DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
   expiresAt       DateTime?
 
-  createdById     String
-  createdBy       User                @relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  parkId          String?
-  park            IndustrialPark?     @relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: SetNull)
-  moderatedById   String?
-  moderatedBy     User?               @relation("AdvertisementModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
-  moderatedAt     DateTime?
+  createdById   String
+  createdBy     User                    @relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  parkId        String?
+  park          IndustrialPark?         @relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: SetNull)
+  moderatedById String?
+  moderatedBy   User?                   @relation("AdvertisementModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedAt   DateTime?
+  favoritedBy   AdvertisementFavorite[]
 
-  @@index([category, status])
+  @@index([categoryId, status])
   @@index([province, city])
   @@index([createdAt])
   @@index([parkId, status])
   @@index([moderatedById, moderatedAt])
+  @@index([isFeatured, featuredUntil])
+}
+
+model AdvertisementFavorite {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, advertisementId])
+  @@index([userId])
 }
 
 model SecurityGuard {
@@ -492,10 +574,10 @@ model SecurityGuard {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
 
-  userId     String
-  user       User           @relation("SecurityUser", fields: [userId], references: [id], onDelete: Cascade)
-  parkId     String
-  park       IndustrialPark @relation(fields: [parkId], references: [id], onDelete: Cascade)
+  userId String
+  user   User           @relation("SecurityUser", fields: [userId], references: [id], onDelete: Cascade)
+  parkId String
+  park   IndustrialPark @relation(fields: [parkId], references: [id], onDelete: Cascade)
 
   @@unique([userId, shiftStart])
   @@index([userId, shiftStart])
@@ -503,36 +585,36 @@ model SecurityGuard {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
   userAgent String?
   ipAddress String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@index([userId, revokedAt, expiresAt])
 }
 
 model OtpChallenge {
-  id                    String     @id @default(cuid())
-  codeHash              String
-  purpose               OtpPurpose
-  expiresAt             DateTime
-  attempts              Int        @default(0)
-  lastAttemptAt         DateTime?
-  attemptWindowStartedAt DateTime  @default(now())
-  lockedUntil           DateTime?
-  consumedAt            DateTime?
-  createdAt             DateTime   @default(now())
+  id                     String     @id @default(cuid())
+  codeHash               String
+  purpose                OtpPurpose
+  expiresAt              DateTime
+  attempts               Int        @default(0)
+  lastAttemptAt          DateTime?
+  attemptWindowStartedAt DateTime   @default(now())
+  lockedUntil            DateTime?
+  consumedAt             DateTime?
+  createdAt              DateTime   @default(now())
 
-  phoneNumber           String
-  userId                String?
-  user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber String
+  userId      String?
+  user        User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([phoneNumber, purpose, expiresAt])
   @@index([phoneNumber, purpose, lockedUntil])
@@ -540,16 +622,16 @@ model OtpChallenge {
 }
 
 model Notification {
-  id         String           @id @default(cuid())
-  title      String
-  body       String
-  type       NotificationType @default(INFO)
-  isRead     Boolean          @default(false)
-  createdAt  DateTime         @default(now())
-  readAt     DateTime?
+  id        String           @id @default(cuid())
+  title     String
+  body      String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
 
   userId     String
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   @@index([userId, isRead, createdAt])
@@ -568,8 +650,8 @@ model NotificationDelivery {
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
 
-  notificationId    String
-  notification      Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@index([notificationId, status])
   @@index([status, terminalAt])
@@ -600,18 +682,45 @@ model ScopedFile {
 model EmergencyAlert {
   id          String            @id @default(cuid())
   title       String
-  description String             @db.Text
+  description String            @db.Text
   severity    EmergencySeverity
-  status      EmergencyStatus    @default(OPEN)
+  status      EmergencyStatus   @default(OPEN)
   location    Json?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   resolvedAt  DateTime?
 
   createdById String
-  createdBy   User               @relation(fields: [createdById], references: [id])
+  createdBy   User   @relation(fields: [createdById], references: [id])
 
   @@index([status, severity, createdAt])
+}
+
+model MarketRate {
+  id        String        @id @default(cuid())
+  key       MarketRateKey @unique
+  label     String
+  value     Decimal       @db.Decimal(18, 4)
+  unit      String
+  updatedAt DateTime      @updatedAt
+
+  updatedById String?
+  updatedBy   User?   @relation("MarketRateUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model Feedback {
+  id              String   @id @default(cuid())
+  subject         String
+  body            String   @db.Text
+  // Feedback can target either the platform's super-admins (recipientParkId
+  // null) or a specific park's managers.
+  recipientParkId String?
+  createdAt       DateTime @default(now())
+
+  senderId String
+  sender   User   @relation("FeedbackSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([recipientParkId, createdAt])
 }
 
 model AuditLog {
@@ -628,8 +737,8 @@ model AuditLog {
   userAgent       String?
   createdAt       DateTime    @default(now())
 
-  userId          String?
-  user            User?       @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([actorIdentifier, createdAt])

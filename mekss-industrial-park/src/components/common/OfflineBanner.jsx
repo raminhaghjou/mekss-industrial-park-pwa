@@ -1,25 +1,32 @@
 import { useEffect, useState } from 'react';
 import { Alert } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
- * Persian offline indicator. Shown whenever the browser reports it has lost
- * connectivity, so admin/data-mutating actions are visibly untrustworthy
- * until a reconnect is confirmed. Purely informational; it does not block
- * navigation or cache anything itself.
+ * Persian offline indicator. Mutations are blocked separately by the shared
+ * Axios client; when connectivity returns, active server state is refreshed
+ * so stale cached data is not presented as current.
  */
 export const OfflineBanner = () => {
-  const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const queryClient = useQueryClient();
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === 'undefined' ? true : navigator.onLine,
+  );
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      void queryClient.invalidateQueries({ refetchType: 'active' });
+    };
     const handleOffline = () => setIsOnline(false);
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [queryClient]);
 
   if (isOnline) return null;
 
@@ -28,9 +35,16 @@ export const OfflineBanner = () => {
       severity="warning"
       variant="filled"
       role="status"
-      sx={{ borderRadius: 0, justifyContent: 'center', position: 'sticky', top: 0, zIndex: (theme) => theme.zIndex.appBar + 1 }}
+      aria-live="polite"
+      sx={{
+        borderRadius: 0,
+        justifyContent: 'center',
+        position: 'relative',
+        zIndex: (theme) => theme.zIndex.appBar + 1,
+        '& .MuiAlert-message': { textAlign: 'center' },
+      }}
     >
-      اتصال اینترنت برقرار نیست. اطلاعات نمایش داده‌شده ممکن است قدیمی باشد و ثبت/ویرایش تا اتصال دوباره امکان‌پذیر نیست.
+      اتصال اینترنت برقرار نیست. اطلاعات ممکن است قدیمی باشد؛ ثبت و ویرایش پس از اتصال دوباره فعال می‌شود.
     </Alert>
   );
 };

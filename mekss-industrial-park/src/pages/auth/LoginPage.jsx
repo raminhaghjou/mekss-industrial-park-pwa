@@ -106,14 +106,14 @@ export const LoginPage = () => {
   };
 
   return (
-    <LoginContainer maxWidth="sm">
-      <LoginPaper elevation={6}>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            ورود به سیستم
+    <LoginContainer>
+      <LoginPaper elevation={0}>
+        <Box sx={{ mb: 3.5 }}>
+          <Typography variant="h4" component="h1" fontWeight={850} gutterBottom>
+            خوش آمدید
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            برای دسترسی به سیستم، وارد شوید
+            برای ورود به پنل، شماره همراه و رمز عبور خود را وارد کنید.
           </Typography>
         </Box>
 

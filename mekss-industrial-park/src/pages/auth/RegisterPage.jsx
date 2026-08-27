@@ -94,14 +94,14 @@ export const RegisterPage = () => {
   };
 
   return (
-    <RegisterContainer maxWidth="sm">
-      <RegisterPaper elevation={6}>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            ثبت نام
+    <RegisterContainer>
+      <RegisterPaper elevation={0} sx={{ maxWidth: 540 }}>
+        <Box sx={{ mb: 3.5 }}>
+          <Typography variant="h4" component="h1" fontWeight={850} gutterBottom>
+            ایجاد حساب کاربری
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            برای استفاده از سیستم، ثبت نام کنید
+            اطلاعات خود را وارد کنید؛ حساب‌های سازمانی پس از بررسی مدیر سامانه فعال می‌شوند.
           </Typography>
         </Box>
 

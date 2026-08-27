@@ -108,14 +108,20 @@ services:
     build:
       context: ../mekss-industrial-park
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
     restart: unless-stopped
     ports:
-      - "${MEKSS_LOCAL_FRONTEND_PORT:-5173}:5173"
-    environment:
-      VITE_API_URL: http://localhost:3000/api/v1
+      - "${MEKSS_LOCAL_FRONTEND_PORT:-5173}:80"
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
 
 volumes:
   postgres-data:

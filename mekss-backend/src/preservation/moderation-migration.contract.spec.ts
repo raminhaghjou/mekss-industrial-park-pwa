@@ -13,13 +13,13 @@ const rollback = readFileSync(
 
 describe('advertisement moderation migration contract', () => {
   test('models explicit nullable creator, park, and moderator relations', () => {
-    expect(schema).toContain('advertisements          Advertisement[]      @relation("AdvertisementCreator")');
-    expect(schema).toContain('moderatedAdvertisements Advertisement[]      @relation("AdvertisementModerator")');
-    expect(schema).toContain('advertisements  Advertisement[] @relation("AdvertisementPark")');
+    expect(schema).toMatch(/advertisements\s+Advertisement\[\]\s+@relation\("AdvertisementCreator"\)/);
+    expect(schema).toMatch(/moderatedAdvertisements\s+Advertisement\[\]\s+@relation\("AdvertisementModerator"\)/);
+    expect(schema).toMatch(/advertisements\s+Advertisement\[\]\s+@relation\("AdvertisementPark"\)/);
     expect(schema).toContain('@relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)');
     expect(schema).toContain('@relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: SetNull)');
     expect(schema).toContain('@relation("AdvertisementModerator", fields: [moderatedById], references: [id], onDelete: SetNull)');
-    expect(schema).toContain('moderatedAt     DateTime?');
+    expect(schema).toMatch(/moderatedAt\s+DateTime\?/);
   });
 
   test('uses additive nullable columns and an ambiguity-safe backfill', () => {

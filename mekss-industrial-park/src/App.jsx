@@ -70,5 +70,26 @@ function AppRoutes() {
 }
 
 export default function App() {
-  return <QueryClientProvider client={queryClient}><CustomThemeProvider><RTL><LocalizationProvider dateAdapter={AdapterDateFns}><Router><AuthProvider><NotificationProvider><OfflineBanner /><Suspense fallback={<LoadingScreen />}><AppRoutes /></Suspense><InstallPrompt /></NotificationProvider></AuthProvider></Router></LocalizationProvider></RTL></CustomThemeProvider><ReactQueryDevtools initialIsOpen={false} /></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CustomThemeProvider>
+        <RTL>
+          <OfflineBanner />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Router>
+              <AuthProvider>
+                <NotificationProvider>
+                  <Suspense fallback={<LoadingScreen />}>
+                    <AppRoutes />
+                  </Suspense>
+                </NotificationProvider>
+              </AuthProvider>
+            </Router>
+          </LocalizationProvider>
+          <InstallPrompt />
+        </RTL>
+      </CustomThemeProvider>
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
+  );
 }

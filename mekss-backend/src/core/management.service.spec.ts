@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { AdvertisementStatus, Role } from '@prisma/client';
+import { AdvertisementStatus, FactoryStatus, Role } from '@prisma/client';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn(async (value: string) => `hashed:${value}`) }));
 
@@ -84,9 +84,20 @@ describe('ManagementService transactional foundation', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 
-  it('persists every optional factory field accepted by the create DTO', async () => {
-    const created = { id: 'factory-1' };
-    const prisma = { factory: { create: jest.fn().mockResolvedValue(created) } } as any;
+  it('creates a canonical pending factory and keeps its success audit in the same transaction', async () => {
+    const representation = {
+      id: 'factory-1', status: FactoryStatus.PENDING, isApproved: false,
+      park: { id: 'park-1' }, manager: { id: 'manager-1' }, reviewedBy: null,
+    };
+    const tx = {
+      industrialPark: { findFirst: jest.fn().mockResolvedValue({ id: 'park-1' }) },
+      user: { findFirst: jest.fn().mockResolvedValue({ id: 'manager-1' }) },
+      factory: {
+        create: jest.fn().mockResolvedValue({ id: 'factory-1' }),
+        findUnique: jest.fn().mockResolvedValue(representation),
+      },
+    } as any;
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) } as any;
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
     const service = new ManagementService(prisma, audit, config);
 
@@ -95,13 +106,46 @@ describe('ManagementService transactional foundation', () => {
       address: 'Factory address', phoneNumber: '09120000000', phoneNumber2: '09120000001', landline: '02112345678',
       fax: '02187654321', email: 'factory@example.com', website: 'https://example.com', description: 'Description',
       licenseExpiry: '2027-01-02T00:00:00.000Z', establishedDate: '2020-03-04T00:00:00.000Z', employees: 42,
-      parkId: 'park-1', managerId: 'manager-1', status: 'ACTIVE',
-    })).resolves.toEqual(created);
+      parkId: 'park-1', managerId: 'manager-1',
+    })).resolves.toEqual(representation);
 
-    expect(prisma.factory.create).toHaveBeenCalledWith({ data: expect.objectContaining({
-      phoneNumber2: '09120000001', landline: '02112345678', fax: '02187654321', employees: 42, status: 'ACTIVE',
+    expect(tx.factory.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      phoneNumber2: '09120000001', landline: '02112345678', fax: '02187654321', employees: 42,
+      status: FactoryStatus.PENDING, isApproved: false,
       licenseExpiry: new Date('2027-01-02T00:00:00.000Z'), establishedDate: new Date('2020-03-04T00:00:00.000Z'),
-    }) });
+    }) }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'FACTORY_CREATED', entity: 'Factory', entityId: 'factory-1',
+    }), tx);
+  });
+
+  it('allows exactly one scoped pending factory decision and audits only the winner', async () => {
+    const pending = {
+      id: 'factory-1', status: FactoryStatus.PENDING, isApproved: false,
+      parkId: 'park-1', managerId: 'owner-1', park: { id: 'park-1' }, manager: { id: 'owner-1' }, reviewedBy: null,
+    };
+    const approved = { ...pending, status: FactoryStatus.ACTIVE, isApproved: true, reviewedBy: { id: 'actor-1' } };
+    const tx = {
+      industrialPark: { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) },
+      factory: {
+        findFirst: jest.fn().mockResolvedValue(pending),
+        updateMany: jest.fn().mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 }),
+        findUnique: jest.fn().mockResolvedValue(approved),
+      },
+    } as any;
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) } as any;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.decideFactory(actor(), 'factory-1', true)).resolves.toEqual(approved);
+    await expect(service.decideFactory(actor(), 'factory-1', false, 'late rejection')).rejects.toBeInstanceOf(ConflictException);
+
+    expect(tx.factory.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'factory-1', status: FactoryStatus.PENDING, isApproved: false, parkId: { in: ['park-1'] } },
+      data: expect.objectContaining({ status: FactoryStatus.ACTIVE, isApproved: true, reviewedById: 'actor-1' }),
+    }));
+    expect(audit.record).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'FACTORY_APPROVED', entityId: 'factory-1' }), tx);
   });
 
   it('uses explicit empty predicates for a zero-scope dashboard and keeps the global emergency feed truthful', async () => {

@@ -106,7 +106,7 @@ Implement the approved administration bugfix through an exploratory, preservatio
     - _Preservation: Existing user identities, auth flows, roles, assignments, protected relations, other-user sessions, and unrelated records remain intact._
     - _Requirements: 1.3, 1.6-1.9, 2.3, 2.6-2.9, 3.1-3.4, 3.9-3.10, 3.14-3.16_
 
-  - [ ] 3.9 [Required] Implement scoped conflict-safe advertisement moderation APIs
+  - [x] 3.9 [Required] Implement scoped conflict-safe advertisement moderation APIs
     - Preserve public approved-advertisement reads and add authorized admin list/detail contracts for scoped pending/history records, pagination/filtering, and safe media/contact details.
     - Derive or validate park scope on creation. Permit only atomic `PENDING -> APPROVED|REJECTED` transitions; require a trimmed non-blank rejection reason, record moderator/time and exactly one audit effect, and return non-disclosing `403/404/409` outcomes.
     - Add deterministic sequential/concurrent generated tests for state, decision, reason, role, scope, stale/duplicate requests, ambiguous legacy scope, database/audit atomicity, and fresh-session history for Design Property 5.

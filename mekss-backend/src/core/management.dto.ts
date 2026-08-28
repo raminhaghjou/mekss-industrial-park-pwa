@@ -116,45 +116,50 @@ export class ResetPasswordAdminDto {
   @IsString() @Matches(strongPassword, { message: 'newPassword must be 10-128 characters and contain letters and numbers' }) newPassword!: string;
 }
 
-export class CreateFactoryDto {
-  @IsString() @Length(2, 160) name!: string;
-  @IsString() @Length(2, 80) licenseNumber!: string;
-  @IsString() @Matches(/^\d{10}$/) nationalId!: string;
-  @IsString() @Length(2, 120) activityType!: string;
-  @IsString() @Length(2, 240) address!: string;
-  @Matches(iranianPhone) phoneNumber!: string;
-  @IsOptional() @Matches(iranianPhone) phoneNumber2?: string;
-  @IsOptional() @IsString() @Length(6, 20) landline?: string;
-  @IsOptional() @IsString() @Length(6, 20) fax?: string;
-  @IsOptional() @IsEmail() @MaxLength(254) email?: string;
-  @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string;
-  @IsOptional() @IsString() @MaxLength(2000) description?: string;
-  @IsOptional() @IsDateString() licenseExpiry?: string;
-  @IsOptional() @IsDateString() establishedDate?: string;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1_000_000) employees?: number;
+export class FactoryAdminQueryDto {
   @IsOptional() @IsEnum(FactoryStatus) status?: FactoryStatus;
+  @Transform(trimString) @IsOptional() @IsString() @MaxLength(200) search?: string;
+  @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
+}
+
+export class CreateFactoryDto {
+  @Transform(trimString) @IsString() @Length(2, 160) name!: string;
+  @Transform(trimString) @IsString() @Length(2, 80) licenseNumber!: string;
+  @Transform(trimString) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
+  @Transform(trimString) @IsString() @Length(2, 120) activityType!: string;
+  @Transform(trimString) @IsString() @Length(2, 240) address!: string;
+  @Transform(trimString) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber!: string;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
+  @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsDateString() licenseExpiry?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsDateString() establishedDate?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1_000_000) employees?: number;
   @IsString() @Matches(opaqueId) parkId!: string;
   @IsString() @Matches(opaqueId) managerId!: string;
 }
 
 export class UpdateFactoryDto {
-  @IsOptional() @IsString() @Length(2, 160) name?: string;
-  @IsOptional() @IsString() @Length(2, 80) licenseNumber?: string;
-  @IsOptional() @IsString() @Matches(/^\d{10}$/) nationalId?: string;
-  @IsOptional() @IsString() @Length(2, 120) activityType?: string;
-  @IsOptional() @IsString() @Length(2, 240) address?: string;
-  @IsOptional() @Matches(iranianPhone) phoneNumber?: string;
-  @IsOptional() @Matches(iranianPhone) phoneNumber2?: string;
-  @IsOptional() @IsString() @Length(6, 20) landline?: string;
-  @IsOptional() @IsString() @Length(6, 20) fax?: string;
-  @IsOptional() @IsEmail() @MaxLength(254) email?: string;
-  @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string;
-  @IsOptional() @IsString() @MaxLength(2000) description?: string;
-  @IsOptional() @IsDateString() licenseExpiry?: string;
-  @IsOptional() @IsDateString() establishedDate?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 160) name?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 80) licenseNumber?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Matches(/^\d{10,11}$/) nationalId?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) activityType?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 240) address?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber?: string;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
+  @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsDateString() licenseExpiry?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsDateString() establishedDate?: string | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1_000_000) employees?: number;
-  @IsOptional() @IsEnum(FactoryStatus) status?: FactoryStatus;
-  @IsOptional() @IsBoolean() isApproved?: boolean;
 }
 
 export class CreateGatePassDto {

@@ -9,6 +9,7 @@ import {
   CreateAdvertisementDto,
   CreateEmergencyDto,
   CreateFactoryDto,
+  FactoryAdminQueryDto,
   CreateGatePassDto,
   CreateInvoiceDto,
   CreateManagedUserDto,
@@ -52,8 +53,14 @@ export class ManagementController {
   @Delete('industrial-parks/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Parks') deletePark(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deletePark(currentUser(req), params.id); }
 
   @Get('factories') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Factories') factories(@Req() req: AuthenticatedRequest) { return this.management.listFactories(currentUser(req)); }
+  @Get('factories/management-scope') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') factoryManagementScope(@Req() req: AuthenticatedRequest) { return this.management.factoryManagementScope(currentUser(req)); }
+  @Get('factories/managed') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') managedFactories(@Req() req: AuthenticatedRequest, @Query() query: FactoryAdminQueryDto) { return this.management.managedFactoryPage(currentUser(req), query); }
+  @Get('factories/managed/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') managedFactoryDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.factoryDetail(currentUser(req), params.id); }
+  @Get('factories/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Factories') factoryDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.factoryDetail(currentUser(req), params.id); }
   @Post('factories') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') createFactory(@Req() req: AuthenticatedRequest, @Body() body: CreateFactoryDto) { return this.management.createFactory(currentUser(req), body); }
   @Put('factories/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Factories') updateFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateFactoryDto) { return this.management.updateFactory(currentUser(req), params.id, body); }
+  @Post('factories/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') approveFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decideFactory(currentUser(req), params.id, true); }
+  @Post('factories/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') rejectFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.decideFactory(currentUser(req), params.id, false, body.reason); }
 
   @Get('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePasses(@Req() req: AuthenticatedRequest) { return this.management.listGatePasses(currentUser(req)); }
   @Post('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Gate passes') createGatePass(@Req() req: AuthenticatedRequest, @Body() body: CreateGatePassDto) { return this.management.createGatePass(currentUser(req), body); }

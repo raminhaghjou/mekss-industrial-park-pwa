@@ -176,8 +176,8 @@ enum AuditResult {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  phoneNumber        String   @unique
+  id                 String    @id @default(cuid())
+  phoneNumber        String    @unique
   username           String?   @unique
   password           String
   name               String
@@ -190,7 +190,7 @@ model User {
   // Incremented whenever access or credentials change so already-issued access tokens become stale immediately.
   sessionVersion     Int       @default(0)
   // A single, non-null sentinel identifies the exact-once production bootstrap account.
-  bootstrapKey       String?  @unique
+  bootstrapKey       String?   @unique
   bootstrapCreatedAt DateTime?
   avatar             String?
   createdAt          DateTime  @default(now())
@@ -222,6 +222,7 @@ model User {
   announcements           Announcement[]
   advertisements          Advertisement[]         @relation("AdvertisementCreator")
   moderatedAdvertisements Advertisement[]         @relation("AdvertisementModerator")
+  reviewedFactories       Factory[]               @relation("FactoryReviewer")
   favoriteAdvertisements  AdvertisementFavorite[]
   securityShifts          SecurityGuard[]         @relation("SecurityUser")
   refreshTokens           RefreshToken[]
@@ -291,6 +292,8 @@ model Factory {
   employees       Int           @default(0)
   status          FactoryStatus @default(PENDING)
   isApproved      Boolean       @default(false)
+  rejectionReason String?
+  reviewedAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -306,6 +309,8 @@ model Factory {
 
   managerId     String
   manager       User              @relation("FactoryOwner", fields: [managerId], references: [id])
+  reviewedById  String?
+  reviewedBy    User?             @relation("FactoryReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   parkId        String
   park          IndustrialPark    @relation(fields: [parkId], references: [id])
   employeesList FactoryEmployee[]
@@ -318,7 +323,9 @@ model Factory {
   @@unique([id, parkId])
   @@index([managerId])
   @@index([parkId, status])
+  @@index([parkId, status, isApproved])
   @@index([isApproved])
+  @@index([reviewedById, reviewedAt])
 }
 
 model FactoryEmployee {
@@ -530,7 +537,7 @@ model Advertisement {
   price           Decimal?                 @db.Decimal(15, 2)
   contactInfo     Json
   images          String[]
-  status          AdvertisementStatus @default(PENDING)
+  status          AdvertisementStatus      @default(PENDING)
   isApproved      Boolean                  @default(false)
   rejectionReason String?
   // Optional paid/admin-approved placement in the ads slider, capped monthly.
@@ -540,7 +547,7 @@ model Advertisement {
   updatedAt       DateTime                 @updatedAt
   expiresAt       DateTime?
 
-  createdById     String
+  createdById   String
   createdBy     User                    @relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)
   parkId        String?
   park          IndustrialPark?         @relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: Restrict)
@@ -589,7 +596,7 @@ model SecurityGuard {
 
 model RefreshToken {
   id        String    @id @default(cuid())
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
   userAgent String?
@@ -712,14 +719,14 @@ model MarketRate {
 }
 
 model Feedback {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   subject         String
-  body            String   @db.Text
+  body            String          @db.Text
   // Feedback can target either the platform's super-admins (recipientParkId
   // null) or a specific park's managers.
   recipientParkId String?
   recipientPark   IndustrialPark? @relation("FeedbackRecipientPark", fields: [recipientParkId], references: [id], onDelete: Restrict)
-  createdAt       DateTime @default(now())
+  createdAt       DateTime        @default(now())
 
   senderId String
   sender   User   @relation("FeedbackSender", fields: [senderId], references: [id], onDelete: Cascade)

@@ -1,12 +1,16 @@
+import { FactoryStatus } from '@prisma/client';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import {
   AdvertisementAdminQueryDto,
   AdvertisementModerationDto,
   CreateAdvertisementDto,
+  CreateFactoryDto,
   CreateGatePassDto,
   CreateManagedUserDto,
+  FactoryAdminQueryDto,
   PaginationQueryDto,
   ResetPasswordAdminDto,
+  UpdateFactoryDto,
   UpdateManagedUserDto,
 } from './management.dto';
 
@@ -105,6 +109,47 @@ describe('management DTO validation', () => {
       { page: '0' }, { page: '1.5' }, { pageSize: '0' }, { pageSize: '101' },
     ]) {
       await expect(validate(AdvertisementAdminQueryDto, invalid, 'query')).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
+  it('normalizes factory contracts, preserves persisted identifier/contact compatibility, and rejects lifecycle injection', async () => {
+    const payload = {
+      name: '  Durable Factory  ', licenseNumber: '  LIC-11  ', nationalId: '14000000000',
+      activityType: '  Manufacturing  ', address: '  Factory address  ', phoneNumber: ' 02100000001 ',
+      phoneNumber2: '', landline: ' 02112345678 ', email: ' OWNER@EXAMPLE.COM ', description: ' ',
+      parkId: 'park_1', managerId: 'owner_1', employees: '12',
+    };
+    await expect(validate(CreateFactoryDto, payload)).resolves.toMatchObject({
+      name: 'Durable Factory', licenseNumber: 'LIC-11', nationalId: '14000000000',
+      activityType: 'Manufacturing', address: 'Factory address', phoneNumber: '02100000001',
+      phoneNumber2: null, landline: '02112345678', email: 'owner@example.com', description: null,
+      parkId: 'park_1', managerId: 'owner_1', employees: 12,
+    });
+    await expect(validate(CreateFactoryDto, { ...payload, status: FactoryStatus.ACTIVE })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(validate(CreateFactoryDto, { ...payload, isApproved: true })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(validate(CreateFactoryDto, { ...payload, nationalId: '123' })).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(validate(UpdateFactoryDto, { name: '  Renamed Factory  ', email: '', description: ' ' })).resolves.toMatchObject({
+      name: 'Renamed Factory', email: null, description: null,
+    });
+    for (const protectedBody of [
+      { status: FactoryStatus.ACTIVE }, { isApproved: true }, { parkId: 'park_2' }, { managerId: 'owner_2' },
+      { rejectionReason: 'forged' }, { reviewedById: 'admin_1' }, { reviewedAt: new Date().toISOString() },
+    ]) {
+      await expect(validate(UpdateFactoryDto, protectedBody)).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+
+  it('validates and transforms managed factory filters', async () => {
+    await expect(validate(FactoryAdminQueryDto, {
+      status: FactoryStatus.PENDING, search: '  steel  ', parkId: 'park_1', page: '2', pageSize: '100',
+    }, 'query')).resolves.toMatchObject({
+      status: FactoryStatus.PENDING, search: 'steel', parkId: 'park_1', page: 2, pageSize: 100,
+    });
+    for (const invalid of [
+      { status: 'APPROVED' }, { parkId: 'invalid park' }, { page: '0' }, { page: '1.5' }, { pageSize: '101' },
+    ]) {
+      await expect(validate(FactoryAdminQueryDto, invalid, 'query')).rejects.toBeInstanceOf(BadRequestException);
     }
   });
 

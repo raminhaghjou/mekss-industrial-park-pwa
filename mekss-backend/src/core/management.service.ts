@@ -1,11 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdvertisementStatus, EmergencyStatus, GatePassStatus, InvoiceStatus, ParkStatus, PaymentStatus, Prisma, RequestStatus, Role } from '@prisma/client';
+import { AdvertisementStatus, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceStatus, ParkStatus, PaymentStatus, Prisma, RequestStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateManagedUserDto, CreateParkDto, UpdateManagedUserDto, UpdateParkDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateFactoryDto, CreateManagedUserDto, CreateParkDto, FactoryAdminQueryDto, UpdateFactoryDto, UpdateManagedUserDto, UpdateParkDto } from './management.dto';
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 
@@ -103,6 +103,39 @@ const ADVERTISEMENT_MODERATION_SELECT = Prisma.validator<Prisma.AdvertisementSel
 type AdvertisementModerationRecord = Prisma.AdvertisementGetPayload<{ select: typeof ADVERTISEMENT_MODERATION_SELECT }>;
 type AdvertisementParkSummary = { id: string; code: string; name: string };
 type AdvertisementScopeDatabase = Pick<Prisma.TransactionClient, 'industrialPark'>;
+
+const FACTORY_MANAGEMENT_SELECT = Prisma.validator<Prisma.FactorySelect>()({
+  id: true,
+  name: true,
+  licenseNumber: true,
+  licenseExpiry: true,
+  nationalId: true,
+  activityType: true,
+  address: true,
+  phoneNumber: true,
+  phoneNumber2: true,
+  landline: true,
+  fax: true,
+  email: true,
+  website: true,
+  description: true,
+  establishedDate: true,
+  employees: true,
+  status: true,
+  isApproved: true,
+  rejectionReason: true,
+  reviewedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  managerId: true,
+  parkId: true,
+  park: { select: { id: true, code: true, name: true, province: true, city: true, status: true } },
+  manager: { select: { id: true, name: true, phoneNumber: true, email: true } },
+  reviewedBy: { select: { id: true, name: true } },
+});
+
+type FactoryManagementRecord = Prisma.FactoryGetPayload<{ select: typeof FACTORY_MANAGEMENT_SELECT }>;
+type FactoryScopeDatabase = Pick<Prisma.TransactionClient, 'factory' | 'industrialPark' | 'user'>;
 
 @Injectable()
 export class ManagementService {
@@ -536,41 +569,175 @@ export class ManagementService {
     return this.prisma.factory.findMany({ where: await this.factoryFilter(user), include: { park: true, manager: { select: { id: true, name: true, phoneNumber: true } } }, orderBy: { createdAt: 'desc' } });
   }
 
-  async createFactory(actor: AuthenticatedUser, input: any) {
-    for (const key of ['name', 'licenseNumber', 'nationalId', 'activityType', 'address', 'phoneNumber', 'parkId', 'managerId']) this.text(input[key], key);
-    await this.assertParkAccess(actor, input.parkId);
-    const factory = await this.prisma.factory.create({
-      data: {
-        name: input.name,
-        licenseNumber: input.licenseNumber,
-        nationalId: input.nationalId,
-        activityType: input.activityType,
-        address: input.address,
-        phoneNumber: input.phoneNumber,
-        phoneNumber2: input.phoneNumber2,
-        landline: input.landline,
-        fax: input.fax,
-        email: input.email,
-        website: input.website,
-        description: input.description,
-        licenseExpiry: input.licenseExpiry ? new Date(input.licenseExpiry) : undefined,
-        establishedDate: input.establishedDate ? new Date(input.establishedDate) : undefined,
-        employees: input.employees,
-        parkId: input.parkId,
-        managerId: input.managerId,
-        status: input.status || 'PENDING',
-        isApproved: actor.role === Role.SUPER_ADMIN,
-      },
-    });
-    await this.audit.record({ userId: actor.id, action: 'FACTORY_CREATED', entity: 'Factory', entityId: factory.id });
-    return factory;
+  async factoryManagementScope(actor: AuthenticatedUser) {
+    const managedParkIds = actor.role === Role.SUPER_ADMIN ? undefined : await this.managedParkIds(actor);
+    const parkWhere: Prisma.IndustrialParkWhereInput = {
+      status: ParkStatus.ACTIVE,
+      ...(managedParkIds ? { id: { in: managedParkIds } } : {}),
+    };
+    const ownerWhere: Prisma.UserWhereInput = {
+      role: Role.FACTORY_OWNER,
+      isActive: true,
+      isApproved: true,
+      ...(actor.role === Role.PARK_MANAGER ? {
+        OR: [
+          { managedFactories: { none: {} } },
+          { managedFactories: { some: { parkId: { in: managedParkIds ?? [] } } } },
+        ],
+      } : {}),
+    };
+    const [parks, owners] = await Promise.all([
+      this.prisma.industrialPark.findMany({ where: parkWhere, select: { id: true, code: true, name: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
+      this.prisma.user.findMany({ where: ownerWhere, select: { id: true, name: true, phoneNumber: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
+    ]);
+    return { parks, owners };
   }
 
-  async updateFactory(actor: AuthenticatedUser, id: string, input: any) {
-    await this.assertFactoryAccess(actor, id);
-    const factory = await this.prisma.factory.update({ where: { id }, data: input });
-    await this.audit.record({ userId: actor.id, action: 'FACTORY_UPDATED', entity: 'Factory', entityId: id, changes: input });
-    return factory;
+  async managedFactoryPage(actor: AuthenticatedUser, query: FactoryAdminQueryDto) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 12));
+    return this.prisma.$transaction(async (tx) => {
+      const scope = await this.factoryFilter(actor, tx);
+      if (query.parkId && actor.role !== Role.SUPER_ADMIN) {
+        const allowed = await tx.industrialPark.count({ where: { id: query.parkId, managers: { some: { id: actor.id } } } });
+        if (!allowed) throw new ForbiddenException('You do not have access to this factory scope');
+      }
+      const search = query.search?.trim();
+      const where: Prisma.FactoryWhereInput = {
+        ...scope,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.parkId ? { parkId: query.parkId } : {}),
+        ...(search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { licenseNumber: { contains: search, mode: 'insensitive' } },
+            { nationalId: { contains: search } },
+          ],
+        } : {}),
+      };
+      const [items, total] = await Promise.all([
+        tx.factory.findMany({
+          where,
+          select: FACTORY_MANAGEMENT_SELECT,
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        tx.factory.count({ where }),
+      ]);
+      return { items, total, page, pageSize };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+
+  async factoryDetail(actor: AuthenticatedUser, id: string) {
+    return this.factoryRecord(actor, id, this.prisma);
+  }
+
+  async createFactory(actor: AuthenticatedUser, input: CreateFactoryDto) {
+    return this.auditedTransaction(
+      actor,
+      {
+        action: 'FACTORY_CREATED',
+        entity: 'Factory',
+        entityId: (factory: FactoryManagementRecord) => factory.id,
+        changes: { parkId: input.parkId, managerId: input.managerId, status: FactoryStatus.PENDING },
+      },
+      async (tx) => {
+        await this.assertFactoryRelations(actor, input.parkId, input.managerId, tx);
+        const created = await tx.factory.create({
+          data: {
+            name: input.name,
+            licenseNumber: input.licenseNumber,
+            nationalId: input.nationalId,
+            activityType: input.activityType,
+            address: input.address,
+            phoneNumber: input.phoneNumber,
+            phoneNumber2: input.phoneNumber2,
+            landline: input.landline,
+            fax: input.fax,
+            email: input.email,
+            website: input.website,
+            description: input.description,
+            licenseExpiry: input.licenseExpiry ? new Date(input.licenseExpiry) : input.licenseExpiry,
+            establishedDate: input.establishedDate ? new Date(input.establishedDate) : input.establishedDate,
+            employees: input.employees,
+            parkId: input.parkId,
+            managerId: input.managerId,
+            status: FactoryStatus.PENDING,
+            isApproved: false,
+          },
+          select: { id: true },
+        });
+        const item = await tx.factory.findUnique({ where: { id: created.id }, select: FACTORY_MANAGEMENT_SELECT });
+        if (!item) throw new NotFoundException('Factory not found');
+        return item;
+      },
+    );
+  }
+
+  async updateFactory(actor: AuthenticatedUser, id: string, input: UpdateFactoryDto) {
+    if (!Object.keys(input).length) throw new BadRequestException('At least one factory field is required');
+    return this.auditedTransaction(
+      actor,
+      {
+        action: 'FACTORY_UPDATED',
+        entity: 'Factory',
+        entityId: id,
+        changes: input as unknown as Prisma.InputJsonObject,
+      },
+      async (tx) => {
+        await this.factoryRecord(actor, id, tx);
+        const data: Prisma.FactoryUpdateInput = {
+          ...input,
+          licenseExpiry: input.licenseExpiry === undefined ? undefined : input.licenseExpiry ? new Date(input.licenseExpiry) : null,
+          establishedDate: input.establishedDate === undefined ? undefined : input.establishedDate ? new Date(input.establishedDate) : null,
+        };
+        await tx.factory.update({ where: { id }, data, select: { id: true } });
+        const item = await tx.factory.findUnique({ where: { id }, select: FACTORY_MANAGEMENT_SELECT });
+        if (!item) throw new NotFoundException('Factory not found');
+        return item;
+      },
+    );
+  }
+
+  async decideFactory(actor: AuthenticatedUser, id: string, approved: boolean, reason?: string) {
+    const rejectionReason = reason?.trim();
+    if (!approved && !rejectionReason) throw new BadRequestException('A rejection reason is required');
+    const finalStatus = approved ? FactoryStatus.ACTIVE : FactoryStatus.INACTIVE;
+    return this.auditedTransaction(
+      actor,
+      {
+        action: approved ? 'FACTORY_APPROVED' : 'FACTORY_REJECTED',
+        entity: 'Factory',
+        entityId: id,
+        changes: {
+          from: FactoryStatus.PENDING,
+          to: finalStatus,
+          ...(rejectionReason ? { rejectionReason } : {}),
+        },
+      },
+      async (tx) => {
+        const existing = await this.factoryRecord(actor, id, tx);
+        if (existing.status !== FactoryStatus.PENDING || existing.isApproved) {
+          throw new ConflictException('Factory decision was already recorded');
+        }
+        const scope = await this.factoryFilter(actor, tx);
+        const transition = await tx.factory.updateMany({
+          where: { id, status: FactoryStatus.PENDING, isApproved: false, ...scope },
+          data: {
+            status: finalStatus,
+            isApproved: approved,
+            rejectionReason: approved ? null : rejectionReason,
+            reviewedById: actor.id,
+            reviewedAt: new Date(),
+          },
+        });
+        if (transition.count !== 1) throw new ConflictException('Factory decision was already recorded');
+        const item = await tx.factory.findUnique({ where: { id }, select: FACTORY_MANAGEMENT_SELECT });
+        if (!item) throw new NotFoundException('Factory not found');
+        return item;
+      },
+    );
   }
 
   async listGatePasses(user: AuthenticatedUser) { return this.prisma.gatePass.findMany({ where: { factoryId: { in: await this.factoryIds(user) } }, include: { factory: true }, orderBy: { createdAt: 'desc' } }); }
@@ -1338,10 +1505,56 @@ export class ManagementService {
     throw new ForbiddenException('You do not have access to this announcement');
   }
 
-  private async factoryIds(user: AuthenticatedUser): Promise<string[]> { const factories = await this.prisma.factory.findMany({ where: await this.factoryFilter(user), select: { id: true } }); return factories.map((factory) => factory.id); }
-  private async factoryFilter(user: AuthenticatedUser): Promise<any> { if (user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) return {}; if (user.role === Role.FACTORY_OWNER) return { managerId: user.id }; const parks = await this.prisma.industrialPark.findMany({ where: user.role === Role.PARK_MANAGER ? { managers: { some: { id: user.id } } } : { securityGuards: { some: { userId: user.id, isActive: true } } }, select: { id: true } }); return { parkId: { in: parks.map((park) => park.id) } }; }
-  private async assertFactoryAccess(user: AuthenticatedUser, factoryId: string) { const allowed = await this.prisma.factory.count({ where: { id: factoryId, ...await this.factoryFilter(user) } }); if (!allowed) throw new ForbiddenException('You do not have access to this factory'); }
-  private async assertParkAccess(user: AuthenticatedUser, parkId: string) { if (user.role === Role.SUPER_ADMIN) return; if (user.role !== Role.PARK_MANAGER || !(await this.prisma.industrialPark.count({ where: { id: parkId, managers: { some: { id: user.id } } } }))) throw new ForbiddenException('You do not have access to this park'); }
+  private async factoryIds(user: AuthenticatedUser): Promise<string[]> {
+    const factories = await this.prisma.factory.findMany({ where: await this.factoryFilter(user), select: { id: true } });
+    return factories.map((factory) => factory.id);
+  }
+  private async factoryFilter(user: AuthenticatedUser, db: FactoryScopeDatabase = this.prisma): Promise<Prisma.FactoryWhereInput> {
+    if (user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) return {};
+    if (user.role === Role.FACTORY_OWNER) return { managerId: user.id };
+    const parks = await db.industrialPark.findMany({
+      where: user.role === Role.PARK_MANAGER
+        ? { managers: { some: { id: user.id } } }
+        : { securityGuards: { some: { userId: user.id, isActive: true } } },
+      select: { id: true },
+    });
+    return { parkId: { in: parks.map((park) => park.id) } };
+  }
+  private async factoryRecord(user: AuthenticatedUser, factoryId: string, db: FactoryScopeDatabase): Promise<FactoryManagementRecord> {
+    const item = await db.factory.findFirst({
+      where: { id: factoryId, ...await this.factoryFilter(user, db) },
+      select: FACTORY_MANAGEMENT_SELECT,
+    });
+    if (item) return item;
+    if (user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) throw new NotFoundException('Factory not found');
+    throw new ForbiddenException('You do not have access to this factory');
+  }
+
+  private async assertFactoryRelations(actor: AuthenticatedUser, parkId: string, managerId: string, db: FactoryScopeDatabase): Promise<void> {
+    const parkWhere: Prisma.IndustrialParkWhereInput = {
+      id: parkId,
+      status: ParkStatus.ACTIVE,
+      ...(actor.role === Role.SUPER_ADMIN ? {} : { managers: { some: { id: actor.id } } }),
+    };
+    const [park, manager] = await Promise.all([
+      db.industrialPark.findFirst({ where: parkWhere, select: { id: true } }),
+      db.user.findFirst({
+        where: { id: managerId, role: Role.FACTORY_OWNER, isActive: true, isApproved: true },
+        select: { id: true },
+      }),
+    ]);
+    if (!park) {
+      if (actor.role === Role.SUPER_ADMIN) throw new BadRequestException('Factory park must exist and be active');
+      throw new ForbiddenException('You do not have access to this active park');
+    }
+    if (!manager) throw new BadRequestException('Factory manager must be an active approved factory owner');
+  }
+
+  private async assertFactoryAccess(user: AuthenticatedUser, factoryId: string) {
+    const allowed = await this.prisma.factory.count({ where: { id: factoryId, ...await this.factoryFilter(user) } });
+    if (!allowed) throw new ForbiddenException('You do not have access to this factory');
+  }
+
   private paymentResponse(authority: string, paymentUrl?: string) { const callback = this.config.get<string>('ZARINPAL_CALLBACK_URL') || 'http://localhost:3000/api/v1/invoices/payment/callback'; return { authority, paymentUrl: paymentUrl || `${callback}?Authority=${authority}&Status=OK` }; }
   private text(value: unknown, field: string) { if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`); }
 }

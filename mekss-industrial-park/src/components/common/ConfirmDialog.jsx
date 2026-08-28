@@ -27,6 +27,7 @@ export const ConfirmDialog = ({
   trimReason = true,
   confirmColor = 'primary',
   loading = false,
+  disabled = false,
   onConfirm,
   onClose,
 }) => {
@@ -37,7 +38,7 @@ export const ConfirmDialog = ({
   }, [open]);
 
   const handleConfirm = () => {
-    if (requireReason && !reason.trim()) return;
+    if (disabled || (requireReason && !reason.trim())) return;
     onConfirm(requireReason ? (trimReason ? reason.trim() : reason) : undefined);
   };
 
@@ -71,7 +72,7 @@ export const ConfirmDialog = ({
           onClick={handleConfirm}
           color={/** @type {'primary' | 'error'} */ (confirmColor)}
           variant="contained"
-          disabled={loading || (requireReason && !reason.trim())}
+          disabled={disabled || loading || (requireReason && !reason.trim())}
         >
           {confirmLabel}
         </Button>

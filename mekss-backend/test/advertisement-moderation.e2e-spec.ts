@@ -141,6 +141,20 @@ describe('Scoped conflict-safe advertisement moderation (e2e)', () => {
   });
 
   afterAll(async () => {
+    if (prisma) {
+      await prisma.advertisement.deleteMany({
+        where: { createdById: { in: [ownerSingle?.id, ownerMulti?.id, ownerZero?.id].filter(Boolean) as string[] } },
+      });
+      await prisma.factory.deleteMany({
+        where: { managerId: { in: [ownerSingle?.id, ownerMulti?.id, ownerZero?.id].filter(Boolean) as string[] } },
+      });
+      await prisma.advertisementCategoryDef.deleteMany({
+        where: { key: { in: [categoryKey, 'AD_CONTRACT_INACTIVE'] } },
+      });
+      await prisma.industrialPark.deleteMany({
+        where: { id: { in: [parkAId, parkBId, parkCId, inactiveParkId] } },
+      });
+    }
     if (app) await app.close();
   });
 
@@ -163,7 +177,7 @@ describe('Scoped conflict-safe advertisement moderation (e2e)', () => {
 
     const createdSingle = await request(app.getHttpServer()).post('/api/v1/advertisements').set(auth(ownerSingle)).send({
       title: '  Single scope advertisement  ', category: categoryKey, province: ' Tehran ', city: ' Tehran ',
-      content: ' Scoped creation content ', contactInfo: { phone: '09127777020', privateNote: 'rejected by whitelist' },
+      content: ' Scoped creation content ', contactInfo: { phone: '09127777020' },
     });
     expect(createdSingle.status).toBe(201);
     expect(createdSingle.body).toMatchObject({ title: 'Single scope advertisement', park: { id: parkAId }, status: 'PENDING' });

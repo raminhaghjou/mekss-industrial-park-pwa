@@ -180,6 +180,16 @@ describe('Scoped dashboard contract (e2e)', () => {
   let gatePassBId: string;
   let advertisementAId: string;
   let advertisementBId: string;
+  let globalBaseline: {
+    factories: number;
+    gatePasses: number;
+    invoices: number;
+    requests: number;
+    openEmergencies: number;
+    pendingGatePasses: number;
+    pendingRequests: number;
+    pendingAdvertisements: number;
+  };
 
   const dashboard = (token: string, requestId: string) => request(app.getHttpServer())
     .get('/api/v1/analytics/dashboard')
@@ -190,6 +200,23 @@ describe('Scoped dashboard contract (e2e)', () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
     const jwt = app.get(JwtService);
+    const [
+      factories, gatePasses, invoices, requests, openEmergencies,
+      pendingGatePasses, pendingRequests, pendingAdvertisements,
+    ] = await Promise.all([
+      prisma.factory.count(),
+      prisma.gatePass.count(),
+      prisma.invoice.count(),
+      prisma.request.count(),
+      prisma.emergencyAlert.count({ where: { status: { not: 'RESOLVED' } } }),
+      prisma.gatePass.count({ where: { status: 'PENDING' } }),
+      prisma.request.count({ where: { status: 'PENDING' } }),
+      prisma.advertisement.count({ where: { status: AdvertisementStatus.PENDING } }),
+    ]);
+    globalBaseline = {
+      factories, gatePasses, invoices, requests, openEmergencies,
+      pendingGatePasses, pendingRequests, pendingAdvertisements,
+    };
 
     const [admin, managerA, managerB, emptyManager, ownerA, ownerB, securityGuard, governmentOfficial] = await Promise.all([
       prisma.user.create({ data: { phoneNumber: '09121111200', password: 'unused', name: 'Dashboard Admin', role: Role.SUPER_ADMIN, isApproved: true, isActive: true } }),
@@ -326,8 +353,16 @@ describe('Scoped dashboard contract (e2e)', () => {
 
     expect(adminResponse.status).toBe(200);
     expect(adminResponse.body).toMatchObject({
-      factories: 2, gatePasses: 2, invoices: 0, requests: 2, openEmergencies: 1,
-      pendingWork: { gatePasses: 2, requests: 2, advertisements: 2 },
+      factories: globalBaseline.factories + 2,
+      gatePasses: globalBaseline.gatePasses + 2,
+      invoices: globalBaseline.invoices,
+      requests: globalBaseline.requests + 2,
+      openEmergencies: globalBaseline.openEmergencies + 1,
+      pendingWork: {
+        gatePasses: globalBaseline.pendingGatePasses + 2,
+        requests: globalBaseline.pendingRequests + 2,
+        advertisements: globalBaseline.pendingAdvertisements + 2,
+      },
     });
     expect(adminResponse.body.capabilities).toEqual(expect.arrayContaining(['manage_factories', 'approve_gate_passes', 'approve_requests']));
 
@@ -373,8 +408,16 @@ describe('Scoped dashboard contract (e2e)', () => {
 
     expect(governmentResponse.status).toBe(200);
     expect(governmentResponse.body).toMatchObject({
-      factories: 2, gatePasses: 2, invoices: 0, requests: 2, openEmergencies: 1,
-      pendingWork: { gatePasses: 2, requests: 2, advertisements: 0 },
+      factories: globalBaseline.factories + 2,
+      gatePasses: globalBaseline.gatePasses + 2,
+      invoices: globalBaseline.invoices,
+      requests: globalBaseline.requests + 2,
+      openEmergencies: globalBaseline.openEmergencies + 1,
+      pendingWork: {
+        gatePasses: globalBaseline.pendingGatePasses + 2,
+        requests: globalBaseline.pendingRequests + 2,
+        advertisements: 0,
+      },
       recentPriorityItems: [],
     });
     expect(governmentResponse.body.capabilities).toEqual(expect.arrayContaining(['view_dashboard', 'view_reports']));

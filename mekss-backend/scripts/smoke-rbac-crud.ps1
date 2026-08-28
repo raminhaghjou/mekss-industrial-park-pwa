@@ -207,6 +207,11 @@ try {
   Assert-That ($deleteAnnouncement.Data.deleted -eq $true) 'announcement deletion confirmed'
   $createdAnnouncementId = $null
 
+  $creationScope = Invoke-SmokeRequest -Method GET -Path 'advertisements/creation-scope' -Token $ownerToken
+  Assert-Status $creationScope 200 'FACTORY_OWNER reads authoritative advertisement creation scope'
+  Assert-That ($creationScope.Data.canCreate -eq $true) 'factory owner has an active advertisement scope'
+  Assert-That (@($creationScope.Data.parks).Count -ge 1) 'creation scope returns durable parks'
+
   $createAdvertisement = Invoke-SmokeRequest -Method POST -Path 'advertisements' -Token $ownerToken -Body @{
     title = "Smoke advertisement $suffix"
     category = 'OTHER'
@@ -220,19 +225,56 @@ try {
   $createdAdvertisementId = [string]$createAdvertisement.Data.id
   Assert-That ($createAdvertisement.Data.category.key -eq 'OTHER') 'advertisement resolves category relation'
   Assert-That ($createAdvertisement.Data.status -eq 'PENDING') 'new advertisement is pending'
+  Assert-That (-not [string]::IsNullOrWhiteSpace([string]$createAdvertisement.Data.park.id)) 'advertisement stores derived park scope'
+  if (-not [string]::IsNullOrWhiteSpace([string]$creationScope.Data.autoSelectedParkId)) {
+    Assert-That ($createAdvertisement.Data.park.id -eq $creationScope.Data.autoSelectedParkId) 'single creation scope is selected authoritatively'
+  }
+
+  $pendingPage = Invoke-SmokeRequest -Method GET -Path 'advertisements/managed?view=PENDING&page=1&pageSize=100' -Token $adminToken
+  Assert-Status $pendingPage 200 'SUPER_ADMIN reads paginated pending advertisements'
+  Assert-That (@($pendingPage.Data.items | Where-Object { $_.id -eq $createdAdvertisementId }).Count -eq 1) 'created advertisement appears in managed pending page'
+  $pendingForManager = Invoke-SmokeRequest -Method GET -Path 'advertisements/managed/pending' -Token $managerToken
+  Assert-Status $pendingForManager 200 'PARK_MANAGER reads scoped pending advertisements'
+  Assert-That (@($pendingForManager.Data | Where-Object { $_.id -eq $createdAdvertisementId }).Count -eq 1) 'owner advertisement is visible to its park manager'
+  $pendingDetail = Invoke-SmokeRequest -Method GET -Path "advertisements/managed/$createdAdvertisementId" -Token $adminToken
+  Assert-Status $pendingDetail 200 'SUPER_ADMIN reads managed advertisement detail'
+  Assert-That ($pendingDetail.Data.contactInfo.phoneNumber -eq '09120000002') 'managed detail returns allowlisted contact metadata'
+
+  $blankRejection = Invoke-SmokeRequest -Method POST -Path "advertisements/$createdAdvertisementId/approve" -Token $adminToken -Body @{
+    approved = $false
+    rejectionReason = '   '
+  }
+  Assert-Status $blankRejection 400 'blank advertisement rejection is non-mutating'
 
   $rejectAdvertisement = Invoke-SmokeRequest -Method POST -Path "advertisements/$createdAdvertisementId/approve" -Token $adminToken -Body @{
     approved = $false
-    rejectionReason = 'Smoke moderation rejection'
+    rejectionReason = '  Smoke moderation rejection  '
   }
   Assert-Status $rejectAdvertisement 201 'SUPER_ADMIN rejects advertisement'
   Assert-That ($rejectAdvertisement.Data.status -eq 'REJECTED') 'advertisement rejection persisted'
   Assert-That ($rejectAdvertisement.Data.isApproved -eq $false) 'rejected advertisement is not approved'
+  Assert-That ($rejectAdvertisement.Data.rejectionReason -eq 'Smoke moderation rejection') 'advertisement rejection reason is trimmed'
   Assert-That (-not [string]::IsNullOrWhiteSpace([string]$rejectAdvertisement.Data.moderatedAt)) 'advertisement moderation timestamp recorded'
+  Assert-That (-not [string]::IsNullOrWhiteSpace([string]$rejectAdvertisement.Data.moderatedBy.id)) 'advertisement moderator recorded'
+
+  $duplicateDecision = Invoke-SmokeRequest -Method POST -Path "advertisements/$createdAdvertisementId/approve" -Token $adminToken -Body @{ approved = $true }
+  Assert-Status $duplicateDecision 409 'duplicate advertisement moderation conflicts'
+
+  $historyPage = Invoke-SmokeRequest -Method GET -Path 'advertisements/managed?view=HISTORY&status=REJECTED&page=1&pageSize=100' -Token $adminToken
+  Assert-Status $historyPage 200 'read paginated advertisement moderation history'
+  $historyItem = @($historyPage.Data.items | Where-Object { $_.id -eq $createdAdvertisementId })
+  Assert-That ($historyItem.Count -eq 1) 'rejected advertisement appears in paginated history'
+  Assert-That ($historyItem[0].rejectionReason -eq 'Smoke moderation rejection') 'history preserves canonical rejection metadata'
+  Assert-That (-not [string]::IsNullOrWhiteSpace([string]$historyItem[0].moderatedBy.id)) 'history preserves moderator metadata'
+
+  $historyDetail = Invoke-SmokeRequest -Method GET -Path "advertisements/managed/$createdAdvertisementId" -Token $adminToken
+  Assert-Status $historyDetail 200 'read canonical post-moderation detail'
+  Assert-That ($historyDetail.Data.status -eq 'REJECTED') 'detail re-read returns server-authoritative terminal state'
 
   $history = Invoke-SmokeRequest -Method GET -Path 'advertisements/managed/history' -Token $adminToken
-  Assert-Status $history 200 'read advertisement moderation history'
-  Assert-That (@($history.Data | Where-Object { $_.id -eq $createdAdvertisementId }).Count -eq 1) 'rejected advertisement appears in history'
+  Assert-Status $history 200 'legacy advertisement history remains compatible'
+  Assert-That (@($history.Data | Where-Object { $_.id -eq $createdAdvertisementId }).Count -eq 1) 'rejected advertisement appears in legacy history'
+  Assert-Status (Invoke-SmokeRequest -Method GET -Path 'advertisements') 200 'public approved advertisement read remains unauthenticated'
 
   Write-Output "SMOKE COMPLETE: $assertions assertions passed; advertisement $createdAdvertisementId intentionally retained as moderation history."
 }

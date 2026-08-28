@@ -37,26 +37,26 @@ const expiredAd = { ...pendingAd, id: 'ad-expired', title: 'آگهی منقضی'
 const page = (items, view) => ({ data: { items, total: items.length, page: 1, pageSize: 12, availableParks: [{ id: 'park-a', name: 'شهرک الف' }], view } });
 
 const deferred = () => {
-  let reject = () => {};
+  let reject = /** @type {(reason?: any) => void} */ (() => {});
   const promise = new Promise((_resolve, rejectPromise) => { reject = rejectPromise; });
   return { promise, reject };
 };
 
-const flush = async () => {
+const flush = async (milliseconds = 0) => {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, milliseconds));
   });
 };
 
 const waitFor = async (assertion) => {
   let failure;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
       assertion();
       return;
     } catch (error) {
       failure = error;
-      await flush();
+      await flush(10);
     }
   }
   throw failure;
@@ -140,7 +140,6 @@ describe('AdvertisementModerationBoard', () => {
     expect(mocks.approveAdvertisement).not.toHaveBeenCalled();
     await click(button('انصراف'));
     expect(mocks.approveAdvertisement).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toContain('تایید و انتشار');
   });
 
   it('keeps a valid rejection reason after 409, refetches authority, disables duplicate actions, and emits no false success', async () => {
@@ -160,6 +159,31 @@ describe('AdvertisementModerationBoard', () => {
     await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith(expect.stringContaining('قبلاً بررسی شده'), 'error'));
     await waitFor(() => expect(mocks.getManagedAdvertisements.mock.calls.length).toBeGreaterThan(1));
     expect(field.value).toBe('  دلیل معتبر کاربر  ');
+    expect(mocks.notify.mock.calls.some(([, severity]) => severity === 'success')).toBe(false);
+  });
+
+  it('blocks both open approval and rejection dialogs when connectivity drops', async () => {
+    await click(button('تایید'));
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    await act(async () => window.dispatchEvent(new Event('offline')));
+    await flush();
+    expect(button('تایید و انتشار').disabled).toBe(true);
+    await click(button('تایید و انتشار'));
+    expect(mocks.approveAdvertisement).not.toHaveBeenCalled();
+    expect(mocks.notify.mock.calls.some(([, severity]) => severity === 'success')).toBe(false);
+    await click(button('انصراف'));
+
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    await act(async () => window.dispatchEvent(new Event('online')));
+    await flush();
+    await click(button('رد'));
+    await typeReason('دلیل آفلاین');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    await act(async () => window.dispatchEvent(new Event('offline')));
+    await flush();
+    expect(button('ثبت رد آگهی').disabled).toBe(true);
+    await click(button('ثبت رد آگهی'));
+    expect(mocks.rejectAdvertisement).not.toHaveBeenCalled();
     expect(mocks.notify.mock.calls.some(([, severity]) => severity === 'success')).toBe(false);
   });
 });

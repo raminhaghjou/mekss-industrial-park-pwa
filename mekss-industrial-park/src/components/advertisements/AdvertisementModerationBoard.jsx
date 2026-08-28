@@ -365,7 +365,10 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
         description={approveTarget ? `آگهی «${approveTarget.title}» برای نمایش عمومی تایید شود؟ این تصمیم قابل تکرار نیست.` : ''}
         confirmLabel="تایید و انتشار"
         loading={decisionPending}
-        onConfirm={() => approveMutation.mutate(approveTarget.id)}
+        disabled={!online}
+        onConfirm={() => {
+          if (online && approveTarget) approveMutation.mutate(approveTarget.id);
+        }}
         onClose={() => { if (!decisionPending) setApproveTarget(null); }}
       />
       <ConfirmDialog
@@ -377,7 +380,10 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
         confirmLabel="ثبت رد آگهی"
         confirmColor="error"
         loading={decisionPending}
-        onConfirm={(reason) => rejectMutation.mutate({ id: rejectTarget.id, reason })}
+        disabled={!online}
+        onConfirm={(reason) => {
+          if (online && rejectTarget) rejectMutation.mutate({ id: rejectTarget.id, reason });
+        }}
         onClose={() => { if (!decisionPending) setRejectTarget(null); }}
       />
     </Stack>

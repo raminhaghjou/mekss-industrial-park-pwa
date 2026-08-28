@@ -224,8 +224,8 @@ try {
   await verifySchemaMetadata(snapshotClient);
   await verifyBackfill(snapshotClient);
 
-  await snapshotClient.$executeRawUnsafe(`UPDATE "Advertisement" SET "parkId" = 'park-delete-check', "moderatedById" = 'moderator-fixture', "moderatedAt" = '2026-02-01' WHERE id = 'ad-unscoped'`);
-  await snapshotClient.$executeRawUnsafe(`DELETE FROM "User" WHERE id = 'moderator-fixture'`);
+  await snapshotClient.$executeRawUnsafe(`UPDATE "Advertisement" SET "parkId" = 'park-delete-check', "moderatedById" = 'moderator-delete-check', "moderatedAt" = '2026-02-01' WHERE id = 'ad-unscoped'`);
+  await snapshotClient.$executeRawUnsafe(`DELETE FROM "User" WHERE id = 'moderator-delete-check'`);
   await snapshotClient.$executeRawUnsafe(`DELETE FROM "IndustrialPark" WHERE id = 'park-delete-check'`);
   const retained = await snapshotClient.$queryRawUnsafe(`SELECT id, "parkId", "moderatedById", "moderatedAt" FROM "Advertisement" WHERE id = 'ad-unscoped'`);
   assert.equal(retained[0].id, 'ad-unscoped');

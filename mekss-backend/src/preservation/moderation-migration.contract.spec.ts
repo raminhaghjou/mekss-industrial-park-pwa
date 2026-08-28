@@ -17,7 +17,7 @@ describe('advertisement moderation migration contract', () => {
     expect(schema).toMatch(/moderatedAdvertisements\s+Advertisement\[\]\s+@relation\("AdvertisementModerator"\)/);
     expect(schema).toMatch(/advertisements\s+Advertisement\[\]\s+@relation\("AdvertisementPark"\)/);
     expect(schema).toContain('@relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)');
-    expect(schema).toContain('@relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: SetNull)');
+    expect(schema).toContain('@relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: Restrict)');
     expect(schema).toContain('@relation("AdvertisementModerator", fields: [moderatedById], references: [id], onDelete: SetNull)');
     expect(schema).toMatch(/moderatedAt\s+DateTime\?/);
   });

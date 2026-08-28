@@ -1,17 +1,19 @@
 import { Body, Controller, Get, HttpCode, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
 import { OtpPurpose } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { AuthenticatedUser, JwtAuthGuard } from './auth.guard';
 
 const iranianPhone = /^09\d{9}$/;
+const canonicalEmail = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 class RegisterDto {
   @Matches(iranianPhone) phoneNumber!: string;
   @IsString() @Length(2, 120) name!: string;
   @IsString() @MinLength(10) password!: string;
-  @IsOptional() @IsEmail() email?: string;
+  @Transform(canonicalEmail) @IsOptional() @IsEmail() email?: string;
 }
 class LoginDto { @Matches(iranianPhone) phoneNumber!: string; @IsString() password!: string; }
 class SendOtpDto { @Matches(iranianPhone) phoneNumber!: string; }
@@ -19,7 +21,7 @@ class VerifyOtpDto { @Matches(iranianPhone) phoneNumber!: string; @Matches(/^\d{
 class RefreshDto { @IsString() @MinLength(32) refreshToken!: string; }
 class ResetPasswordDto extends VerifyOtpDto { @IsString() @MinLength(10) newPassword!: string; }
 class ChangePasswordDto { @IsString() currentPassword!: string; @IsString() @MinLength(10) newPassword!: string; }
-class UpdateProfileDto { @IsOptional() @IsString() @Length(2, 120) name?: string; @IsOptional() @IsEmail() email?: string; @IsOptional() @IsString() avatar?: string; }
+class UpdateProfileDto { @IsOptional() @IsString() @Length(2, 120) name?: string; @Transform(canonicalEmail) @IsOptional() @IsEmail() email?: string; @IsOptional() @IsString() avatar?: string; }
 
 @ApiTags('Authentication')
 @Controller('api/v1/auth')

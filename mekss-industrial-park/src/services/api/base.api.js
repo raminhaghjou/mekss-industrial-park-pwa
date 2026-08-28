@@ -11,6 +11,36 @@ const apiClient = axios.create({
   },
 });
 
+let refreshPromise = null;
+
+const clearSession = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+};
+
+const refreshSession = () => {
+  if (refreshPromise) return refreshPromise;
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) return Promise.reject(new Error('Refresh token is unavailable'));
+
+  refreshPromise = axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
+    .then(({ data }) => {
+      const { accessToken, refreshToken: rotatedRefreshToken } = data;
+      if (typeof accessToken !== 'string' || typeof rotatedRefreshToken !== 'string') {
+        throw new Error('Invalid token refresh response');
+      }
+      // localStorage writes are synchronous; no other interceptor task can observe
+      // the pair between these writes before this promise resolves.
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', rotatedRefreshToken);
+      return accessToken;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+};
+
 // Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
@@ -41,28 +71,19 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refreshToken,
-          });
-          
-          const { accessToken } = response.data;
-          localStorage.setItem('accessToken', accessToken);
-          
-          // Retry the original request with new token
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return axios(originalRequest);
-        }
+        const accessToken = await refreshSession();
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return apiClient(originalRequest);
       } catch (refreshError) {
-        // Refresh token failed, logout user
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        // A single shared refresh failure invalidates the session. Concurrent
+        // requests never clear a token pair written by another refresh attempt.
+        clearSession();
+        if (typeof window !== 'undefined') window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }

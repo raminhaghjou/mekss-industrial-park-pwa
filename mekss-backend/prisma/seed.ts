@@ -26,8 +26,10 @@ async function ensureUser(input: {
     update: {
       name: input.name,
       role: input.role,
+      password,
       isApproved: input.approved ?? true,
       isActive: true,
+      mustChangePassword: input.mustChangePassword ?? false,
       email: input.email,
     },
     create: {
@@ -209,13 +211,19 @@ async function main() {
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: superAdmin.id,
-      title: 'داده‌های توسعه آماده‌اند',
-      body: `فاکتور ${invoice.invoiceNumber}، کارخانه و گردش‌های نمونه ایجاد شدند.`,
-    },
+  const existingNotification = await prisma.notification.findFirst({
+    where: { userId: superAdmin.id, title: 'داده‌های توسعه آماده‌اند' },
+    select: { id: true },
   });
+  if (!existingNotification) {
+    await prisma.notification.create({
+      data: {
+        userId: superAdmin.id,
+        title: 'داده‌های توسعه آماده‌اند',
+        body: `فاکتور ${invoice.invoiceNumber}، کارخانه و گردش‌های نمونه ایجاد شدند.`,
+      },
+    });
+  }
 
   console.info('Development seed completed. Demo users use the configured password only in this local environment.');
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -24,6 +24,7 @@ export const ConfirmDialog = ({
   reasonLabel = 'دلیل',
   reasonMultiline = true,
   reasonType = 'text',
+  trimReason = true,
   confirmColor = 'primary',
   loading = false,
   onConfirm,
@@ -31,10 +32,13 @@ export const ConfirmDialog = ({
 }) => {
   const [reason, setReason] = useState('');
 
+  useEffect(() => {
+    if (!open) setReason('');
+  }, [open]);
+
   const handleConfirm = () => {
     if (requireReason && !reason.trim()) return;
-    onConfirm(requireReason ? reason.trim() : undefined);
-    setReason('');
+    onConfirm(requireReason ? (trimReason ? reason.trim() : reason) : undefined);
   };
 
   const handleClose = () => {

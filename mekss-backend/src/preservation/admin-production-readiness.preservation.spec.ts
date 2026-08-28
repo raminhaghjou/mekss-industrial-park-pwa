@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { createHash } from 'crypto';
@@ -98,6 +98,7 @@ describe('admin panel production-readiness preservation baseline', () => {
   test('observed authentication/session behavior remains established', async () => {
     const random = mulberry32(SEED);
     const jwt = new JwtService({ secret: 'preservation-test-secret' });
+    const prisma = { user: { findUnique: jest.fn() } } as any;
     const canonicalRoles = baseline.observations.authentication.canonicalRoles as Role[];
 
     for (let index = 0; index < 96; index += 1) {
@@ -107,15 +108,16 @@ describe('admin panel production-readiness preservation baseline', () => {
       const token = await jwt.signAsync({ sub: subject, role, phoneNumber });
       const request: any = { headers: { authorization: `Bearer ${token}` } };
       const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+      prisma.user.findUnique.mockResolvedValueOnce({ id: subject, role, phoneNumber, isActive: true, isApproved: true });
 
-      await expect(new JwtAuthGuard(jwt).canActivate(context)).resolves.toBe(true);
+      await expect(new JwtAuthGuard(jwt, prisma).canActivate(context)).resolves.toBe(true);
       expect(request.user).toEqual({ id: subject, role, phoneNumber });
     }
 
     for (const authorization of [undefined, '', 'Basic abc', 'Bearer invalid-token']) {
       const request = { headers: authorization === undefined ? {} : { authorization } };
       const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
-      await expect(new JwtAuthGuard(jwt).canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(new JwtAuthGuard(jwt, prisma).canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
     }
 
     for (let index = 0; index < 128; index += 1) {
@@ -127,7 +129,12 @@ describe('admin panel production-readiness preservation baseline', () => {
         getClass: () => undefined,
         switchToHttp: () => ({ getRequest: () => ({ user: { role: actorRole } }) }),
       } as any;
-      expect(new RolesGuard(reflector).canActivate(context)).toBe(requiredRoles.length === 0 || requiredRoles.includes(actorRole));
+      const guard = new RolesGuard(reflector);
+      if (requiredRoles.length === 0 || requiredRoles.includes(actorRole)) {
+        expect(guard.canActivate(context)).toBe(true);
+      } else {
+        expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+      }
     }
 
     const authController = read(paths.authController);
@@ -135,7 +142,13 @@ describe('admin panel production-readiness preservation baseline', () => {
     const authProvider = read(paths.authProvider);
     const apiClient = read(paths.apiClient);
     expectSourceTokens(authController, baseline.observations.authentication.controllerTokens);
-    expectSourceTokens(authService, baseline.observations.authentication.serviceTokens);
+    const legacySpreadProjection = 'const { password, ...publicUser } = user';
+    expectSourceTokens(
+      authService,
+      baseline.observations.authentication.serviceTokens.filter((token: string) => token !== legacySpreadProjection),
+    );
+    expect(authService).toContain('private publicUser(user: User): PublicUser');
+    expect(authService).not.toContain(legacySpreadProjection);
     expectSourceTokens(authProvider, baseline.observations.authentication.frontendSessionTokens);
     expectSourceTokens(apiClient, baseline.observations.authentication.apiClientTokens);
   });

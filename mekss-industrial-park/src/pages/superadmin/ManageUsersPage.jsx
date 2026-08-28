@@ -93,7 +93,7 @@ const ManageUsersPage = () => {
     if (editing) {
       const payload = /** @type {any} */ ({ ...form });
       delete payload.phoneNumber;
-      if (!payload.password) delete payload.password;
+      delete payload.password;
       updateMutation.mutate({ id: editing.id, payload });
     } else {
       if (!form.phoneNumber || !form.name || !form.password) { showNotification('لطفا فیلدهای الزامی را پر کنید.', 'error'); return; }
@@ -184,9 +184,11 @@ const ManageUsersPage = () => {
               <Grid item xs={12} sm={6}>
                 <TextField fullWidth label="ایمیل (اختیاری)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </Grid>
-              <Grid item xs={12}>
-                <TextField fullWidth required={!editing} label={editing ? 'رمز عبور جدید (اختیاری)' : 'رمز عبور'} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-              </Grid>
+              {!editing && (
+                <Grid item xs={12}>
+                  <TextField fullWidth required label="رمز عبور" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                </Grid>
+              )}
             </Grid>
           </DialogContent>
           <DialogActions>
@@ -216,6 +218,7 @@ const ManageUsersPage = () => {
         requireReason
         reasonMultiline={false}
         reasonType="password"
+        trimReason={false}
         reasonLabel="رمز عبور جدید"
         confirmLabel="بازنشانی"
         loading={resetPasswordMutation.isPending}

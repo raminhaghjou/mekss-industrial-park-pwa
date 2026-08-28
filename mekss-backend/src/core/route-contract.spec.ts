@@ -86,6 +86,9 @@ describe('active backend route contract', () => {
     expect(routes).toEqual(
       [
         'GET /api/v1/advertisements',
+        'GET /api/v1/advertisements/creation-scope',
+        'GET /api/v1/advertisements/managed',
+        'GET /api/v1/advertisements/managed/:id',
         'GET /api/v1/advertisements/managed/history',
         'GET /api/v1/advertisements/managed/pending',
         'GET /api/v1/analytics/dashboard',

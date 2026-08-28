@@ -125,7 +125,7 @@ INSERT INTO "AuditLog" (id, "actorIdentifier", action, entity, "entityId", chang
   ('audit-legacy-ad', 'moderator-fixture', 'LEGACY_OBSERVATION', 'Advertisement', 'ad-ambiguous', '{"status":"REJECTED"}', 'SUCCESS', 'migration-fixture', '2026-01-06', 'moderator-fixture');
 `;
 
-async function verifySchemaMetadata(client) {
+async function verifySchemaMetadata(client, expectedParkDeleteAction = 'n') {
   const columns = await client.$queryRawUnsafe(`
     SELECT column_name, is_nullable
     FROM information_schema.columns
@@ -160,7 +160,7 @@ async function verifySchemaMetadata(client) {
   `);
   assert.deepEqual(deleteActions, [
     { conname: 'Advertisement_moderatedById_fkey', confdeltype: 'n' },
-    { conname: 'Advertisement_parkId_fkey', confdeltype: 'n' },
+    { conname: 'Advertisement_parkId_fkey', confdeltype: expectedParkDeleteAction },
   ]);
 }
 
@@ -190,10 +190,12 @@ const baseUrl = safeBaseUrl(process.env);
 const runId = `${Date.now().toString(36)}_${process.pid}_${randomBytes(3).toString('hex')}`.toLowerCase();
 const snapshotSchema = `${SCHEMA_PREFIX}${runId}_snapshot`;
 const deploySchema = `${SCHEMA_PREFIX}${runId}_deploy`;
-const schemas = [snapshotSchema, deploySchema];
+const rollbackSchema = `${SCHEMA_PREFIX}${runId}_rollback`;
+const schemas = [snapshotSchema, deploySchema, rollbackSchema];
 const environment = { ...process.env, NODE_ENV: 'test', MEKSS_TEST_DATABASE: '1' };
 let snapshotClient;
 let deployClient;
+let rollbackClient;
 let failed = false;
 
 console.log(`[moderation-migration] isolated database=${decodeURIComponent(baseUrl.pathname.slice(1))} host=${baseUrl.hostname}`);
@@ -206,7 +208,7 @@ try {
   await run('npx', ['prisma', 'migrate', 'deploy'], { env: { ...environment, DATABASE_URL: deployUrl } });
   await run('npx', ['prisma', 'migrate', 'deploy'], { env: { ...environment, DATABASE_URL: deployUrl } });
   deployClient = new PrismaClient({ datasources: { db: { url: deployUrl } } });
-  await verifySchemaMetadata(deployClient);
+  await verifySchemaMetadata(deployClient, 'r');
 
   const snapshotUrl = schemaUrl(baseUrl, snapshotSchema);
   for (const migration of PREVIOUS_MIGRATIONS) {
@@ -239,26 +241,32 @@ try {
   }
   assert.equal(rollbackRefused, true, 'rollback must refuse to discard populated moderation metadata');
 
-  await deployClient.$executeRawUnsafe(`
+  const rollbackUrl = schemaUrl(baseUrl, rollbackSchema);
+  for (const migration of PREVIOUS_MIGRATIONS) {
+    await executeFile(rollbackUrl, `prisma/migrations/${migration}/migration.sql`, { env: environment });
+  }
+  await executeFile(rollbackUrl, `prisma/migrations/${TARGET_MIGRATION}/migration.sql`, { env: environment });
+  rollbackClient = new PrismaClient({ datasources: { db: { url: rollbackUrl } } });
+  await rollbackClient.$executeRawUnsafe(`
     INSERT INTO "User" (id, "phoneNumber", password, name, role, "isApproved", "isActive", "createdAt", "updatedAt")
     VALUES ('rollback-user', '09120001999', 'fixture-hash', 'Rollback User', 'EMPLOYEE', true, true, '2026-01-01', '2026-01-01')
   `);
-  await deployClient.$executeRawUnsafe(`
+  await rollbackClient.$executeRawUnsafe(`
     INSERT INTO "Advertisement" (id, title, category, province, city, content, "contactInfo", images, status, "isApproved", "createdAt", "updatedAt", "createdById")
     VALUES ('rollback-ad', 'Rollback ad', 'OTHER', 'A', 'A', 'Legacy payload', '{}', ARRAY[]::TEXT[], 'PENDING', false, '2026-01-01', '2026-01-01', 'rollback-user')
   `);
-  const rollbackBefore = await deployClient.$queryRawUnsafe(`SELECT id, title, status::text, "createdById" FROM "Advertisement" WHERE id = 'rollback-ad'`);
-  await executeFile(deployUrl, `prisma/migrations/${TARGET_MIGRATION}/rollback.sql`, { env: environment });
-  const rollbackAfter = await deployClient.$queryRawUnsafe(`SELECT id, title, status::text, "createdById" FROM "Advertisement" WHERE id = 'rollback-ad'`);
+  const rollbackBefore = await rollbackClient.$queryRawUnsafe(`SELECT id, title, status::text, "createdById" FROM "Advertisement" WHERE id = 'rollback-ad'`);
+  await executeFile(rollbackUrl, `prisma/migrations/${TARGET_MIGRATION}/rollback.sql`, { env: environment });
+  const rollbackAfter = await rollbackClient.$queryRawUnsafe(`SELECT id, title, status::text, "createdById" FROM "Advertisement" WHERE id = 'rollback-ad'`);
   assert.deepEqual(rollbackAfter, rollbackBefore);
-  const removedColumns = await deployClient.$queryRawUnsafe(`
+  const removedColumns = await rollbackClient.$queryRawUnsafe(`
     SELECT column_name FROM information_schema.columns
     WHERE table_schema = current_schema() AND table_name = 'Advertisement'
       AND column_name IN ('parkId', 'moderatedById', 'moderatedAt')
   `);
   assert.equal(removedColumns.length, 0);
 
-  console.log('[moderation-migration] PASS deploy-idempotency nullable-columns indexes set-null-relations');
+  console.log('[moderation-migration] PASS deploy-idempotency nullable-columns indexes final-delete-actions');
   console.log('[moderation-migration] PASS populated-snapshot legacy-identities-relations-statuses-audits');
   console.log('[moderation-migration] PASS unambiguous-backfill ambiguous-and-unscoped-remain-null');
   console.log('[moderation-migration] PASS rollback-refusal-and-empty-metadata-rollback-boundary');
@@ -268,6 +276,7 @@ try {
 } finally {
   if (snapshotClient) await snapshotClient.$disconnect().catch(() => undefined);
   if (deployClient) await deployClient.$disconnect().catch(() => undefined);
+  if (rollbackClient) await rollbackClient.$disconnect().catch(() => undefined);
   for (const schema of schemas.reverse()) {
     try {
       await dropSchema(baseUrl, schema);

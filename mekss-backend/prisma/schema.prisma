@@ -176,8 +176,8 @@ enum AuditResult {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  phoneNumber        String    @unique
+  id                 String   @id @default(cuid())
+  phoneNumber        String   @unique
   username           String?   @unique
   password           String
   name               String
@@ -187,8 +187,10 @@ model User {
   isApproved         Boolean   @default(false)
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(false)
+  // Incremented whenever access or credentials change so already-issued access tokens become stale immediately.
+  sessionVersion     Int       @default(0)
   // A single, non-null sentinel identifies the exact-once production bootstrap account.
-  bootstrapKey       String?   @unique
+  bootstrapKey       String?  @unique
   bootstrapCreatedAt DateTime?
   avatar             String?
   createdAt          DateTime  @default(now())
@@ -263,6 +265,7 @@ model IndustrialPark {
   advertisements Advertisement[] @relation("AdvertisementPark")
   securityGuards SecurityGuard[]
   scopedFiles    ScopedFile[]
+  feedback       Feedback[]      @relation("FeedbackRecipientPark")
 
   @@index([province, city])
   @@index([status])
@@ -493,7 +496,7 @@ model Announcement {
   expiresAt DateTime?
 
   parkId      String?
-  park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: SetNull)
+  park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: Restrict)
   createdById String
   createdBy   User            @relation(fields: [createdById], references: [id])
 
@@ -527,7 +530,7 @@ model Advertisement {
   price           Decimal?                 @db.Decimal(15, 2)
   contactInfo     Json
   images          String[]
-  status          AdvertisementStatus      @default(PENDING)
+  status          AdvertisementStatus @default(PENDING)
   isApproved      Boolean                  @default(false)
   rejectionReason String?
   // Optional paid/admin-approved placement in the ads slider, capped monthly.
@@ -537,10 +540,10 @@ model Advertisement {
   updatedAt       DateTime                 @updatedAt
   expiresAt       DateTime?
 
-  createdById   String
+  createdById     String
   createdBy     User                    @relation("AdvertisementCreator", fields: [createdById], references: [id], onDelete: Restrict)
   parkId        String?
-  park          IndustrialPark?         @relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: SetNull)
+  park          IndustrialPark?         @relation("AdvertisementPark", fields: [parkId], references: [id], onDelete: Restrict)
   moderatedById String?
   moderatedBy   User?                   @relation("AdvertisementModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   moderatedAt   DateTime?
@@ -577,7 +580,7 @@ model SecurityGuard {
   userId String
   user   User           @relation("SecurityUser", fields: [userId], references: [id], onDelete: Cascade)
   parkId String
-  park   IndustrialPark @relation(fields: [parkId], references: [id], onDelete: Cascade)
+  park   IndustrialPark @relation(fields: [parkId], references: [id], onDelete: Restrict)
 
   @@unique([userId, shiftStart])
   @@index([userId, shiftStart])
@@ -586,7 +589,7 @@ model SecurityGuard {
 
 model RefreshToken {
   id        String    @id @default(cuid())
-  tokenHash String    @unique
+  tokenHash String   @unique
   expiresAt DateTime
   revokedAt DateTime?
   userAgent String?
@@ -715,6 +718,7 @@ model Feedback {
   // Feedback can target either the platform's super-admins (recipientParkId
   // null) or a specific park's managers.
   recipientParkId String?
+  recipientPark   IndustrialPark? @relation("FeedbackRecipientPark", fields: [recipientParkId], references: [id], onDelete: Restrict)
   createdAt       DateTime @default(now())
 
   senderId String

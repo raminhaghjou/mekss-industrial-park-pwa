@@ -5,7 +5,104 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
+import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateManagedUserDto, CreateParkDto, UpdateManagedUserDto, UpdateParkDto } from './management.dto';
 import { PrismaService } from './prisma.service';
+import { currentCorrelationId } from './request-context';
+
+type AuditPlan<T> = {
+  action: string;
+  entity: string;
+  entityId: string | ((result: T) => string);
+  changes?: Prisma.InputJsonValue;
+};
+
+type UserMutationAudit = { action: string; changes?: Prisma.InputJsonValue };
+type UserMutationOutcome<T> = { result: T; audit?: UserMutationAudit };
+
+const USER_RELATION_COUNT_SELECT = {
+  managedFactories: true,
+  managedParks: true,
+  gatePassesCreated: true,
+  gatePassesApproved: true,
+  gatePassesVerified: true,
+  invoicesCreated: true,
+  invoicesPaid: true,
+  messagesSent: true,
+  messagesReceived: true,
+  requestsCreated: true,
+  requestsApproved: true,
+  announcements: true,
+  advertisements: true,
+  moderatedAdvertisements: true,
+  favoriteAdvertisements: true,
+  securityShifts: true,
+  notifications: true,
+  emergencies: true,
+  paymentAttempts: true,
+  uploadedFiles: true,
+  feedbackSent: true,
+  marketRateUpdates: true,
+} as const;
+
+const USER_LIST_SELECT = Prisma.validator<Prisma.UserSelect>()({
+  id: true,
+  phoneNumber: true,
+  username: true,
+  name: true,
+  nationalId: true,
+  email: true,
+  role: true,
+  isApproved: true,
+  isActive: true,
+  mustChangePassword: true,
+  avatar: true,
+  employeeOfFactoryId: true,
+  canApproveRequestTypes: true,
+  messagingRestricted: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLoginAt: true,
+  _count: { select: USER_RELATION_COUNT_SELECT },
+});
+
+const USER_DETAIL_SELECT = Prisma.validator<Prisma.UserSelect>()({
+  ...USER_LIST_SELECT,
+  employeeOfFactory: { select: { id: true, name: true, parkId: true } },
+  managedFactories: { select: { id: true, name: true, parkId: true, status: true, isApproved: true }, orderBy: { id: 'asc' } },
+  managedParks: { select: { id: true, code: true, name: true, status: true }, orderBy: { id: 'asc' } },
+});
+
+type UserListRecord = Prisma.UserGetPayload<{ select: typeof USER_LIST_SELECT }>;
+type UserDetailRecord = Prisma.UserGetPayload<{ select: typeof USER_DETAIL_SELECT }>;
+
+const ADVERTISEMENT_MODERATION_SELECT = Prisma.validator<Prisma.AdvertisementSelect>()({
+  id: true,
+  title: true,
+  province: true,
+  city: true,
+  address: true,
+  content: true,
+  price: true,
+  contactInfo: true,
+  images: true,
+  status: true,
+  isApproved: true,
+  rejectionReason: true,
+  isFeatured: true,
+  featuredUntil: true,
+  createdAt: true,
+  updatedAt: true,
+  expiresAt: true,
+  moderatedAt: true,
+  category: { select: { id: true, key: true, label: true } },
+  createdBy: { select: { id: true, name: true, phoneNumber: true } },
+  park: { select: { id: true, code: true, name: true } },
+  moderatedBy: { select: { id: true, name: true } },
+});
+
+type AdvertisementModerationRecord = Prisma.AdvertisementGetPayload<{ select: typeof ADVERTISEMENT_MODERATION_SELECT }>;
+type AdvertisementParkSummary = { id: string; code: string; name: string };
+type AdvertisementScopeDatabase = Pick<Prisma.TransactionClient, 'industrialPark'>;
 
 @Injectable()
 export class ManagementService {
@@ -16,67 +113,247 @@ export class ManagementService {
     const pageSize = Math.min(100, Math.max(1, Number(query?.pageSize) || 20));
     const search = query?.search?.trim();
     const where: Prisma.UserWhereInput = search
-      ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { phoneNumber: { contains: search } }, { email: { contains: search, mode: 'insensitive' } }] }
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phoneNumber: { contains: search } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { username: { contains: search, mode: 'insensitive' } },
+            { nationalId: { contains: search } },
+          ],
+        }
       : {};
-    const [items, total] = await Promise.all([
-      this.prisma.user.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, select: { id: true, phoneNumber: true, name: true, email: true, role: true, isApproved: true, isActive: true, mustChangePassword: true, createdAt: true } }),
-      this.prisma.user.count({ where }),
-    ]);
-    return { items, total, page, pageSize };
+    return this.prisma.$transaction(async (tx) => {
+      const [records, total] = await Promise.all([
+        tx.user.findMany({
+          where,
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          select: USER_LIST_SELECT,
+        }),
+        tx.user.count({ where }),
+      ]);
+      return { items: records.map((record) => this.safeUserSummary(record)), total, page, pageSize };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   async userDetail(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: { id: true, phoneNumber: true, name: true, email: true, role: true, isApproved: true, isActive: true, mustChangePassword: true, createdAt: true, managedFactories: { select: { id: true, name: true } }, managedParks: { select: { id: true, name: true } } } });
+    const user = await this.prisma.user.findUnique({ where: { id }, select: USER_DETAIL_SELECT });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return this.safeUserDetail(user);
+  }
+
+  async createUser(actor: AuthenticatedUser, input: CreateManagedUserDto) {
+    const password = await bcrypt.hash(input.password, 12);
+    return this.userLifecycleTransaction(actor, undefined, async (tx) => {
+      const managedParkIds = this.uniqueIds(input.managedParkIds ?? [], 'managedParkIds');
+      const managedFactoryIds = this.uniqueIds(input.managedFactoryIds ?? [], 'managedFactoryIds');
+      this.assertCreateAssignmentCompatibility(input.role, managedParkIds, managedFactoryIds, input.employeeOfFactoryId ?? null);
+      await this.assertAssignmentTargets(tx, managedParkIds, managedFactoryIds, input.employeeOfFactoryId ?? null);
+
+      const created = await tx.user.create({
+        data: {
+          phoneNumber: input.phoneNumber,
+          username: input.username ?? null,
+          password,
+          name: input.name,
+          nationalId: input.nationalId ?? null,
+          email: input.email ?? null,
+          role: input.role,
+          isApproved: input.isApproved ?? false,
+          mustChangePassword: true,
+          ...(managedParkIds.length ? { managedParks: { connect: managedParkIds.map((id) => ({ id })) } } : {}),
+          ...(managedFactoryIds.length ? { managedFactories: { connect: managedFactoryIds.map((id) => ({ id })) } } : {}),
+          ...(input.employeeOfFactoryId ? { employeeOfFactory: { connect: { id: input.employeeOfFactoryId } } } : {}),
+        },
+        select: USER_DETAIL_SELECT,
+      });
+      return {
+        result: this.safeUserDetail(created),
+        audit: {
+          action: 'USER_CREATED',
+          changes: {
+            role: input.role,
+            isApproved: input.isApproved ?? false,
+            managedParkIds,
+            managedFactoryIds,
+            employeeOfFactoryId: input.employeeOfFactoryId ?? null,
+          },
+        },
+      };
+    });
+  }
+
+  async updateUser(actor: AuthenticatedUser, id: string, input: UpdateManagedUserDto) {
+    if (!Object.keys(input).length) throw new BadRequestException('At least one user field must be provided');
+    return this.userLifecycleTransaction(actor, id, async (tx) => {
+      const existing = await tx.user.findUnique({
+        where: { id },
+        include: { managedParks: { select: { id: true } }, managedFactories: { select: { id: true } } },
+      });
+      if (!existing) throw new NotFoundException('User not found');
+
+      const finalRole = input.role ?? existing.role;
+      const finalIsApproved = input.isApproved ?? existing.isApproved;
+      const finalIsActive = input.isActive ?? existing.isActive;
+      if (actor.id === id && (finalRole !== Role.SUPER_ADMIN || !finalIsApproved || !finalIsActive)) {
+        throw new ForbiddenException('You cannot remove your own administrative access');
+      }
+      if (this.isActiveApprovedSuperAdmin(existing) && !(finalRole === Role.SUPER_ADMIN && finalIsApproved && finalIsActive)) {
+        await this.assertAnotherActiveSuperAdmin(tx, id);
+      }
+
+      const currentParkIds = existing.managedParks.map(({ id: parkId }) => parkId).sort();
+      const currentFactoryIds = existing.managedFactories.map(({ id: factoryId }) => factoryId).sort();
+      const desiredParkIds = input.managedParkIds === undefined ? currentParkIds : this.uniqueIds(input.managedParkIds, 'managedParkIds');
+      const requestedFactoryIds = input.managedFactoryIds === undefined ? currentFactoryIds : this.uniqueIds(input.managedFactoryIds, 'managedFactoryIds');
+      const desiredEmployeeFactoryId = input.employeeOfFactoryId === undefined ? existing.employeeOfFactoryId : input.employeeOfFactoryId;
+
+      if (finalRole !== Role.PARK_MANAGER && desiredParkIds.length) {
+        throw new ConflictException('Park assignments must be cleared before changing to this role');
+      }
+      if (finalRole !== Role.FACTORY_OWNER && (currentFactoryIds.length || requestedFactoryIds.length)) {
+        throw new ConflictException('Factory ownership must be reassigned before changing to this role');
+      }
+      if (finalRole !== Role.EMPLOYEE && desiredEmployeeFactoryId) {
+        throw new ConflictException('Employee factory assignment must be cleared before changing to this role');
+      }
+      if (finalRole === Role.PARK_MANAGER && (requestedFactoryIds.length || desiredEmployeeFactoryId)) {
+        throw new ConflictException('Assignments are incompatible with the PARK_MANAGER role');
+      }
+      if (finalRole === Role.FACTORY_OWNER && (desiredParkIds.length || desiredEmployeeFactoryId)) {
+        throw new ConflictException('Assignments are incompatible with the FACTORY_OWNER role');
+      }
+      if (finalRole === Role.EMPLOYEE && (desiredParkIds.length || requestedFactoryIds.length)) {
+        throw new ConflictException('Assignments are incompatible with the EMPLOYEE role');
+      }
+      if (finalRole !== Role.PARK_MANAGER && finalRole !== Role.FACTORY_OWNER && finalRole !== Role.EMPLOYEE
+        && (desiredParkIds.length || requestedFactoryIds.length || desiredEmployeeFactoryId)) {
+        throw new ConflictException('Assignments are incompatible with this role');
+      }
+
+      const removedFactoryIds = currentFactoryIds.filter((factoryId) => !requestedFactoryIds.includes(factoryId));
+      if (removedFactoryIds.length) {
+        throw new ConflictException('Required factory ownership must be reassigned through another owner before removal');
+      }
+      await this.assertAssignmentTargets(
+        tx,
+        input.managedParkIds === undefined ? [] : desiredParkIds,
+        input.managedFactoryIds === undefined ? [] : requestedFactoryIds,
+        input.employeeOfFactoryId === undefined ? null : desiredEmployeeFactoryId,
+      );
+
+      const data: Prisma.UserUpdateInput = {};
+      const changes: Record<string, Prisma.InputJsonValue> = {};
+      const setScalar = <K extends 'phoneNumber' | 'name' | 'email' | 'username' | 'nationalId' | 'role' | 'isApproved' | 'isActive'>(key: K, value: Prisma.UserUpdateInput[K], current: unknown) => {
+        if (value !== undefined && value !== current) {
+          data[key] = value;
+          changes[key] = value === null ? null : value as Prisma.InputJsonValue;
+        }
+      };
+      setScalar('phoneNumber', input.phoneNumber, existing.phoneNumber);
+      setScalar('name', input.name, existing.name);
+      setScalar('email', input.email, existing.email);
+      setScalar('username', input.username, existing.username);
+      setScalar('nationalId', input.nationalId, existing.nationalId);
+      setScalar('role', input.role, existing.role);
+      setScalar('isApproved', input.isApproved, existing.isApproved);
+      setScalar('isActive', input.isActive, existing.isActive);
+
+      const parkAssignmentsChanged = input.managedParkIds !== undefined && !this.sameIds(currentParkIds, desiredParkIds);
+      const addedFactoryIds = input.managedFactoryIds === undefined ? [] : requestedFactoryIds.filter((factoryId) => !currentFactoryIds.includes(factoryId));
+      const employeeAssignmentChanged = input.employeeOfFactoryId !== undefined && desiredEmployeeFactoryId !== existing.employeeOfFactoryId;
+      if (parkAssignmentsChanged) {
+        data.managedParks = { set: desiredParkIds.map((parkId) => ({ id: parkId })) };
+        changes.managedParkIds = desiredParkIds;
+      }
+      if (addedFactoryIds.length) {
+        data.managedFactories = { connect: addedFactoryIds.map((factoryId) => ({ id: factoryId })) };
+        changes.managedFactoryIds = requestedFactoryIds;
+      }
+      if (employeeAssignmentChanged) {
+        data.employeeOfFactory = desiredEmployeeFactoryId ? { connect: { id: desiredEmployeeFactoryId } } : { disconnect: true };
+        changes.employeeOfFactoryId = desiredEmployeeFactoryId;
+      }
+
+      const phoneChanged = input.phoneNumber !== undefined && input.phoneNumber !== existing.phoneNumber;
+      const accessChanged = phoneChanged
+        || input.role !== undefined && input.role !== existing.role
+        || input.isApproved !== undefined && input.isApproved !== existing.isApproved
+        || input.isActive !== undefined && input.isActive !== existing.isActive
+        || parkAssignmentsChanged
+        || addedFactoryIds.length > 0
+        || employeeAssignmentChanged;
+      if (!Object.keys(changes).length) {
+        const unchanged = await tx.user.findUnique({ where: { id }, select: USER_DETAIL_SELECT });
+        if (!unchanged) throw new NotFoundException('User not found');
+        return { result: this.safeUserDetail(unchanged) };
+      }
+      if (accessChanged) data.sessionVersion = { increment: 1 };
+      await tx.user.update({ where: { id }, data });
+      const revokedAt = new Date();
+      if (accessChanged) {
+        await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt } });
+      }
+      if (phoneChanged) {
+        await tx.otpChallenge.updateMany({ where: { userId: id, consumedAt: null }, data: { consumedAt: revokedAt } });
+      }
+      const updated = await tx.user.findUnique({ where: { id }, select: USER_DETAIL_SELECT });
+      if (!updated) throw new NotFoundException('User not found');
+      return { result: this.safeUserDetail(updated), audit: { action: 'USER_UPDATED', changes: changes as Prisma.InputJsonObject } };
+    });
   }
 
   async deleteUser(actor: AuthenticatedUser, id: string) {
     if (actor.id === id) throw new ForbiddenException('You cannot delete your own account');
-    const target = await this.prisma.user.findUnique({ where: { id } });
-    if (!target) throw new NotFoundException('User not found');
-    if (target.role === Role.SUPER_ADMIN) {
-      const activeSuperAdmins = await this.prisma.user.count({ where: { role: Role.SUPER_ADMIN, isActive: true, isApproved: true } });
-      if (activeSuperAdmins <= 1) throw new ForbiddenException('Cannot remove the final active super administrator');
+    try {
+      return await this.userLifecycleTransaction(actor, id, async (tx) => {
+        const target = await tx.user.findUnique({ where: { id } });
+        if (!target) throw new NotFoundException('User not found');
+        if (this.isActiveApprovedSuperAdmin(target)) await this.assertAnotherActiveSuperAdmin(tx, id);
+        const blockers = await this.userDeleteBlockers(tx, id);
+        if (blockers.length) throw new ConflictException('User has protected business relations and cannot be deleted');
+        await tx.user.delete({ where: { id } });
+        return { result: { id, deleted: true }, audit: { action: 'USER_DELETED' } };
+      });
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2003') throw new ConflictException('User has protected business relations and cannot be deleted');
+      throw error;
     }
-    const protectedRelations = await Promise.all([
-      this.prisma.factory.count({ where: { managerId: id } }),
-      this.prisma.industrialPark.count({ where: { managers: { some: { id } } } }),
-    ]);
-    if (protectedRelations.some((count) => count > 0)) throw new ConflictException('User has protected relations and cannot be deleted');
-    await this.prisma.$transaction([
-      this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }),
-      this.prisma.user.delete({ where: { id } }),
-    ]);
-    await this.audit.record({ userId: actor.id, action: 'USER_DELETED', entity: 'User', entityId: id });
-    return { id, deleted: true };
   }
 
   async setUserActive(actor: AuthenticatedUser, id: string, isActive: boolean) {
     if (actor.id === id && !isActive) throw new ForbiddenException('You cannot deactivate your own account');
-    const target = await this.prisma.user.findUnique({ where: { id } });
-    if (!target) throw new NotFoundException('User not found');
-    if (!isActive && target.role === Role.SUPER_ADMIN) {
-      const activeSuperAdmins = await this.prisma.user.count({ where: { role: Role.SUPER_ADMIN, isActive: true, isApproved: true } });
-      if (activeSuperAdmins <= 1) throw new ForbiddenException('Cannot deactivate the final active super administrator');
-    }
-    const [user] = await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id }, data: { isActive } }),
-      this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }),
-    ]);
-    await this.audit.record({ userId: actor.id, action: isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', entity: 'User', entityId: id });
-    return this.safeUser(user);
+    return this.userLifecycleTransaction(actor, id, async (tx) => {
+      const target = await tx.user.findUnique({ where: { id } });
+      if (!target) throw new NotFoundException('User not found');
+      if (target.isActive === isActive) {
+        const unchanged = await tx.user.findUnique({ where: { id }, select: USER_DETAIL_SELECT });
+        if (!unchanged) throw new NotFoundException('User not found');
+        return { result: this.safeUserDetail(unchanged) };
+      }
+      if (!isActive && this.isActiveApprovedSuperAdmin(target)) await this.assertAnotherActiveSuperAdmin(tx, id);
+      await tx.user.update({ where: { id }, data: { isActive, sessionVersion: { increment: 1 } } });
+      await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      const updated = await tx.user.findUnique({ where: { id }, select: USER_DETAIL_SELECT });
+      if (!updated) throw new NotFoundException('User not found');
+      return { result: this.safeUserDetail(updated), audit: { action: isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED' } };
+    });
   }
 
   async resetUserPassword(actor: AuthenticatedUser, id: string, newPassword: string) {
-    const target = await this.prisma.user.findUnique({ where: { id } });
-    if (!target) throw new NotFoundException('User not found');
-    const [user] = await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id }, data: { password: await bcrypt.hash(newPassword, 12), mustChangePassword: true } }),
-      this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } }),
-    ]);
-    await this.audit.record({ userId: actor.id, action: 'USER_PASSWORD_RESET', entity: 'User', entityId: id });
-    return this.safeUser(user);
+    const password = await bcrypt.hash(newPassword, 12);
+    return this.userLifecycleTransaction(actor, id, async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: { password, mustChangePassword: true, sessionVersion: { increment: 1 } },
+      });
+      await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+      const updated = await tx.user.findUnique({ where: { id }, select: USER_DETAIL_SELECT });
+      if (!updated) throw new NotFoundException('User not found');
+      return { result: this.safeUserDetail(updated), audit: { action: 'USER_PASSWORD_RESET' } };
+    });
   }
 
   async parks(query?: { page?: number; pageSize?: number; search?: string }) {
@@ -86,100 +363,173 @@ export class ManagementService {
     const where: Prisma.IndustrialParkWhereInput = search
       ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { code: { contains: search, mode: 'insensitive' } }, { city: { contains: search, mode: 'insensitive' } }] }
       : {};
-    const [items, total] = await Promise.all([
-      this.prisma.industrialPark.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { managers: { select: { id: true, name: true, phoneNumber: true } }, _count: { select: { factories: true } } } }),
-      this.prisma.industrialPark.count({ where }),
-    ]);
-    return { items, total, page, pageSize };
+    return this.prisma.$transaction(async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.industrialPark.findMany({
+          where,
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: this.parkInclude(),
+        }),
+        tx.industrialPark.count({ where }),
+      ]);
+      return { items, total, page, pageSize };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   async parkDetail(id: string) {
-    const park = await this.prisma.industrialPark.findUnique({ where: { id }, include: { managers: { select: { id: true, name: true, phoneNumber: true } }, _count: { select: { factories: true } } } });
+    const park = await this.prisma.industrialPark.findUnique({ where: { id }, include: this.parkInclude() });
     if (!park) throw new NotFoundException('Park not found');
     return park;
   }
 
-  async createPark(actor: AuthenticatedUser, input: any) {
-    for (const key of ['code', 'name', 'province', 'city', 'address', 'phoneNumber', 'guardPhone']) this.text(input[key], key);
-    const existing = await this.prisma.industrialPark.findUnique({ where: { code: input.code.trim() } });
-    if (existing) throw new ConflictException('A park with this code already exists');
-    if (input.managerIds?.length) await this.assertManagersValid(input.managerIds);
-    const park = await this.prisma.industrialPark.create({
-      data: {
-        code: input.code.trim(),
-        name: input.name,
-        province: input.province,
-        city: input.city,
-        address: input.address,
-        phoneNumber: input.phoneNumber,
-        email: input.email,
-        guardPhone: input.guardPhone,
-        totalArea: input.totalArea ? Number(input.totalArea) : undefined,
-        establishedDate: input.establishedDate ? new Date(input.establishedDate) : undefined,
-        description: input.description,
-        status: (input.status as ParkStatus) || ParkStatus.ACTIVE,
-        managers: input.managerIds?.length ? { connect: input.managerIds.map((id: string) => ({ id })) } : undefined,
-      },
-      include: { managers: { select: { id: true, name: true, phoneNumber: true } } },
+  async createPark(actor: AuthenticatedUser, input: CreateParkDto) {
+    const code = this.normalizedRequiredText(input.code, 'code');
+    const managerIds = input.managerIds ?? [];
+    return this.auditedTransaction(actor, {
+      action: 'PARK_CREATED',
+      entity: 'IndustrialPark',
+      entityId: (park: { id: string }) => park.id,
+      changes: { code, status: input.status ?? ParkStatus.ACTIVE, managerIds },
+    }, async (tx) => {
+      const existing = await tx.industrialPark.findUnique({ where: { code } });
+      if (existing) throw new ConflictException('A park with this code already exists');
+      await this.assertManagersValid(managerIds, tx);
+      const created = await tx.industrialPark.create({
+        data: {
+          code,
+          name: this.normalizedRequiredText(input.name, 'name'),
+          province: this.normalizedRequiredText(input.province, 'province'),
+          city: this.normalizedRequiredText(input.city, 'city'),
+          address: this.normalizedRequiredText(input.address, 'address'),
+          phoneNumber: this.normalizedRequiredText(input.phoneNumber, 'phoneNumber'),
+          email: input.email === undefined ? undefined : this.normalizedNullableText(input.email),
+          guardPhone: this.normalizedRequiredText(input.guardPhone, 'guardPhone'),
+          totalArea: input.totalArea,
+          establishedDate: input.establishedDate ? new Date(input.establishedDate) : input.establishedDate,
+          description: input.description === undefined ? undefined : this.normalizedNullableText(input.description),
+          status: input.status ?? ParkStatus.ACTIVE,
+          managers: managerIds.length ? { connect: managerIds.map((id) => ({ id })) } : undefined,
+        },
+        select: { id: true },
+      });
+      return tx.industrialPark.findUniqueOrThrow({ where: { id: created.id }, include: this.parkInclude() });
     });
-    await this.audit.record({ userId: actor.id, action: 'PARK_CREATED', entity: 'IndustrialPark', entityId: park.id });
-    return park;
   }
 
-  async updatePark(actor: AuthenticatedUser, id: string, input: any) {
-    const existing = await this.prisma.industrialPark.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Park not found');
-    if (input.managerIds) await this.assertManagersValid(input.managerIds);
-    const data: any = {};
-    for (const key of ['name', 'province', 'city', 'address', 'phoneNumber', 'email', 'guardPhone', 'description']) if (input[key] !== undefined) data[key] = input[key];
-    if (input.totalArea !== undefined) data.totalArea = Number(input.totalArea);
+  async updatePark(actor: AuthenticatedUser, id: string, input: UpdateParkDto) {
+    const data: Prisma.IndustrialParkUpdateInput = {};
+    if (input.code !== undefined) data.code = this.normalizedRequiredText(input.code, 'code');
+    if (input.name !== undefined) data.name = this.normalizedRequiredText(input.name, 'name');
+    if (input.province !== undefined) data.province = this.normalizedRequiredText(input.province, 'province');
+    if (input.city !== undefined) data.city = this.normalizedRequiredText(input.city, 'city');
+    if (input.address !== undefined) data.address = this.normalizedRequiredText(input.address, 'address');
+    if (input.phoneNumber !== undefined) data.phoneNumber = this.normalizedRequiredText(input.phoneNumber, 'phoneNumber');
+    if (input.email !== undefined) data.email = this.normalizedNullableText(input.email);
+    if (input.guardPhone !== undefined) data.guardPhone = this.normalizedRequiredText(input.guardPhone, 'guardPhone');
+    if (input.totalArea !== undefined) data.totalArea = input.totalArea;
     if (input.establishedDate !== undefined) data.establishedDate = input.establishedDate ? new Date(input.establishedDate) : null;
-    if (input.status !== undefined) data.status = input.status as ParkStatus;
-    if (input.managerIds !== undefined) data.managers = { set: input.managerIds.map((managerId: string) => ({ id: managerId })) };
-    const park = await this.prisma.industrialPark.update({ where: { id }, data, include: { managers: { select: { id: true, name: true, phoneNumber: true } } } });
-    await this.audit.record({ userId: actor.id, action: 'PARK_UPDATED', entity: 'IndustrialPark', entityId: id, changes: data });
-    return park;
+    if (input.description !== undefined) data.description = this.normalizedNullableText(input.description);
+    if (input.status !== undefined) data.status = input.status;
+    if (input.managerIds !== undefined) data.managers = { set: input.managerIds.map((managerId) => ({ id: managerId })) };
+    if (!Object.keys(data).length) throw new BadRequestException('At least one park field must be provided');
+
+    const auditChanges: Prisma.InputJsonObject = {
+      fields: Object.keys(data).filter((field) => field !== 'managers'),
+      ...(input.managerIds !== undefined ? { managerIds: input.managerIds } : {}),
+    };
+    return this.auditedTransaction(actor, { action: 'PARK_UPDATED', entity: 'IndustrialPark', entityId: id, changes: auditChanges }, async (tx) => {
+      const existing = await tx.industrialPark.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundException('Park not found');
+      if (input.code !== undefined) {
+        const duplicate = await tx.industrialPark.findUnique({ where: { code: data.code as string } });
+        if (duplicate && duplicate.id !== id) throw new ConflictException('A park with this code already exists');
+      }
+      if (input.managerIds !== undefined) await this.assertManagersValid(input.managerIds, tx);
+      await tx.industrialPark.update({ where: { id }, data, select: { id: true } });
+      return tx.industrialPark.findUniqueOrThrow({ where: { id }, include: this.parkInclude() });
+    });
   }
 
   async deletePark(actor: AuthenticatedUser, id: string) {
-    const existing = await this.prisma.industrialPark.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Park not found');
-    const protectedRelations = await Promise.all([
-      this.prisma.factory.count({ where: { parkId: id } }),
-      this.prisma.securityGuard.count({ where: { parkId: id } }),
-      this.prisma.announcement.count({ where: { parkId: id } }),
-    ]);
-    if (protectedRelations.some((count) => count > 0)) throw new ConflictException('Park has protected relations and cannot be deleted');
-    await this.prisma.industrialPark.delete({ where: { id } });
-    await this.audit.record({ userId: actor.id, action: 'PARK_DELETED', entity: 'IndustrialPark', entityId: id });
-    return { id, deleted: true };
+    try {
+      return await this.auditedTransaction(actor, { action: 'PARK_DELETED', entity: 'IndustrialPark', entityId: id }, async (tx) => {
+        const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "IndustrialPark" WHERE "id" = ${id} FOR UPDATE`);
+        if (!locked.length) throw new NotFoundException('Park not found');
+        const [park, feedbackCount] = await Promise.all([
+          tx.industrialPark.findUnique({
+            where: { id },
+            select: {
+              _count: {
+                select: {
+                  factories: true,
+                  managers: true,
+                  announcements: true,
+                  advertisements: true,
+                  securityGuards: true,
+                  scopedFiles: true,
+                },
+              },
+            },
+          }),
+          tx.feedback.count({ where: { recipientParkId: id } }),
+        ]);
+        if (!park) throw new NotFoundException('Park not found');
+        if (feedbackCount > 0 || Object.values(park._count).some((count) => count > 0)) {
+          throw new ConflictException('Park has protected relations and cannot be deleted');
+        }
+        await tx.industrialPark.delete({ where: { id } });
+        return { id, deleted: true };
+      });
+    } catch (error) {
+      const code = error instanceof Prisma.PrismaClientKnownRequestError
+        ? error.code
+        : typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
+      if (code === 'P2003') throw new ConflictException('Park has protected relations and cannot be deleted');
+      throw error;
+    }
   }
 
-  private async assertManagersValid(managerIds: string[]) {
+  private parkInclude(): Prisma.IndustrialParkInclude {
+    return {
+      managers: {
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        select: { id: true, name: true, phoneNumber: true },
+      },
+      _count: {
+        select: {
+          factories: true,
+          managers: true,
+          announcements: true,
+          advertisements: true,
+          securityGuards: true,
+          scopedFiles: true,
+        },
+      },
+    };
+  }
+
+  private async assertManagersValid(managerIds: string[], db: Prisma.TransactionClient) {
     if (!managerIds.length) return;
-    const count = await this.prisma.user.count({ where: { id: { in: managerIds }, role: Role.PARK_MANAGER } });
+    if (new Set(managerIds).size !== managerIds.length) throw new BadRequestException('Manager assignments must be unique');
+    await db.$queryRaw(Prisma.sql`SELECT "id" FROM "User" WHERE "id" IN (${Prisma.join(managerIds)}) FOR SHARE`);
+    const count = await db.user.count({
+      where: { id: { in: managerIds }, role: Role.PARK_MANAGER, isActive: true, isApproved: true },
+    });
     if (count !== managerIds.length) throw new BadRequestException('One or more managers are invalid');
   }
 
-  async createUser(actor: AuthenticatedUser, input: any) {
-    this.text(input.phoneNumber, 'phoneNumber'); this.text(input.name, 'name'); this.text(input.password, 'password');
-    if (!Object.values(Role).includes(input.role)) throw new BadRequestException('Invalid role');
-    const user = await this.prisma.user.create({ data: { phoneNumber: input.phoneNumber, name: input.name, password: await bcrypt.hash(input.password, 12), email: input.email, role: input.role, isApproved: Boolean(input.isApproved), mustChangePassword: true } });
-    await this.audit.record({ userId: actor.id, action: 'USER_CREATED', entity: 'User', entityId: user.id, changes: { role: user.role } });
-    return this.safeUser(user);
+  private normalizedRequiredText(value: string, field: string): string {
+    const normalized = value?.trim();
+    if (!normalized) throw new BadRequestException(`${field} is required`);
+    return normalized;
   }
 
-  async updateUser(actor: AuthenticatedUser, id: string, input: any) {
-    const data: any = {};
-    for (const key of ['name', 'email', 'isApproved', 'isActive', 'mustChangePassword']) if (input[key] !== undefined) data[key] = input[key];
-    if (input.role !== undefined) {
-      if (!Object.values(Role).includes(input.role)) throw new BadRequestException('Invalid role');
-      data.role = input.role;
-    }
-    if (input.password) { data.password = await bcrypt.hash(input.password, 12); data.mustChangePassword = true; }
-    const user = await this.prisma.user.update({ where: { id }, data });
-    await this.audit.record({ userId: actor.id, action: 'USER_UPDATED', entity: 'User', entityId: id, changes: data });
-    return this.safeUser(user);
+  private normalizedNullableText(value: string | null): string | null {
+    if (value === null) return null;
+    const normalized = value.trim();
+    return normalized.length ? normalized : null;
   }
 
   async listFactories(user: AuthenticatedUser) {
@@ -189,7 +539,29 @@ export class ManagementService {
   async createFactory(actor: AuthenticatedUser, input: any) {
     for (const key of ['name', 'licenseNumber', 'nationalId', 'activityType', 'address', 'phoneNumber', 'parkId', 'managerId']) this.text(input[key], key);
     await this.assertParkAccess(actor, input.parkId);
-    const factory = await this.prisma.factory.create({ data: { name: input.name, licenseNumber: input.licenseNumber, nationalId: input.nationalId, activityType: input.activityType, address: input.address, phoneNumber: input.phoneNumber, email: input.email, website: input.website, description: input.description, parkId: input.parkId, managerId: input.managerId, status: input.status || 'PENDING', isApproved: actor.role === Role.SUPER_ADMIN } as any });
+    const factory = await this.prisma.factory.create({
+      data: {
+        name: input.name,
+        licenseNumber: input.licenseNumber,
+        nationalId: input.nationalId,
+        activityType: input.activityType,
+        address: input.address,
+        phoneNumber: input.phoneNumber,
+        phoneNumber2: input.phoneNumber2,
+        landline: input.landline,
+        fax: input.fax,
+        email: input.email,
+        website: input.website,
+        description: input.description,
+        licenseExpiry: input.licenseExpiry ? new Date(input.licenseExpiry) : undefined,
+        establishedDate: input.establishedDate ? new Date(input.establishedDate) : undefined,
+        employees: input.employees,
+        parkId: input.parkId,
+        managerId: input.managerId,
+        status: input.status || 'PENDING',
+        isApproved: actor.role === Role.SUPER_ADMIN,
+      },
+    });
     await this.audit.record({ userId: actor.id, action: 'FACTORY_CREATED', entity: 'Factory', entityId: factory.id });
     return factory;
   }
@@ -360,29 +732,180 @@ export class ManagementService {
     return { id, deleted: true };
   }
 
-  async advertisements() { return this.prisma.advertisement.findMany({ where: { status: AdvertisementStatus.APPROVED }, orderBy: { createdAt: 'desc' } }); }
-  async createAdvertisement(actor: AuthenticatedUser, input: any) { for (const key of ['title', 'category', 'province', 'city', 'content']) this.text(input[key], key); const item = await this.prisma.advertisement.create({ data: { ...input, images: input.images || [], contactInfo: input.contactInfo || {}, createdById: actor.id } }); await this.audit.record({ userId: actor.id, action: 'ADVERTISEMENT_CREATED', entity: 'Advertisement', entityId: item.id }); return item; }
+  async advertisements() {
+    return this.prisma.advertisement.findMany({
+      where: { status: AdvertisementStatus.APPROVED },
+      include: { category: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async advertisementCreationScope(actor: AuthenticatedUser) {
+    const parks = await this.eligibleAdvertisementParks(actor);
+    return {
+      canCreate: parks.length > 0,
+      requiresSelection: parks.length > 1,
+      autoSelectedParkId: parks.length === 1 ? parks[0].id : null,
+      parks,
+    };
+  }
+
+  async createAdvertisement(actor: AuthenticatedUser, input: CreateAdvertisementDto) {
+    for (const key of ['title', 'category', 'province', 'city', 'content'] as const) this.text(input[key], key);
+    return this.auditedTransaction(
+      actor,
+      { action: 'ADVERTISEMENT_CREATED', entity: 'Advertisement', entityId: (created: { id: string }) => created.id },
+      async (tx) => {
+        const category = await tx.advertisementCategoryDef.findUnique({ where: { key: input.category.trim() } });
+        if (!category?.isActive) throw new BadRequestException('Advertisement category is invalid or inactive');
+        const parkId = await this.resolveAdvertisementParkId(actor, input.parkId, tx);
+        const created = await tx.advertisement.create({
+          data: {
+            title: input.title.trim(),
+            categoryId: category.id,
+            province: input.province.trim(),
+            city: input.city.trim(),
+            address: input.address?.trim(),
+            content: input.content.trim(),
+            price: input.price,
+            contactInfo: this.safeAdvertisementContact(input.contactInfo as Prisma.JsonValue),
+            images: input.images ?? [],
+            parkId,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+            createdById: actor.id,
+          },
+          select: ADVERTISEMENT_MODERATION_SELECT,
+        });
+        return this.safeAdvertisement(created);
+      },
+    );
+  }
+
   async approveAdvertisement(actor: AuthenticatedUser, id: string, approved: boolean, rejectionReason?: string) {
-    const existing = await this.prisma.advertisement.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Advertisement not found');
-    if (existing.status !== AdvertisementStatus.PENDING) throw new ConflictException('Advertisement decision was already recorded');
     if (!approved && !rejectionReason?.trim()) throw new BadRequestException('A rejection reason is required');
-    if (actor.role !== Role.SUPER_ADMIN) {
-      const scope = await this.managedParkIds(actor);
-      if (existing.parkId && !scope.includes(existing.parkId)) throw new ForbiddenException('You do not have access to this advertisement');
+    const finalStatus = approved ? AdvertisementStatus.APPROVED : AdvertisementStatus.REJECTED;
+    return this.auditedTransaction(
+      actor,
+      {
+        action: approved ? 'ADVERTISEMENT_APPROVED' : 'ADVERTISEMENT_REJECTED',
+        entity: 'Advertisement',
+        entityId: id,
+        changes: { from: AdvertisementStatus.PENDING, to: finalStatus },
+      },
+      async (tx) => {
+        const reviewParks = actor.role === Role.SUPER_ADMIN ? [] : await this.advertisementReviewParks(actor, tx);
+        const parkIds = reviewParks.map(({ id: parkId }) => parkId);
+        const existing = actor.role === Role.SUPER_ADMIN
+          ? await tx.advertisement.findUnique({ where: { id }, select: { id: true, parkId: true, status: true } })
+          : await tx.advertisement.findFirst({ where: { id, parkId: { in: parkIds } }, select: { id: true, parkId: true, status: true } });
+        if (!existing) {
+          if (actor.role === Role.SUPER_ADMIN) throw new NotFoundException('Advertisement not found');
+          throw new ForbiddenException('You do not have access to this advertisement');
+        }
+        if (!existing.parkId) throw new ForbiddenException('Advertisement does not have a valid moderation scope');
+        if (existing.status !== AdvertisementStatus.PENDING) throw new ConflictException('Advertisement decision was already recorded');
+        const where: Prisma.AdvertisementWhereInput = { id, status: AdvertisementStatus.PENDING, parkId: { not: null } };
+        if (actor.role !== Role.SUPER_ADMIN) where.parkId = { in: parkIds };
+        const transition = await tx.advertisement.updateMany({
+          where,
+          data: {
+            status: finalStatus,
+            isApproved: approved,
+            rejectionReason: approved ? null : rejectionReason?.trim(),
+            moderatedById: actor.id,
+            moderatedAt: new Date(),
+          },
+        });
+        if (transition.count !== 1) throw new ConflictException('Advertisement decision was already recorded');
+        const item = await tx.advertisement.findUnique({ where: { id }, select: ADVERTISEMENT_MODERATION_SELECT });
+        if (!item) throw new NotFoundException('Advertisement not found');
+        return this.safeAdvertisement(item);
+      },
+    );
+  }
+
+  async managedAdvertisementPage(actor: AuthenticatedUser, query: AdvertisementAdminQueryDto) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 12));
+    const view = query.view ?? 'PENDING';
+    if (view === 'PENDING' && query.status && query.status !== AdvertisementStatus.PENDING) {
+      throw new BadRequestException('Pending view only accepts PENDING status');
     }
-    const item = await this.prisma.advertisement.update({ where: { id }, data: { status: approved ? AdvertisementStatus.APPROVED : AdvertisementStatus.REJECTED, isApproved: approved, rejectionReason: approved ? null : rejectionReason?.trim(), moderatedById: actor.id, moderatedAt: new Date() } });
-    await this.audit.record({ userId: actor.id, action: approved ? 'ADVERTISEMENT_APPROVED' : 'ADVERTISEMENT_REJECTED', entity: 'Advertisement', entityId: id });
-    return item;
+    if (view === 'HISTORY' && query.status === AdvertisementStatus.PENDING) {
+      throw new BadRequestException('History view does not accept PENDING status');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const availableParks = await this.advertisementReviewParks(actor, tx);
+      const parkIds = availableParks.map(({ id }) => id);
+      if (query.parkId && actor.role !== Role.SUPER_ADMIN && !parkIds.includes(query.parkId)) {
+        throw new ForbiddenException('You do not have access to this advertisement scope');
+      }
+      const search = query.search?.trim();
+      const where: Prisma.AdvertisementWhereInput = {
+        status: view === 'PENDING'
+          ? AdvertisementStatus.PENDING
+          : query.status ?? { not: AdvertisementStatus.PENDING },
+        ...(actor.role === Role.SUPER_ADMIN ? {} : { parkId: { in: parkIds } }),
+        ...(query.parkId ? { parkId: query.parkId } : {}),
+        ...(query.category ? { category: { is: { key: query.category } } } : {}),
+        ...(search ? {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { content: { contains: search, mode: 'insensitive' } },
+            { province: { contains: search, mode: 'insensitive' } },
+            { city: { contains: search, mode: 'insensitive' } },
+          ],
+        } : {}),
+      };
+      const [records, total] = await Promise.all([
+        tx.advertisement.findMany({
+          where,
+          select: ADVERTISEMENT_MODERATION_SELECT,
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        tx.advertisement.count({ where }),
+      ]);
+      return {
+        items: records.map((record) => this.safeAdvertisement(record)),
+        total,
+        page,
+        pageSize,
+        availableParks,
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+
+  async managedAdvertisementDetail(actor: AuthenticatedUser, id: string) {
+    const reviewParks = actor.role === Role.SUPER_ADMIN ? [] : await this.advertisementReviewParks(actor);
+    const item = await this.prisma.advertisement.findFirst({
+      where: {
+        id,
+        ...(actor.role === Role.SUPER_ADMIN ? {} : { parkId: { in: reviewParks.map(({ id: parkId }) => parkId) } }),
+      },
+      select: ADVERTISEMENT_MODERATION_SELECT,
+    });
+    if (!item) {
+      if (actor.role === Role.SUPER_ADMIN) throw new NotFoundException('Advertisement not found');
+      throw new ForbiddenException('You do not have access to this advertisement');
+    }
+    return this.safeAdvertisement(item);
   }
 
   async managedAdvertisements(actor: AuthenticatedUser, statusFilter: 'PENDING' | 'HISTORY') {
-    const where: Prisma.AdvertisementWhereInput = statusFilter === 'PENDING' ? { status: AdvertisementStatus.PENDING } : { status: { not: AdvertisementStatus.PENDING } };
-    if (actor.role !== Role.SUPER_ADMIN) {
-      const scope = await this.managedParkIds(actor);
-      where.parkId = { in: scope };
-    }
-    return this.prisma.advertisement.findMany({ where, include: { createdBy: { select: { id: true, name: true, phoneNumber: true } }, park: { select: { id: true, name: true } }, moderatedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } });
+    const reviewParks = actor.role === Role.SUPER_ADMIN ? [] : await this.advertisementReviewParks(actor);
+    const where: Prisma.AdvertisementWhereInput = {
+      status: statusFilter === 'PENDING' ? AdvertisementStatus.PENDING : { not: AdvertisementStatus.PENDING },
+      ...(actor.role === Role.SUPER_ADMIN ? {} : { parkId: { in: reviewParks.map(({ id }) => id) } }),
+    };
+    const records = await this.prisma.advertisement.findMany({
+      where,
+      select: ADVERTISEMENT_MODERATION_SELECT,
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    });
+    return records.map((record) => this.safeAdvertisement(record));
   }
 
   async emergencies() { return this.prisma.emergencyAlert.findMany({ include: { createdBy: { select: { name: true, phoneNumber: true } } }, orderBy: { createdAt: 'desc' } }); }
@@ -390,37 +913,206 @@ export class ManagementService {
   async emergencyAction(actor: AuthenticatedUser, id: string, action: 'acknowledge' | 'resolve') { const item = await this.prisma.emergencyAlert.update({ where: { id }, data: action === 'resolve' ? { status: EmergencyStatus.RESOLVED, resolvedAt: new Date() } : { status: EmergencyStatus.ACKNOWLEDGED } }); await this.audit.record({ userId: actor.id, action: `EMERGENCY_${action.toUpperCase()}`, entity: 'EmergencyAlert', entityId: id }); return item; }
 
   async dashboard(user: AuthenticatedUser) {
-    const factoryIds = await this.factoryIds(user);
-    const factoryWhere = factoryIds.length ? { factoryId: { in: factoryIds } } : undefined;
-    const [factories, passes, invoices, requests, emergencies, pendingGatePasses, pendingRequests, pendingAdvertisements] = await Promise.all([
-      this.prisma.factory.count({ where: await this.factoryFilter(user) }),
-      this.prisma.gatePass.count({ where: factoryWhere }),
-      this.prisma.invoice.count({ where: factoryWhere }),
-      this.prisma.request.count({ where: factoryWhere }),
-      this.prisma.emergencyAlert.count({ where: { status: { not: EmergencyStatus.RESOLVED } } }),
-      this.prisma.gatePass.count({ where: { ...factoryWhere, status: GatePassStatus.PENDING } }),
-      this.prisma.request.count({ where: { ...factoryWhere, status: RequestStatus.PENDING } }),
-      user.role === Role.SUPER_ADMIN || user.role === Role.PARK_MANAGER
-        ? this.prisma.advertisement.count({ where: { status: AdvertisementStatus.PENDING, ...(user.role === Role.PARK_MANAGER ? { parkId: { in: await this.managedParkIds(user) } } : {}) } })
-        : Promise.resolve(0),
-    ]);
-    return {
-      factories,
-      gatePasses: passes,
-      invoices,
-      requests,
-      openEmergencies: emergencies,
-      pendingWork: { gatePasses: pendingGatePasses, requests: pendingRequests, advertisements: pendingAdvertisements },
-      capabilities: this.dashboardCapabilities(user.role),
-    };
+    return this.prisma.$transaction(async (tx) => {
+      const isSuperAdmin = user.role === Role.SUPER_ADMIN;
+      const isParkManager = user.role === Role.PARK_MANAGER;
+      const hasGlobalFactoryScope = isSuperAdmin || user.role === Role.GOVERNMENT_OFFICIAL;
+      const factoryScope: Prisma.FactoryWhereInput = isParkManager
+        ? { park: { is: { managers: { some: { id: user.id } } } } }
+        : user.role === Role.FACTORY_OWNER
+          ? { managerId: user.id }
+          : user.role === Role.SECURITY_GUARD
+            ? { park: { is: { securityGuards: { some: { userId: user.id, isActive: true } } } } }
+            : {};
+      const factoryWhere = hasGlobalFactoryScope ? {} : { factory: { is: factoryScope } };
+      const advertisementWhere: Prisma.AdvertisementWhereInput = {
+        status: AdvertisementStatus.PENDING,
+        ...(isParkManager ? { park: { is: { managers: { some: { id: user.id } } } } } : {}),
+      };
+      const canReviewPendingWork = isSuperAdmin || isParkManager;
+      const recentLimit = 8;
+      const managedParkCount = isParkManager
+        ? await tx.industrialPark.count({ where: { managers: { some: { id: user.id } } } })
+        : 0;
+
+      const [
+        factories,
+        passes,
+        invoices,
+        requests,
+        emergencies,
+        pendingGatePasses,
+        pendingRequests,
+        pendingAdvertisements,
+        recentRequests,
+        recentGatePasses,
+        recentAdvertisements,
+      ] = await Promise.all([
+        tx.factory.count({ where: factoryScope }),
+        tx.gatePass.count({ where: factoryWhere }),
+        tx.invoice.count({ where: factoryWhere }),
+        tx.request.count({ where: factoryWhere }),
+        tx.emergencyAlert.count({ where: { status: { not: EmergencyStatus.RESOLVED } } }),
+        tx.gatePass.count({ where: { ...factoryWhere, status: GatePassStatus.PENDING } }),
+        tx.request.count({ where: { ...factoryWhere, status: RequestStatus.PENDING } }),
+        canReviewPendingWork
+          ? tx.advertisement.count({ where: advertisementWhere })
+          : Promise.resolve(0),
+        canReviewPendingWork
+          ? tx.request.findMany({
+            where: { ...factoryWhere, status: RequestStatus.PENDING },
+            select: { id: true, title: true, status: true, priority: true, createdAt: true },
+            orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }],
+            take: recentLimit,
+          })
+          : Promise.resolve([]),
+        canReviewPendingWork
+          ? tx.gatePass.findMany({
+            where: { ...factoryWhere, status: GatePassStatus.PENDING },
+            select: { id: true, status: true, createdAt: true, factory: { select: { name: true } } },
+            orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+            take: recentLimit,
+          })
+          : Promise.resolve([]),
+        canReviewPendingWork
+          ? tx.advertisement.findMany({
+            where: advertisementWhere,
+            select: { id: true, title: true, status: true, createdAt: true },
+            orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+            take: recentLimit,
+          })
+          : Promise.resolve([]),
+      ]);
+
+      const priorityWeight: Record<string, number> = { URGENT: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+      const sortableItems = [
+        ...recentRequests.map((item) => ({
+          kind: 'REQUEST' as const,
+          id: item.id,
+          status: item.status,
+          createdAt: item.createdAt.toISOString(),
+          title: item.title,
+          priority: item.priority,
+          capability: 'approve_requests',
+          rank: priorityWeight[item.priority] ?? 0,
+        })),
+        ...recentGatePasses.map((item) => ({
+          kind: 'GATE_PASS' as const,
+          id: item.id,
+          status: item.status,
+          createdAt: item.createdAt.toISOString(),
+          title: item.factory.name,
+          capability: 'approve_gate_passes',
+          rank: priorityWeight.MEDIUM,
+        })),
+        ...recentAdvertisements.map((item) => ({
+          kind: 'ADVERTISEMENT' as const,
+          id: item.id,
+          status: item.status,
+          createdAt: item.createdAt.toISOString(),
+          title: item.title,
+          capability: isSuperAdmin ? 'manage_advertisements' : 'moderate_advertisements',
+          rank: priorityWeight.MEDIUM,
+        })),
+      ];
+      const recentPriorityItems = sortableItems
+        .sort((left, right) => right.rank - left.rank
+          || right.createdAt.localeCompare(left.createdAt)
+          || left.kind.localeCompare(right.kind)
+          || left.id.localeCompare(right.id))
+        .slice(0, recentLimit)
+        .map(({ rank: _rank, ...item }) => item);
+
+      let capabilities = this.dashboardCapabilities(user.role);
+      if (isSuperAdmin) {
+        capabilities = Array.from(new Set([...capabilities, 'manage_factories', 'approve_gate_passes', 'approve_requests']));
+      } else if (isParkManager && managedParkCount === 0) {
+        const tenantMutationCapabilities = new Set([
+          'manage_factories',
+          'approve_gate_passes',
+          'approve_requests',
+          'manage_announcements',
+          'moderate_advertisements',
+          'send_messages',
+        ]);
+        capabilities = capabilities.filter((capability) => !tenantMutationCapabilities.has(capability));
+      }
+
+      return {
+        factories,
+        gatePasses: passes,
+        invoices,
+        requests,
+        openEmergencies: emergencies,
+        pendingWork: { gatePasses: pendingGatePasses, requests: pendingRequests, advertisements: pendingAdvertisements },
+        capabilities,
+        recentPriorityItems,
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
-  async managedParkIds(user: AuthenticatedUser): Promise<string[]> {
+  private async eligibleAdvertisementParks(actor: AuthenticatedUser, db: AdvertisementScopeDatabase = this.prisma): Promise<AdvertisementParkSummary[]> {
+    let where: Prisma.IndustrialParkWhereInput;
+    if (actor.role === Role.SUPER_ADMIN) {
+      where = { status: ParkStatus.ACTIVE };
+    } else if (actor.role === Role.PARK_MANAGER) {
+      where = { status: ParkStatus.ACTIVE, managers: { some: { id: actor.id } } };
+    } else if (actor.role === Role.FACTORY_OWNER) {
+      where = { status: ParkStatus.ACTIVE, factories: { some: { managerId: actor.id } } };
+    } else {
+      throw new ForbiddenException('You do not have access to advertisement creation');
+    }
+    return db.industrialPark.findMany({
+      where,
+      select: { id: true, code: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  private async advertisementReviewParks(actor: AuthenticatedUser, db: AdvertisementScopeDatabase = this.prisma): Promise<AdvertisementParkSummary[]> {
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('You do not have access to advertisement moderation');
+    }
+    return db.industrialPark.findMany({
+      where: actor.role === Role.SUPER_ADMIN ? {} : { managers: { some: { id: actor.id } } },
+      select: { id: true, code: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  private async resolveAdvertisementParkId(actor: AuthenticatedUser, requestedParkId: string | undefined, tx: Prisma.TransactionClient): Promise<string> {
+    const parks = await this.eligibleAdvertisementParks(actor, tx);
+    if (!parks.length) throw new ForbiddenException('No eligible industrial park is available for advertisement creation');
+    if (requestedParkId) {
+      if (!parks.some(({ id }) => id === requestedParkId)) {
+        throw new ForbiddenException('You do not have access to the requested advertisement scope');
+      }
+      return requestedParkId;
+    }
+    if (parks.length !== 1) throw new BadRequestException('parkId is required when multiple advertisement scopes are available');
+    return parks[0].id;
+  }
+
+  private safeAdvertisementContact(value: Prisma.JsonValue): Prisma.InputJsonObject {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const source = value as Record<string, unknown>;
+    const contact: Record<string, string> = {};
+    for (const key of ['phone', 'phoneNumber', 'email'] as const) {
+      if (typeof source[key] === 'string' && source[key].trim()) contact[key] = source[key].trim();
+    }
+    return contact;
+  }
+
+  private safeAdvertisement(record: AdvertisementModerationRecord) {
+    return { ...record, contactInfo: this.safeAdvertisementContact(record.contactInfo) };
+  }
+
+  async managedParkIds(user: AuthenticatedUser, db: Pick<Prisma.TransactionClient, 'industrialPark'> = this.prisma): Promise<string[]> {
     if (user.role === Role.SUPER_ADMIN) {
-      const parks = await this.prisma.industrialPark.findMany({ select: { id: true } });
+      const parks = await db.industrialPark.findMany({ select: { id: true } });
       return parks.map((park) => park.id);
     }
-    const parks = await this.prisma.industrialPark.findMany({ where: { managers: { some: { id: user.id } } }, select: { id: true } });
+    const parks = await db.industrialPark.findMany({ where: { managers: { some: { id: user.id } } }, select: { id: true } });
     return parks.map((park) => park.id);
   }
 
@@ -454,7 +1146,8 @@ export class ManagementService {
 
   async report(actor: AuthenticatedUser, type: 'financial' | 'gatepass' | 'requests', from?: string, to?: string) {
     const factoryIds = await this.factoryIds(actor);
-    const factoryWhere = factoryIds.length ? { factoryId: { in: factoryIds } } : undefined;
+    const hasGlobalFactoryScope = actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL;
+    const factoryWhere = hasGlobalFactoryScope ? {} : { factoryId: { in: factoryIds } };
     const dateFilter = from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined } : undefined;
     if (type === 'financial') {
       const invoices = await this.prisma.invoice.findMany({ where: { ...factoryWhere, ...(dateFilter ? { issueDate: dateFilter } : {}) }, select: { status: true, totalAmount: true } });
@@ -474,6 +1167,155 @@ export class ManagementService {
     const sender = this.config.get<string>('SMS_SENDER');
     const configured = provider === 'mock' || Boolean(this.config.get<string>('KAVEH_NEGAR_API_KEY'));
     return { provider, configured, maskedSender: sender ? `${sender.slice(0, 4)}***${sender.slice(-2)}` : null };
+  }
+
+  private async userLifecycleTransaction<T>(
+    actor: AuthenticatedUser,
+    targetId: string | undefined,
+    operation: (tx: Prisma.TransactionClient) => Promise<UserMutationOutcome<T>>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize user-administration mutations. Row locks alone cannot prevent two
+      // administrators from concurrently removing the final two eligible admins.
+      await tx.$queryRaw(Prisma.sql`SELECT 1 AS "locked" FROM pg_advisory_xact_lock(73463551920838::bigint)`);
+      const currentActor = await tx.user.findUnique({
+        where: { id: actor.id },
+        select: { id: true, role: true, isActive: true, isApproved: true },
+      });
+      if (!currentActor || currentActor.role !== Role.SUPER_ADMIN || !currentActor.isActive || !currentActor.isApproved) {
+        throw new ForbiddenException('Administrative access is no longer active');
+      }
+      if (targetId) {
+        const locked = await tx.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${targetId} FOR UPDATE`,
+        );
+        if (!locked.length) throw new NotFoundException('User not found');
+      }
+
+      const outcome = await operation(tx);
+      if (outcome.audit) {
+        const inferredId = (outcome.result as { id?: unknown })?.id;
+        const entityId = targetId ?? (typeof inferredId === 'string' ? inferredId : undefined);
+        if (!entityId) throw new Error('User lifecycle audit requires an entity id');
+        await this.audit.record({
+          userId: actor.id,
+          actorIdentifier: actor.id,
+          action: outcome.audit.action,
+          entity: 'User',
+          entityId,
+          changes: outcome.audit.changes,
+          correlationId: currentCorrelationId(),
+        }, tx);
+      }
+      return outcome.result;
+    });
+  }
+
+  private safeUserSummary(user: UserListRecord) {
+    const { _count, ...safe } = user;
+    return { ...safe, relationshipSummary: _count };
+  }
+
+  private safeUserDetail(user: UserDetailRecord) {
+    const { _count, ...safe } = user;
+    return { ...safe, relationshipSummary: _count };
+  }
+
+  private uniqueIds(ids: string[], field: string): string[] {
+    const unique = [...new Set(ids)].sort();
+    if (unique.length !== ids.length) throw new BadRequestException(`${field} must contain unique identifiers`);
+    return unique;
+  }
+
+  private sameIds(left: string[], right: string[]): boolean {
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  }
+
+  private assertCreateAssignmentCompatibility(role: Role, parkIds: string[], factoryIds: string[], employeeFactoryId: string | null): void {
+    const compatible = role === Role.PARK_MANAGER
+      ? factoryIds.length === 0 && !employeeFactoryId
+      : role === Role.FACTORY_OWNER
+        ? parkIds.length === 0 && !employeeFactoryId
+        : role === Role.EMPLOYEE
+          ? parkIds.length === 0 && factoryIds.length === 0
+          : parkIds.length === 0 && factoryIds.length === 0 && !employeeFactoryId;
+    if (!compatible) throw new BadRequestException(`Assignments are incompatible with the ${role} role`);
+  }
+
+  private async assertAssignmentTargets(
+    tx: Prisma.TransactionClient,
+    parkIds: string[],
+    factoryIds: string[],
+    employeeFactoryId: string | null,
+  ): Promise<void> {
+    const [parkCount, factoryCount, employeeFactoryCount] = await Promise.all([
+      parkIds.length ? tx.industrialPark.count({ where: { id: { in: parkIds } } }) : 0,
+      factoryIds.length ? tx.factory.count({ where: { id: { in: factoryIds } } }) : 0,
+      employeeFactoryId ? tx.factory.count({ where: { id: employeeFactoryId } }) : 0,
+    ]);
+    if (parkCount !== parkIds.length) throw new BadRequestException('One or more managed parks do not exist');
+    if (factoryCount !== factoryIds.length) throw new BadRequestException('One or more managed factories do not exist');
+    if (employeeFactoryId && employeeFactoryCount !== 1) throw new BadRequestException('Employee factory does not exist');
+  }
+
+  private isActiveApprovedSuperAdmin(user: { role: Role; isActive: boolean; isApproved: boolean }): boolean {
+    return user.role === Role.SUPER_ADMIN && user.isActive && user.isApproved;
+  }
+
+  private async assertAnotherActiveSuperAdmin(tx: Prisma.TransactionClient, targetId: string): Promise<void> {
+    const remaining = await tx.user.count({
+      where: { id: { not: targetId }, role: Role.SUPER_ADMIN, isActive: true, isApproved: true },
+    });
+    if (remaining < 1) throw new ForbiddenException('Cannot remove the final active approved super administrator');
+  }
+
+  private async userDeleteBlockers(tx: Prisma.TransactionClient, userId: string): Promise<string[]> {
+    const names = [
+      'managedFactories', 'managedParks', 'gatePasses', 'invoices', 'messages', 'requests',
+      'announcements', 'advertisements', 'favorites', 'securityShifts', 'notifications',
+      'emergencies', 'paymentAttempts', 'uploadedFiles', 'feedback', 'marketRateUpdates',
+    ];
+    const counts = await Promise.all([
+      tx.factory.count({ where: { managerId: userId } }),
+      tx.industrialPark.count({ where: { managers: { some: { id: userId } } } }),
+      tx.gatePass.count({ where: { OR: [{ createdById: userId }, { approvedById: userId }, { verifiedById: userId }] } }),
+      tx.invoice.count({ where: { OR: [{ createdById: userId }, { paidById: userId }] } }),
+      tx.message.count({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } }),
+      tx.request.count({ where: { OR: [{ creatorId: userId }, { approverId: userId }] } }),
+      tx.announcement.count({ where: { createdById: userId } }),
+      tx.advertisement.count({ where: { OR: [{ createdById: userId }, { moderatedById: userId }] } }),
+      tx.advertisementFavorite.count({ where: { userId } }),
+      tx.securityGuard.count({ where: { userId } }),
+      tx.notification.count({ where: { userId } }),
+      tx.emergencyAlert.count({ where: { createdById: userId } }),
+      tx.paymentTransaction.count({ where: { initiatedById: userId } }),
+      tx.scopedFile.count({ where: { uploadedById: userId } }),
+      tx.feedback.count({ where: { senderId: userId } }),
+      tx.marketRate.count({ where: { updatedById: userId } }),
+    ]);
+    return names.filter((_name, index) => counts[index] > 0);
+  }
+
+  private prismaErrorCode(error: unknown): string | undefined {
+    if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' ? code : undefined;
+  }
+
+  private async auditedTransaction<T>(actor: AuthenticatedUser, plan: AuditPlan<T>, operation: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      const result = await operation(tx);
+      await this.audit.record({
+        userId: actor.id,
+        actorIdentifier: actor.id,
+        action: plan.action,
+        entity: plan.entity,
+        entityId: typeof plan.entityId === 'function' ? plan.entityId(result) : plan.entityId,
+        changes: plan.changes,
+        correlationId: currentCorrelationId(),
+      }, tx);
+      return result;
+    });
   }
 
   private dashboardCapabilities(role: Role): string[] {
@@ -501,6 +1343,5 @@ export class ManagementService {
   private async assertFactoryAccess(user: AuthenticatedUser, factoryId: string) { const allowed = await this.prisma.factory.count({ where: { id: factoryId, ...await this.factoryFilter(user) } }); if (!allowed) throw new ForbiddenException('You do not have access to this factory'); }
   private async assertParkAccess(user: AuthenticatedUser, parkId: string) { if (user.role === Role.SUPER_ADMIN) return; if (user.role !== Role.PARK_MANAGER || !(await this.prisma.industrialPark.count({ where: { id: parkId, managers: { some: { id: user.id } } } }))) throw new ForbiddenException('You do not have access to this park'); }
   private paymentResponse(authority: string, paymentUrl?: string) { const callback = this.config.get<string>('ZARINPAL_CALLBACK_URL') || 'http://localhost:3000/api/v1/invoices/payment/callback'; return { authority, paymentUrl: paymentUrl || `${callback}?Authority=${authority}&Status=OK` }; }
-  private safeUser(user: any) { const safe = { ...user }; delete safe.password; return safe; }
   private text(value: unknown, field: string) { if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`); }
 }

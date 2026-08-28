@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
@@ -10,6 +11,7 @@ import { PrismaService } from './prisma.service';
 import { SmsGateway } from './sms.gateway';
 import { ManagementController, PaymentCallbackController } from './management.controller';
 import { ManagementService } from './management.service';
+import { ApiExceptionFilter } from './api-exception.filter';
 
 @Module({
   imports: [
@@ -26,7 +28,7 @@ import { ManagementService } from './management.service';
     }),
   ],
   controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController],
-  providers: [PrismaService, AuditService, AuthService, SmsGateway, ManagementService, JwtAuthGuard, RolesGuard],
+  providers: [PrismaService, AuditService, AuthService, SmsGateway, ManagementService, JwtAuthGuard, RolesGuard, { provide: APP_FILTER, useClass: ApiExceptionFilter }],
   exports: [PrismaService, AuditService, JwtAuthGuard, RolesGuard],
 })
 export class CoreModule {}

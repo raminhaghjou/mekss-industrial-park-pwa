@@ -7,7 +7,7 @@ const SuperAdminAdsPage = () => (
     <Typography variant="h4" gutterBottom>
       تایید آگهی‌ها (ادمین کل)
     </Typography>
-    <AdvertisementModerationBoard />
+    <AdvertisementModerationBoard showParkFilter />
   </Box>
 );
 

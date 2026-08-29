@@ -22,12 +22,13 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, CampaignOutlined as AnnouncementOutlineIcon } from '@mui/icons-material';
 import { announcementApi } from '../../services/api/announcement.api';
 import { parkApi } from '../../services/api/park.api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { EmptyState } from '../../components/common/EmptyState';
 import { getErrorMessage } from '../../utils/apiError';
 import { queryKeys } from '../../services/queryKeys';
 
@@ -194,7 +195,16 @@ const ManageAnnouncementsPage = () => {
       {!isLoading && !isError && (
         <Paper>
           <List>
-            {announcements.length === 0 && <ListItem><ListItemText primary="هیچ اطلاعیه‌ای ثبت نشده است." /></ListItem>}
+            {announcements.length === 0 && (
+              <ListItem>
+                <EmptyState
+                  icon={<AnnouncementOutlineIcon fontSize="medium" />}
+                  title="هنوز اطلاعیه‌ای ثبت نشده است"
+                  description="با دکمه «ثبت اطلاعیه جدید» می‌توانید اولین اطلاعیه را برای کاربران منتشر کنید."
+                  sx={{ width: '100%' }}
+                />
+              </ListItem>
+            )}
             {announcements.map((ann) => (
               <ListItem key={ann.id} divider>
                 <ListItemText

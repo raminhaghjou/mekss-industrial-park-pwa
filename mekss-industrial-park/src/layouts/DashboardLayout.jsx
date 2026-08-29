@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -179,6 +179,16 @@ export const DashboardLayout = () => {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [railExpanded, setRailExpanded] = useState(true);
   const [profileAnchor, setProfileAnchor] = useState(null);
+  const menuTriggerRef = useRef(null);
+
+  const closeMobileDrawer = () => {
+    setMobileDrawerOpen(false);
+    // MUI's Modal restores focus to the last-focused element by default, but
+    // that element is not always the hamburger trigger (e.g. after using the
+    // "more" bottom-nav action). Return focus there explicitly for a
+    // predictable keyboard/screen-reader experience.
+    window.setTimeout(() => menuTriggerRef.current?.focus(), 0);
+  };
 
   const roleGroups = navigationByRole[user?.role] || EMPTY_GROUPS;
   const allNavigationItems = useMemo(
@@ -202,7 +212,7 @@ export const DashboardLayout = () => {
 
   const handleNavigate = (path) => {
     navigate(path);
-    setMobileDrawerOpen(false);
+    if (mobileDrawerOpen) closeMobileDrawer();
     setProfileAnchor(null);
   };
 
@@ -284,7 +294,7 @@ export const DashboardLayout = () => {
         )}
         <Tooltip title={temporary ? 'بستن منو' : expanded ? 'جمع کردن منو' : 'باز کردن منو'}>
           <IconButton
-            onClick={() => temporary ? setMobileDrawerOpen(false) : setRailExpanded((value) => !value)}
+            onClick={() => temporary ? closeMobileDrawer() : setRailExpanded((value) => !value)}
             aria-label={temporary ? 'بستن منو' : expanded ? 'جمع کردن منو' : 'باز کردن منو'}
             size="small"
           >
@@ -390,7 +400,7 @@ export const DashboardLayout = () => {
           variant="temporary"
           anchor="right"
           open={mobileDrawerOpen}
-          onClose={() => setMobileDrawerOpen(false)}
+          onClose={closeMobileDrawer}
           ModalProps={{ keepMounted: true }}
           sx={{
             '& .MuiDrawer-paper': {
@@ -422,7 +432,7 @@ export const DashboardLayout = () => {
         >
           <Toolbar sx={{ minHeight: { xs: 60, sm: 68 }, pt: 'env(safe-area-inset-top)', px: { xs: 1.25, sm: 2.5 } }}>
             {!isDesktop && (
-              <IconButton onClick={() => setMobileDrawerOpen(true)} aria-label="باز کردن منوی اصلی" edge="start">
+              <IconButton ref={menuTriggerRef} onClick={() => setMobileDrawerOpen(true)} aria-label="باز کردن منوی اصلی" edge="start">
                 <MenuIcon />
               </IconButton>
             )}

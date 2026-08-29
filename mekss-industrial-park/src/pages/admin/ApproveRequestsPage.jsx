@@ -18,10 +18,11 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon } from '@mui/icons-material';
+import { CheckCircle as ApproveIcon, Cancel as RejectIcon, AssignmentOutlined as RequestOutlineIcon } from '@mui/icons-material';
 import { requestApi } from '../../services/api/request.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { EmptyState } from '../../components/common/EmptyState';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestStatusLabels as statusLabels } from '../../constants/persianLabels';
 
@@ -84,7 +85,15 @@ const ApproveRequestsPage = () => {
               </TableHead>
               <TableBody>
                 {filteredRequests.length === 0 && (
-                  <TableRow><TableCell colSpan={5} align="center">موردی برای نمایش وجود ندارد.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <EmptyState
+                        icon={<RequestOutlineIcon fontSize="medium" />}
+                        title={tab === 0 ? 'درخواستی در انتظار بررسی نیست' : 'تاریخچه‌ای برای نمایش وجود ندارد'}
+                        description={tab === 0 ? 'درخواست‌های جدید واحدهای صنعتی برای بررسی در این بخش نمایش داده می‌شوند.' : undefined}
+                      />
+                    </TableCell>
+                  </TableRow>
                 )}
                 {filteredRequests.map((req) => (
                   <TableRow key={req.id}>

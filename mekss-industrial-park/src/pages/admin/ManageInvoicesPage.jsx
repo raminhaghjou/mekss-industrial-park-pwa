@@ -19,8 +19,9 @@ import {
   Alert,
   Tooltip,
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, ReceiptOutlined as ReceiptOutlineIcon } from '@mui/icons-material';
 import { invoiceApi } from '../../services/api/invoice.api';
+import { EmptyState } from '../../components/common/EmptyState';
 import { getErrorMessage } from '../../utils/apiError';
 
 const statusColors = { PENDING: 'warning', PAID: 'success', OVERDUE: 'error', CANCELLED: 'default' };
@@ -75,7 +76,15 @@ const ManageInvoicesPage = () => {
               </TableHead>
               <TableBody>
                 {filteredInvoices.length === 0 && (
-                  <TableRow><TableCell colSpan={5} align="center">هیچ قبضی برای نمایش وجود ندارد.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <EmptyState
+                        icon={<ReceiptOutlineIcon fontSize="medium" />}
+                        title="قبضی برای نمایش وجود ندارد"
+                        description="قبض‌های صادرشده برای واحدهای صنعتی در این فهرست نمایش داده می‌شوند."
+                      />
+                    </TableCell>
+                  </TableRow>
                 )}
                 {filteredInvoices.map((invoice) => (
                   <TableRow key={invoice.id}>

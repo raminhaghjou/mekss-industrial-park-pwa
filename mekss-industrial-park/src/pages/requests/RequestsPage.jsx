@@ -2,10 +2,11 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, CircularProgress, Alert } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, AssignmentOutlined as RequestOutlineIcon } from '@mui/icons-material';
 import { requestApi } from '../../services/api/request.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
+import { EmptyState } from '../../components/common/EmptyState';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error', CANCELLED: 'default' };
 
@@ -41,7 +42,17 @@ const RequestsPage = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {requests.length === 0 && <TableRow><TableCell colSpan={4} align="center">هیچ درخواستی ثبت نشده است.</TableCell></TableRow>}
+              {requests.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4}>
+                    <EmptyState
+                      icon={<RequestOutlineIcon fontSize="medium" />}
+                      title="هنوز درخواستی ثبت نکرده‌اید"
+                      description="با دکمه «ثبت درخواست جدید» می‌توانید اولین درخواست خود را ارسال کنید."
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
               {requests.map((req) => (
                 <TableRow key={req.id}>
                   <TableCell>{typeLabels[req.type] || req.type}</TableCell>

@@ -17,10 +17,11 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon } from '@mui/icons-material';
+import { CheckCircle as ApproveIcon, Cancel as RejectIcon, ConfirmationNumberOutlined as GatePassOutlineIcon } from '@mui/icons-material';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { EmptyState } from '../../components/common/EmptyState';
 import { getErrorMessage } from '../../utils/apiError';
 
 const ApproveGatePassesPage = () => {
@@ -80,7 +81,15 @@ const ApproveGatePassesPage = () => {
               </TableHead>
               <TableBody>
                 {filteredPasses.length === 0 && (
-                  <TableRow><TableCell colSpan={5} align="center">موردی برای نمایش وجود ندارد.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <EmptyState
+                        icon={<GatePassOutlineIcon fontSize="medium" />}
+                        title={tab === 0 ? 'برگ خروجی در انتظار تایید نیست' : 'تاریخچه‌ای برای نمایش وجود ندارد'}
+                        description={tab === 0 ? 'به محض ثبت برگ خروج جدید توسط واحدهای صنعتی، برای بررسی اینجا نمایش داده می‌شود.' : undefined}
+                      />
+                    </TableCell>
+                  </TableRow>
                 )}
                 {filteredPasses.map((pass) => (
                   <TableRow key={pass.id}>

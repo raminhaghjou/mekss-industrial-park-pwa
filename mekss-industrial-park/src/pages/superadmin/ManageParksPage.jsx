@@ -22,10 +22,11 @@ import {
   Grid,
   Chip,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, LocationCityOutlined as ParkOutlineIcon } from '@mui/icons-material';
 import { parkApi } from '../../services/api/park.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { EmptyState } from '../../components/common/EmptyState';
 import { getErrorMessage } from '../../utils/apiError';
 
 const emptyForm = { code: '', name: '', province: '', city: '', address: '', phoneNumber: '', guardPhone: '', email: '' };
@@ -114,7 +115,17 @@ const ManageParksPage = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {parks.length === 0 && <TableRow><TableCell colSpan={6} align="center">هیچ شهرک صنعتی‌ای ثبت نشده است.</TableCell></TableRow>}
+              {parks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <EmptyState
+                      icon={<ParkOutlineIcon fontSize="medium" />}
+                      title="هنوز شهرک صنعتی ثبت نشده است"
+                      description="با دکمه «افزودن شهرک جدید» می‌توانید اولین شهرک صنعتی را ثبت کنید."
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
               {parks.map((park) => (
                 <TableRow key={park.id}>
                   <TableCell>{park.code}</TableCell>

@@ -51,18 +51,12 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../providers/AuthProvider';
 import { messageApi } from '../services/api/message.api';
+import { roleLabels } from '../constants/persianLabels';
+import { PageTransition } from '../components/common/PageTransition';
 
 const EXPANDED_DRAWER_WIDTH = 288;
 const COLLAPSED_DRAWER_WIDTH = 88;
 const MOBILE_DRAWER_WIDTH = 304;
-
-const roleLabels = {
-  FACTORY_OWNER: 'مدیر واحد صنعتی',
-  PARK_MANAGER: 'مدیر شهرک',
-  SECURITY_GUARD: 'نگهبان',
-  GOVERNMENT_OFFICIAL: 'نماینده دولت',
-  SUPER_ADMIN: 'مدیر کل سامانه',
-};
 
 const dashboardItem = { text: 'داشبورد', icon: <DashboardIcon />, path: '/dashboard' };
 
@@ -469,7 +463,9 @@ export const DashboardLayout = () => {
             pb: { xs: 'calc(92px + env(safe-area-inset-bottom))', lg: 3 },
           }}
         >
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </Box>
       </Box>
 

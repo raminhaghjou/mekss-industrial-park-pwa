@@ -23,12 +23,13 @@ import { requestApi } from '../../services/api/request.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
+import { requestStatusLabels as statusLabels } from '../../constants/persianLabels';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error', CANCELLED: 'default' };
-const statusLabels = { PENDING: 'در انتظار', APPROVED: 'تایید شده', REJECTED: 'رد شده', CANCELLED: 'لغو شده' };
 
 const ApproveRequestsPage = () => {
   const [tab, setTab] = React.useState(0);
+  const [approveTarget, setApproveTarget] = React.useState(null);
   const [rejectTarget, setRejectTarget] = React.useState(null);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
@@ -42,7 +43,7 @@ const ApproveRequestsPage = () => {
 
   const approveMutation = useMutation({
     mutationFn: (/** @type {string} */ id) => requestApi.approveRequest(id),
-    onSuccess: () => { showNotification('درخواست با موفقیت تایید شد.', 'success'); invalidate(); },
+    onSuccess: () => { showNotification('درخواست با موفقیت تایید شد.', 'success'); setApproveTarget(null); invalidate(); },
     onError: (err) => showNotification(getErrorMessage(err, 'تایید درخواست ناموفق بود.'), 'error'),
   });
 
@@ -98,7 +99,7 @@ const ApproveRequestsPage = () => {
                         <>
                           <Tooltip title="تایید">
                             <span>
-                              <IconButton color="success" onClick={() => approveMutation.mutate(req.id)} disabled={approveMutation.isPending}>
+                              <IconButton color="success" onClick={() => setApproveTarget(req.id)} disabled={approveMutation.isPending}>
                                 <ApproveIcon />
                               </IconButton>
                             </span>
@@ -120,6 +121,16 @@ const ApproveRequestsPage = () => {
           </TableContainer>
         )}
       </Paper>
+      <ConfirmDialog
+        open={Boolean(approveTarget)}
+        title="تایید درخواست"
+        description="با تایید این درخواست، نتیجه برای متقاضی نهایی می‌شود. آیا اطمینان دارید؟"
+        confirmLabel="تایید"
+        confirmColor="primary"
+        loading={approveMutation.isPending}
+        onConfirm={() => approveMutation.mutate(approveTarget)}
+        onClose={() => setApproveTarget(null)}
+      />
       <ConfirmDialog
         open={Boolean(rejectTarget)}
         title="رد درخواست"

@@ -25,6 +25,7 @@ import { getErrorMessage } from '../../utils/apiError';
 
 const ApproveGatePassesPage = () => {
   const [tab, setTab] = React.useState(0);
+  const [approveTarget, setApproveTarget] = React.useState(null);
   const [rejectTarget, setRejectTarget] = React.useState(null);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
@@ -38,7 +39,7 @@ const ApproveGatePassesPage = () => {
 
   const approveMutation = useMutation({
     mutationFn: (/** @type {string} */ id) => gatePassApi.approveGatePass(id),
-    onSuccess: () => { showNotification('برگ خروج با موفقیت تایید شد.', 'success'); invalidate(); },
+    onSuccess: () => { showNotification('برگ خروج با موفقیت تایید شد.', 'success'); setApproveTarget(null); invalidate(); },
     onError: (err) => showNotification(getErrorMessage(err, 'تایید برگ خروج ناموفق بود.'), 'error'),
   });
 
@@ -92,7 +93,7 @@ const ApproveGatePassesPage = () => {
                         <>
                           <Tooltip title="تایید">
                             <span>
-                              <IconButton color="success" onClick={() => approveMutation.mutate(pass.id)} disabled={approveMutation.isPending}>
+                              <IconButton color="success" onClick={() => setApproveTarget(pass.id)} disabled={approveMutation.isPending}>
                                 <ApproveIcon />
                               </IconButton>
                             </span>
@@ -114,6 +115,16 @@ const ApproveGatePassesPage = () => {
           </TableContainer>
         )}
       </Paper>
+      <ConfirmDialog
+        open={Boolean(approveTarget)}
+        title="تایید برگ خروج"
+        description="با تایید این برگ خروج، اجازه تردد برای واحد صنعتی صادر می‌شود. آیا اطمینان دارید؟"
+        confirmLabel="تایید"
+        confirmColor="primary"
+        loading={approveMutation.isPending}
+        onConfirm={() => approveMutation.mutate(approveTarget)}
+        onClose={() => setApproveTarget(null)}
+      />
       <ConfirmDialog
         open={Boolean(rejectTarget)}
         title="رد برگ خروج"

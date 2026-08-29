@@ -22,6 +22,7 @@ const VerifyGatePassPage = () => {
   const navigate = useNavigate();
   const { showNotification } = useNotification();
   const [denyOpen, setDenyOpen] = React.useState(false);
+  const [verifyOpen, setVerifyOpen] = React.useState(false);
 
   const { data: pass, isLoading, isError } = useQuery({
     queryKey: ['gate-pass', id],
@@ -32,6 +33,7 @@ const VerifyGatePassPage = () => {
     mutationFn: () => gatePassApi.verifyGatePass(id),
     onSuccess: () => {
       showNotification(`خروج خودرو با پلاک ${pass?.licensePlate} با موفقیت ثبت شد.`, 'success');
+      setVerifyOpen(false);
       navigate('/guard/gate-passes');
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ثبت خروج ناموفق بود.'), 'error'),
@@ -88,7 +90,7 @@ const VerifyGatePassPage = () => {
             color="success"
             size="large"
             startIcon={verifyMutation.isPending ? <CircularProgress size={22} color="inherit" /> : <ApproveIcon />}
-            onClick={() => verifyMutation.mutate()}
+            onClick={() => setVerifyOpen(true)}
             disabled={verifyMutation.isPending || pass.status !== 'APPROVED'}
           >
             ثبت خروج
@@ -108,6 +110,16 @@ const VerifyGatePassPage = () => {
           <Alert severity="warning" sx={{ mt: 2 }}>این برگ خروج در وضعیت قابل خروج نیست.</Alert>
         )}
       </Paper>
+      <ConfirmDialog
+        open={verifyOpen}
+        title="ثبت خروج"
+        description={`با تایید این عملیات، خروج خودرو با پلاک «${pass.licensePlate}» ثبت نهایی می‌شود. آیا اطمینان دارید؟`}
+        confirmLabel="ثبت خروج"
+        confirmColor="primary"
+        loading={verifyMutation.isPending}
+        onConfirm={() => verifyMutation.mutate()}
+        onClose={() => setVerifyOpen(false)}
+      />
       <ConfirmDialog
         open={denyOpen}
         title="اعلام مغایرت"

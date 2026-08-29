@@ -115,7 +115,7 @@ Implement the approved administration bugfix through an exploratory, preservatio
     - _Preservation: Existing public approved reads, advertisement IDs/content/statuses, creator relations, terminal records, and unrelated audits remain compatible._
     - _Requirements: 1.4, 1.6-1.9, 2.4, 2.6-2.9, 3.2-3.4, 3.9-3.10, 3.13-3.16_
 
-  - [ ] 3.10 [Required] Complete factory management and approval contracts
+  - [x] 3.10 [Required] Complete factory management and approval contracts
     - Complete scoped factory list/detail/create/update plus explicit pending approval/rejection transitions required by `ManageFactoriesPage`; validate ownership/park relations and remove any unconditional state update.
     - Define confirmation/reason rules, immutable versus mutable fields, conflict behavior, audit effects, and post-commit re-read semantics.
     - Add role/scope, CRUD round-trip, transition, duplicate/concurrent, failure atomicity, and response-compatibility integration tests.

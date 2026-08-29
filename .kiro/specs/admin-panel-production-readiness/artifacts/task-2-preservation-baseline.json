@@ -65,7 +65,8 @@
       "user.role === Role.FACTORY_OWNER", "return { managerId: user.id }",
       "user.role === Role.PARK_MANAGER", "managers: { some: { id: user.id } }",
       "securityGuards: { some: { userId: user.id, isActive: true } }",
-      "You do not have access to this factory", "You do not have access to this park"
+      "You do not have access to this factory", "You do not have access to this factory scope",
+      "You do not have access to this active park"
     ],
     "schema": {
       "models": [
@@ -75,12 +76,12 @@
         "ScopedFile", "EmergencyAlert", "AuditLog"
       ],
       "invariantTokens": [
-        "id                 String   @id @default(cuid())", "phoneNumber        String   @unique",
-        "bootstrapKey       String?  @unique", "code            String     @unique",
+        "reviewedFactories       Factory[]               @relation(\"FactoryReviewer\")", "phoneNumber        String    @unique",
+        "bootstrapKey       String?   @unique", "code            String     @unique",
         "licenseNumber   String        @unique", "nationalId      String        @unique",
         "invoiceNumber String        @unique", "idempotencyKey String        @unique",
-        "status          AdvertisementStatus @default(PENDING)", "createdById     String",
-        "tokenHash String   @unique", "onDelete: Restrict", "actorIdentifier String      @default(\"system\")"
+        "status          AdvertisementStatus      @default(PENDING)", "createdById   String",
+        "tokenHash String    @unique", "onDelete: Restrict", "actorIdentifier String      @default(\"system\")"
       ]
     },
     "docker": {

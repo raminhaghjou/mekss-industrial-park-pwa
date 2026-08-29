@@ -107,13 +107,24 @@ export const AuthSurface = ({ children, ...props }) => (
           fontWeight: 850,
           letterSpacing: '-0.025em',
           textWrap: 'balance',
+          opacity: 0,
+          animation: 'mekssFadeInUp 620ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both',
+          '@media (prefers-reduced-motion: reduce)': { opacity: 1, animation: 'none' },
         }}
       >
         مدیریت یکپارچه، برای شهری که همیشه در حرکت است.
       </Typography>
       <Typography
         variant="body1"
-        sx={{ mt: 2, maxWidth: 540, color: 'rgba(255,255,255,0.80)', display: { xs: 'none', sm: 'block' } }}
+        sx={{
+          mt: 2,
+          maxWidth: 540,
+          color: 'rgba(255,255,255,0.80)',
+          display: { xs: 'none', sm: 'block' },
+          opacity: 0,
+          animation: 'mekssFadeInUp 620ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both',
+          '@media (prefers-reduced-motion: reduce)': { opacity: 1, animation: 'none' },
+        }}
       >
         خدمات واحدهای صنعتی، حراست، پیام‌ها و فرایندهای مدیریتی در یک تجربهٔ امن و سریع.
       </Typography>
@@ -136,6 +147,12 @@ export const AuthCard = styled(Paper)(({ theme }) => ({
   color: theme.palette.text.primary,
   textAlign: 'center',
   borderRadius: 24,
+  opacity: 0,
+  animation: 'mekssCardIn 560ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both',
+  '@media (prefers-reduced-motion: reduce)': {
+    opacity: 1,
+    animation: 'none',
+  },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(3, 2),
     borderRadius: 20,

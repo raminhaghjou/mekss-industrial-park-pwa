@@ -37,6 +37,7 @@ import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 const PAGE_SIZE = 12;
 const statusMeta = {
@@ -72,20 +73,6 @@ const emptyForm = {
   managerId: '',
 };
 
-const useOnlineStatus = () => {
-  const [online, setOnline] = React.useState(() => typeof navigator === 'undefined' || navigator.onLine);
-  React.useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
-  return online;
-};
-
 const factoryError = (error, fallback) => {
   const status = error?.response?.status;
   if (status === 409) return 'اطلاعات این واحد صنعتی هم‌زمان تغییر کرده است. داده‌های معتبر دوباره دریافت شد؛ لطفاً بررسی و دوباره تلاش کنید.';
@@ -115,6 +102,10 @@ const toForm = (factory) => profileFields.reduce((form, field) => ({
   ...form,
   [field]: factory?.[field] === null || factory?.[field] === undefined ? '' : String(factory[field]),
 }), { ...emptyForm });
+
+const formatDate = (value) => value
+  ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  : '—';
 
 const DetailRow = ({ label, children, ltr = false }) => (
   <Box>
@@ -493,6 +484,8 @@ const ManageFactoriesPage = () => {
                 <DetailRow label="ایمیل" ltr>{detailQuery.data.email}</DetailRow>
                 <DetailRow label="وب‌سایت" ltr>{detailQuery.data.website}</DetailRow>
                 <Box sx={{ gridColumn: '1 / -1' }}><DetailRow label="نشانی">{detailQuery.data.address}</DetailRow></Box>
+                {detailQuery.data.reviewedBy && <DetailRow label="بررسی‌کننده">{detailQuery.data.reviewedBy.name}</DetailRow>}
+                {detailQuery.data.reviewedAt && <DetailRow label="زمان بررسی">{formatDate(detailQuery.data.reviewedAt)}</DetailRow>}
               </Box>
             </Stack>
           )}

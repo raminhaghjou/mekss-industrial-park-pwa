@@ -1,3 +1,151 @@
+# MEKSS Industrial Park Management System
+
+سامانه مدیریت پارک صنعتی MEKSS شامل یک بک‌اند NestJS (`mekss-backend`) و یک PWA فرانت‌اند React (`mekss-industrial-park`) است. این فایل نحوه‌ی اجرای کامل پروژه (فرانت + بک با هم) روی سیستم شما و اطلاعات ورود حساب‌های نمونه را توضیح می‌دهد.
+
+## پیش‌نیازها
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (شامل Docker Compose) — روش پیشنهادی برای اجرا
+- در صورت اجرای دستی (بدون Docker): Node.js نسخه ۲۰ به بالا، PostgreSQL 15، و Redis 7
+
+## روش پیشنهادی: اجرای کامل با Docker Compose
+
+این روش backend، frontend، PostgreSQL، Redis و MinIO را با هم بالا می‌آورد و migrationها را خودکار اجرا می‌کند.
+
+```powershell
+# از ریشه‌ی پروژه
+cd mekss-backend
+docker compose build
+docker compose up -d
+```
+
+بعد از چند ثانیه (تا زمانی که همه سرویس‌ها healthy شوند):
+
+- **فرانت‌اند (PWA):** http://localhost:5173
+- **بک‌اند (API):** http://localhost:3000/api/v1
+- **مستندات Swagger:** http://localhost:3000/api
+- **Health check بک‌اند:** http://localhost:3000/health
+- **Health check فرانت‌اند:** http://localhost:5173/healthz
+
+بررسی وضعیت سرویس‌ها:
+
+```powershell
+docker compose ps -a
+```
+
+مشاهده‌ی لاگ‌ها در صورت نیاز:
+
+```powershell
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+توقف کامل استک:
+
+```powershell
+docker compose down
+```
+
+> توجه: دیتای PostgreSQL/Redis/MinIO در volume های Docker (`postgres-data`, `redis-data`, `minio-data`) نگه داشته می‌شود؛ با `docker compose down` این volumeها حذف نمی‌شوند. برای حذف کامل دیتا از `docker compose down -v` استفاده کنید (این عملیات غیرقابل بازگشت است).
+
+### داده‌های نمونه (Seed)
+
+سرویس `migrate` در Compose فقط migrationها را اجرا می‌کند. برای ساخت حساب‌های نمونه (سوپر ادمین + سایر نقش‌ها)، seed را یک‌بار با همان image بیلد `migrate` اجرا کنید (کانتینر `backend` فقط dependencyهای production را دارد و `ts-node` در آن موجود نیست):
+
+```powershell
+cd mekss-backend
+docker compose run --rm -e SEED_ADMIN_PASSWORD=MekssLocalDemo!2026 migrate npx prisma db seed
+```
+
+اگر `SEED_ADMIN_PASSWORD` را ست نکنید، یک پسورد تصادفی ساخته و در خروجی همان دستور چاپ می‌شود؛ آن را همان‌جا کپی کنید چون فقط یک‌بار نمایش داده می‌شود.
+
+## روش دوم: اجرای دستی بدون Docker (توسعه جداگانه)
+
+اگر می‌خواهید frontend و backend را مستقیم با `npm` اجرا کنید (مثلاً برای دیباگ سریع‌تر):
+
+### ۱. بک‌اند
+
+```powershell
+cd mekss-backend
+npm install
+Copy-Item .env.example .env
+# مقادیر DATABASE_URL/REDIS_HOST/JWT_SECRET و... را در .env متناسب با محیط خود تنظیم کنید
+# (PostgreSQL و Redis باید از قبل روی سیستم یا در Docker جداگانه در حال اجرا باشند)
+npx prisma migrate deploy
+npx prisma db seed
+npm run start:dev
+```
+
+بک‌اند روی `http://localhost:3000` بالا می‌آید.
+
+### ۲. فرانت‌اند (در ترمینال دیگر)
+
+```powershell
+cd mekss-industrial-park
+npm install
+npm run dev
+```
+
+فرانت‌اند روی `http://localhost:5173` بالا می‌آید و به‌صورت پیش‌فرض به `http://localhost:3000/api/v1` وصل می‌شود (متغیر `VITE_API_URL` در صورت نیاز به آدرس دیگر).
+
+## اجرای تست‌ها
+
+### بک‌اند
+
+```powershell
+cd mekss-backend
+npm run typecheck        # بررسی نوع‌ها
+npm run lint:check       # لینت
+npm run test:unit        # تست‌های واحد (Jest)
+npm run build            # بیلد production
+```
+
+تست‌های integration/E2E به یک دیتابیس PostgreSQL جداگانه (disposable) نیاز دارند و با `MEKSS_TEST_DATABASE=1` فعال می‌شوند؛ به‌صورت پیش‌فرض روی دیتابیس توسعه/production اجرا نمی‌شوند.
+
+### فرانت‌اند
+
+```powershell
+cd mekss-industrial-park
+npm run typecheck
+npm run lint:check
+npm run test:unit        # تست‌های واحد (Vitest)
+npm run build            # بیلد production
+```
+
+### تست دودی (Smoke) کامل روی استک بالا آمده
+
+اسکریپت زیر با استفاده از حساب‌های نمونه، عملیات اصلی CRUD/تایید/رد را روی API واقعی اجرا و بررسی می‌کند (نیازمند بالا بودن استک Docker یا اجرای دستی):
+
+```powershell
+cd mekss-backend
+$env:MEKSS_SMOKE_PASSWORD='MekssLocalDemo!2026'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\smoke-rbac-crud.ps1"
+```
+
+## اطلاعات ورود (حساب‌های نمونه توسعه)
+
+بعد از اجرای seed با `SEED_ADMIN_PASSWORD=MekssLocalDemo!2026` (همان مقداری که در بالا استفاده شد)، حساب‌های زیر در دسترس هستند. ورود از صفحه‌ی اصلی فرانت‌اند (`http://localhost:5173`) با «شماره موبایل» و «رمز عبور» انجام می‌شود:
+
+| نقش | شماره موبایل (نام کاربری) | رمز عبور |
+|---|---|---|
+| مدیر کل سامانه (SUPER_ADMIN) | `09120000000` | `MekssLocalDemo!2026` |
+| مدیر پارک (PARK_MANAGER) | `09120000001` | `MekssLocalDemo!2026` |
+| مالک کارخانه (FACTORY_OWNER) | `09120000002` | `MekssLocalDemo!2026` |
+| نگهبان (SECURITY_GUARD) | `09120000003` | `MekssLocalDemo!2026` |
+| ناظر دولتی (GOVERNMENT_OFFICIAL) | `09120000004` | `MekssLocalDemo!2026` |
+
+> این پسورد فقط برای محیط توسعه/دمو است. مدیر کل هنگام اولین ورود به دلیل `mustChangePassword=true` ملزم به تغییر رمز می‌شود. **هرگز این پسورد را در محیط production استفاده نکنید** — در production مقدار `SEED_ADMIN_PASSWORD` باید یک رمز قوی و محرمانه‌ی جدید باشد که فقط از طریق متغیر محیطی/secret تنظیم می‌شود.
+
+## ساختار مخزن
+
+```
+mekss-backend/           بک‌اند NestJS + Prisma + PostgreSQL
+mekss-industrial-park/   فرانت‌اند React PWA (Vite + MUI + React Query)
+.kiro/specs/             مستندات spec (requirements/design/tasks)
+scripts/                 اسکریپت‌های کمکی سطح ریشه
+```
+
+برای جزئیات معماری، مسیرهای API فعال، و قراردادهای دقیق، به `.kiro/specs/admin-panel-production-readiness/` مراجعه کنید.
+
 # MEKSS Industrial Park Management System - Complete Package
 
 🎉 **Congratulations!** You now have the complete, production-ready MEKSS Industrial Park Management System!

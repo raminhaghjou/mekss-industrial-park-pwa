@@ -89,6 +89,7 @@ $createdUserId = $null
 $createdParkId = $null
 $createdAnnouncementId = $null
 $createdAdvertisementId = $null
+$createdFactoryId = $null
 $failure = $null
 
 try {
@@ -276,7 +277,84 @@ try {
   Assert-That (@($history.Data | Where-Object { $_.id -eq $createdAdvertisementId }).Count -eq 1) 'rejected advertisement appears in legacy history'
   Assert-Status (Invoke-SmokeRequest -Method GET -Path 'advertisements') 200 'public approved advertisement read remains unauthenticated'
 
-  Write-Output "SMOKE COMPLETE: $assertions assertions passed; advertisement $createdAdvertisementId intentionally retained as moderation history."
+  # --- Factory management scope, create/detail/update, lifecycle decisions, and conflicts ---
+  $managementScope = Invoke-SmokeRequest -Method GET -Path 'factories/management-scope' -Token $adminToken
+  Assert-Status $managementScope 200 'SUPER_ADMIN reads factory management scope'
+  Assert-That (@($managementScope.Data.parks).Count -ge 1) 'management scope returns at least one active park'
+  Assert-That (@($managementScope.Data.owners).Count -ge 1) 'management scope returns at least one eligible owner'
+  Assert-Status (Invoke-SmokeRequest -Method GET -Path 'factories/management-scope' -Token $ownerToken) 403 'FACTORY_OWNER cannot read management scope'
+
+  $scopePark = $managementScope.Data.parks[0]
+  $scopeOwner = @($managementScope.Data.owners | Where-Object { $_.phoneNumber -eq '09120000002' } | Select-Object -First 1)
+  if (-not $scopeOwner) { $scopeOwner = $managementScope.Data.owners[0] }
+
+  $factoryLicense = "SMOKE-LIC-$suffix"
+  $createFactory = Invoke-SmokeRequest -Method POST -Path 'factories' -Token $adminToken -Body @{
+    name = "Smoke Factory $suffix"
+    licenseNumber = $factoryLicense
+    nationalId = "14$suffix".Substring(0, 10)
+    activityType = 'Smoke manufacturing'
+    address = 'Smoke factory address'
+    phoneNumber = '02133445566'
+    parkId = $scopePark.id
+    managerId = $scopeOwner.id
+  }
+  Assert-Status $createFactory 201 'create factory yields pending record'
+  $createdFactoryId = [string]$createFactory.Data.id
+  Assert-That (-not [string]::IsNullOrWhiteSpace($createdFactoryId)) 'created factory returns id'
+  Assert-That ($createFactory.Data.status -eq 'PENDING') 'new factory starts PENDING'
+  Assert-That ($createFactory.Data.isApproved -eq $false) 'new factory starts unapproved'
+
+  $lifecycleInjection = Invoke-SmokeRequest -Method PUT -Path "factories/$createdFactoryId" -Token $adminToken -Body @{
+    name = "Smoke Factory $suffix"
+    status = 'ACTIVE'
+    isApproved = $true
+  }
+  Assert-Status $lifecycleInjection 400 'generic factory update rejects lifecycle fields'
+
+  $managedPage = Invoke-SmokeRequest -Method GET -Path "factories/managed?status=PENDING&page=1&pageSize=50" -Token $adminToken
+  Assert-Status $managedPage 200 'SUPER_ADMIN reads managed factory page'
+  Assert-That (@($managedPage.Data.items | Where-Object { $_.id -eq $createdFactoryId }).Count -eq 1) 'created factory appears in managed pending page'
+
+  $managedDetail = Invoke-SmokeRequest -Method GET -Path "factories/managed/$createdFactoryId" -Token $adminToken
+  Assert-Status $managedDetail 200 'SUPER_ADMIN reads managed factory detail'
+  Assert-That ($managedDetail.Data.licenseNumber -eq $factoryLicense) 'managed detail returns canonical license number'
+
+  $legacyList = Invoke-SmokeRequest -Method GET -Path 'factories' -Token $adminToken
+  Assert-Status $legacyList 200 'legacy factories list remains a raw array'
+  Assert-That ($legacyList.Data -is [System.Array]) 'legacy factories response is a raw array'
+  Assert-That (@($legacyList.Data | Where-Object { $_.id -eq $createdFactoryId }).Count -eq 1) 'created factory appears in legacy list'
+
+  $profileUpdate = Invoke-SmokeRequest -Method PUT -Path "factories/$createdFactoryId" -Token $adminToken -Body @{ description = 'Updated by smoke test'; employees = 12 }
+  Assert-Status $profileUpdate 200 'profile-only factory update succeeds'
+  Assert-That ($profileUpdate.Data.description -eq 'Updated by smoke test') 'factory profile update persisted'
+  Assert-That ($profileUpdate.Data.status -eq 'PENDING') 'profile update does not change lifecycle state'
+
+  $emptyUpdate = Invoke-SmokeRequest -Method PUT -Path "factories/$createdFactoryId" -Token $adminToken -Body @{}
+  Assert-Status $emptyUpdate 400 'empty factory update is rejected'
+
+  $blankReject = Invoke-SmokeRequest -Method POST -Path "factories/$createdFactoryId/reject" -Token $adminToken -Body @{ reason = '   ' }
+  Assert-Status $blankReject 400 'blank factory rejection reason is rejected'
+
+  $outOfScopeManager = Invoke-SmokeRequest -Method GET -Path "factories/managed/$createdFactoryId" -Token $guardToken
+  Assert-Status $outOfScopeManager 403 'SECURITY_GUARD cannot read managed factory detail'
+  $missingSuper = Invoke-SmokeRequest -Method GET -Path "factories/managed/does-not-exist-$suffix" -Token $adminToken
+  Assert-Status $missingSuper 404 'SUPER_ADMIN missing factory is a disclosing 404'
+
+  $approveFactory = Invoke-SmokeRequest -Method POST -Path "factories/$createdFactoryId/approve" -Token $adminToken
+  Assert-Status $approveFactory 201 'SUPER_ADMIN approves pending factory'
+  Assert-That ($approveFactory.Data.status -eq 'ACTIVE') 'approved factory becomes ACTIVE'
+  Assert-That ($approveFactory.Data.isApproved -eq $true) 'approved factory is marked approved'
+  Assert-That (-not [string]::IsNullOrWhiteSpace([string]$approveFactory.Data.reviewedBy.id)) 'approval records reviewer'
+  Assert-That (-not [string]::IsNullOrWhiteSpace([string]$approveFactory.Data.reviewedAt)) 'approval records reviewed timestamp'
+
+  $duplicateDecisionFactory = Invoke-SmokeRequest -Method POST -Path "factories/$createdFactoryId/approve" -Token $adminToken
+  Assert-Status $duplicateDecisionFactory 409 'duplicate factory decision conflicts'
+
+  $ownerSelfDecision = Invoke-SmokeRequest -Method POST -Path "factories/$createdFactoryId/reject" -Token $ownerToken -Body @{ reason = 'owner attempt' }
+  Assert-Status $ownerSelfDecision 403 'FACTORY_OWNER cannot decide on factories'
+
+  Write-Output "SMOKE COMPLETE: $assertions assertions passed; advertisement $createdAdvertisementId and factory $createdFactoryId intentionally retained as moderation/lifecycle history."
 }
 catch {
   $failure = $_

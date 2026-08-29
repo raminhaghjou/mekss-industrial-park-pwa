@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
-import { AdvertisementStatus, FactoryStatus, Role } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { AdvertisementStatus, FactoryStatus, GatePassStatus, InvoiceStatus, RequestStatus, Role } from '@prisma/client';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn(async (value: string) => `hashed:${value}`) }));
 
@@ -652,5 +652,433 @@ describe('ManagementService advertisement moderation contract', () => {
     await expect(service.approveAdvertisement(actor(Role.SUPER_ADMIN), 'legacy-ad', true)).rejects.toBeInstanceOf(ForbiddenException);
     expect(tx.advertisement.updateMany).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('ManagementService invoice and payment contract', () => {
+  it('scopes the invoice list to the caller\'s accessible factories', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
+    const invoice = { findMany: jest.fn().mockResolvedValue([{ id: 'invoice-1' }]) };
+    const prisma = { factory, invoice } as any;
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, config);
+
+    await expect(service.listInvoices(actor(Role.FACTORY_OWNER))).resolves.toEqual([{ id: 'invoice-1' }]);
+    expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { factoryId: { in: ['factory-1'] } },
+      orderBy: { issueDate: 'desc' },
+    }));
+  });
+
+  it('creates a canonical invoice only for an in-scope factory and audits it once', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(1) };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
+    const created = { id: 'invoice-1' };
+    const invoice = { create: jest.fn().mockResolvedValue(created) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const prisma = { factory, industrialPark, invoice } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.createInvoice(actor(Role.PARK_MANAGER), {
+      factoryId: 'factory-1', amount: 1000, taxAmount: 90, description: 'Invoice description', dueDate: '2027-01-01T00:00:00.000Z',
+    })).resolves.toEqual(created);
+
+    expect(invoice.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ factoryId: 'factory-1', amount: 1000, taxAmount: 90, totalAmount: 1090 }),
+    }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'INVOICE_CREATED', entity: 'Invoice', entityId: 'invoice-1' }));
+  });
+
+  it('rejects creating an invoice for an out-of-scope factory without writing anything', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(0) };
+    const invoice = { create: jest.fn() };
+    const audit = { record: jest.fn() } as any;
+    const service = new ManagementService({ factory, invoice } as any, audit, config);
+
+    await expect(service.createInvoice(actor(Role.FACTORY_OWNER), {
+      factoryId: 'out-of-scope', amount: 1000, description: 'Invoice description', dueDate: '2027-01-01T00:00:00.000Z',
+    })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(invoice.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-positive invoice amount before any write', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(1) };
+    const invoice = { create: jest.fn() };
+    const service = new ManagementService({ factory, invoice } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.createInvoice(actor(Role.FACTORY_OWNER), {
+      factoryId: 'factory-1', amount: 0, description: 'Invoice description', dueDate: '2027-01-01T00:00:00.000Z',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(invoice.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the cached payment response for a retried idempotency key instead of creating a duplicate transaction', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(1) };
+    const invoiceRow = { id: 'invoice-1', factoryId: 'factory-1', status: InvoiceStatus.PENDING, totalAmount: 1000, description: 'Invoice' };
+    const invoice = { findUnique: jest.fn().mockResolvedValue(invoiceRow) };
+    const paymentTransaction = {
+      findUnique: jest.fn().mockResolvedValue({ authority: 'cached-authority' }),
+      create: jest.fn(),
+    };
+    const audit = { record: jest.fn() } as any;
+    const service = new ManagementService({ factory, invoice, paymentTransaction } as any, audit, config);
+
+    const result = await service.startPayment(actor(Role.FACTORY_OWNER), 'invoice-1', 'retry-key-1');
+
+    expect(result.authority).toBe('cached-authority');
+    expect(paymentTransaction.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects starting payment on a non-pending invoice', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(1) };
+    const invoice = { findUnique: jest.fn().mockResolvedValue({ id: 'invoice-1', factoryId: 'factory-1', status: InvoiceStatus.PAID }) };
+    const paymentTransaction = { findUnique: jest.fn(), create: jest.fn() };
+    const service = new ManagementService({ factory, invoice, paymentTransaction } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.startPayment(actor(Role.FACTORY_OWNER), 'invoice-1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(paymentTransaction.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('ManagementService gate-pass state machine contract', () => {
+  it('creates a gate pass only within factory scope and audits it once', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const gatePass = { create: jest.fn().mockResolvedValue({ id: 'pass-1' }) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ factory, gatePass } as any, audit, config);
+
+    await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
+      factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
+      driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+    })).resolves.toEqual({ id: 'pass-1' });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'GATE_PASS_CREATED', entityId: 'pass-1' }));
+  });
+
+  it.each([
+    ['approve', GatePassStatus.PENDING, undefined, { status: GatePassStatus.APPROVED, approvedById: 'actor-1' }],
+    ['reject', GatePassStatus.PENDING, 'Invalid cargo', { status: GatePassStatus.REJECTED, approvedById: 'actor-1', notes: 'Invalid cargo' }],
+    ['verify', GatePassStatus.APPROVED, undefined, { status: GatePassStatus.COMPLETED, verifiedById: 'actor-1', verifiedAt: expect.any(Date) }],
+    ['deny', GatePassStatus.APPROVED, 'Plate mismatch', { status: GatePassStatus.REJECTED, verifiedById: 'actor-1', verifiedAt: expect.any(Date), notes: 'Plate mismatch' }],
+  ] as const)('commits a valid %s transition from the required source state', async (action, sourceStatus, reason, expectedData) => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const gatePass = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'factory-1', status: sourceStatus }),
+      update: jest.fn().mockResolvedValue({ id: 'pass-1', status: 'updated' }),
+    };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ factory, gatePass } as any, audit, config);
+
+    await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', action, reason)).resolves.toEqual({ id: 'pass-1', status: 'updated' });
+    expect(gatePass.update).toHaveBeenCalledWith({ where: { id: 'pass-1' }, data: expectedData });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: `GATE_PASS_${action.toUpperCase()}`, entityId: 'pass-1' }));
+  });
+
+  it('rejects approving a gate pass that is not pending, without mutating it', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const gatePass = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'factory-1', status: GatePassStatus.APPROVED }),
+      update: jest.fn(),
+    };
+    const service = new ManagementService({ factory, gatePass } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', 'approve')).rejects.toBeInstanceOf(ConflictException);
+    expect(gatePass.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a blank reject/deny reason before mutating', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const gatePass = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'factory-1', status: GatePassStatus.PENDING }),
+      update: jest.fn(),
+    };
+    const service = new ManagementService({ factory, gatePass } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', 'reject', '   ')).rejects.toBeInstanceOf(BadRequestException);
+    expect(gatePass.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects verifying a gate pass outside factory scope', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(0) };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([]) };
+    const gatePass = { findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'out-of-scope', status: GatePassStatus.APPROVED }), update: jest.fn() };
+    const service = new ManagementService({ factory, industrialPark, gatePass } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.gatePassAction(actor(Role.SECURITY_GUARD), 'pass-1', 'verify')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(gatePass.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('ManagementService request review contract', () => {
+  it('creates a scoped pending request and audits it once', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const request = { create: jest.fn().mockResolvedValue({ id: 'request-1' }) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ factory, request } as any, audit, config);
+
+    await expect(service.createRequest(actor(Role.FACTORY_OWNER), {
+      factoryId: 'factory-1', type: 'OTHER', title: 'Title', description: 'Description',
+    })).resolves.toEqual({ id: 'request-1' });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'REQUEST_CREATED', entityId: 'request-1' }));
+  });
+
+  it.each([
+    ['approve', { status: RequestStatus.APPROVED, approverId: 'actor-1', approvedAt: expect.any(Date) }],
+    ['reject', { status: RequestStatus.REJECTED, approverId: 'actor-1', rejectedAt: expect.any(Date), rejectionReason: 'Invalid request' }],
+  ] as const)('commits a valid %s transition from PENDING and audits it once', async (action, expectedData) => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const request = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'request-1', factoryId: 'factory-1', status: RequestStatus.PENDING }),
+      update: jest.fn().mockResolvedValue({ id: 'request-1', status: 'updated' }),
+    };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ factory, request } as any, audit, config);
+
+    await expect(service.requestAction(actor(Role.SUPER_ADMIN), 'request-1', action, action === 'reject' ? 'Invalid request' : undefined))
+      .resolves.toEqual({ id: 'request-1', status: 'updated' });
+    expect(request.update).toHaveBeenCalledWith({ where: { id: 'request-1' }, data: expectedData });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: `REQUEST_${action.toUpperCase()}`, entityId: 'request-1' }));
+  });
+
+  it('rejects deciding on a request that is not pending, without mutating it', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const request = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'request-1', factoryId: 'factory-1', status: RequestStatus.APPROVED }),
+      update: jest.fn(),
+    };
+    const service = new ManagementService({ factory, request } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.requestAction(actor(Role.SUPER_ADMIN), 'request-1', 'approve')).rejects.toBeInstanceOf(BadRequestException);
+    expect(request.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects deciding on an out-of-scope request', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(0) };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([]) };
+    const request = { findUnique: jest.fn().mockResolvedValue({ id: 'request-1', factoryId: 'out-of-scope', status: RequestStatus.PENDING }), update: jest.fn() };
+    const service = new ManagementService({ factory, industrialPark, request } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.requestAction(actor(Role.PARK_MANAGER), 'request-1', 'approve')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(request.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('ManagementService announcement contract', () => {
+  it('creates a global announcement without requiring park scope', async () => {
+    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-1' }) };
+    const industrialPark = { findMany: jest.fn() };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ announcement, industrialPark } as any, audit, config);
+
+    await expect(service.createAnnouncement(actor(Role.SUPER_ADMIN), {
+      title: 'Title', content: 'Content', isGlobal: true,
+    })).resolves.toEqual({ id: 'ann-1' });
+    expect(industrialPark.findMany).not.toHaveBeenCalled();
+    expect(announcement.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ isGlobal: true, parkId: undefined }),
+    }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'ANNOUNCEMENT_CREATED', entityId: 'ann-1' }));
+  });
+
+  it('rejects a park manager creating an announcement scoped to a park they do not manage', async () => {
+    const announcement = { create: jest.fn() };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-owned' }]) };
+    const service = new ManagementService({ announcement, industrialPark } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.createAnnouncement(actor(Role.PARK_MANAGER), {
+      title: 'Title', content: 'Content', parkId: 'park-not-owned',
+    })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('allows a park manager to create an announcement scoped to their own park', async () => {
+    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-1' }) };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-owned' }]) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ announcement, industrialPark } as any, audit, config);
+
+    await expect(service.createAnnouncement(actor(Role.PARK_MANAGER), {
+      title: 'Title', content: 'Content', parkId: 'park-owned',
+    })).resolves.toEqual({ id: 'ann-1' });
+    expect(announcement.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ parkId: 'park-owned' }) }));
+  });
+
+  it('updates only the whitelisted mutable fields and audits the exact changes', async () => {
+    const existing = { id: 'ann-1', createdById: 'actor-1', parkId: null };
+    const updated = { id: 'ann-1', title: 'New title' };
+    const announcement = {
+      findUnique: jest.fn().mockResolvedValue(existing),
+      update: jest.fn().mockResolvedValue(updated),
+    };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ announcement } as any, audit, config);
+
+    await expect(service.updateAnnouncement(actor(Role.PARK_MANAGER), 'ann-1', { title: 'New title', isPinned: true }))
+      .resolves.toEqual(updated);
+    expect(announcement.update).toHaveBeenCalledWith({ where: { id: 'ann-1' }, data: { title: 'New title', isPinned: true } });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'ANNOUNCEMENT_UPDATED', changes: { title: 'New title', isPinned: true },
+    }));
+  });
+
+  it('rejects an empty announcement update before touching the database', async () => {
+    const announcement = { findUnique: jest.fn(), update: jest.fn() };
+    const service = new ManagementService({ announcement } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.updateAnnouncement(actor(Role.SUPER_ADMIN), 'ann-1', {})).rejects.toBeInstanceOf(BadRequestException);
+    expect(announcement.findUnique).not.toHaveBeenCalled();
+    expect(announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects updating an announcement outside the actor\'s access without mutating it', async () => {
+    const existing = { id: 'ann-1', createdById: 'someone-else', parkId: 'park-not-owned' };
+    const announcement = { findUnique: jest.fn().mockResolvedValue(existing), update: jest.fn() };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([]) };
+    const service = new ManagementService({ announcement, industrialPark } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.updateAnnouncement(actor(Role.PARK_MANAGER), 'ann-1', { title: 'Hijack' })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('deletes an eligible announcement and audits it exactly once', async () => {
+    const existing = { id: 'ann-1', createdById: 'actor-1', parkId: null };
+    const announcement = { findUnique: jest.fn().mockResolvedValue(existing), delete: jest.fn().mockResolvedValue(existing) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ announcement } as any, audit, config);
+
+    await expect(service.deleteAnnouncement(actor(Role.SUPER_ADMIN), 'ann-1')).resolves.toEqual({ id: 'ann-1', deleted: true });
+    expect(announcement.delete).toHaveBeenCalledWith({ where: { id: 'ann-1' } });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'ANNOUNCEMENT_DELETED', entityId: 'ann-1' }));
+  });
+
+  it('rejects deleting a missing announcement', async () => {
+    const announcement = { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn() };
+    const service = new ManagementService({ announcement } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.deleteAnnouncement(actor(Role.SUPER_ADMIN), 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    expect(announcement.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('ManagementService messaging contract', () => {
+  it('creates exactly one durable message per resolved active recipient and reports excluded recipients without disclosing them', async () => {
+    const user = { findMany: jest.fn().mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]) };
+    const message = { create: jest.fn().mockResolvedValueOnce({ id: 'msg-1' }).mockResolvedValueOnce({ id: 'msg-2' }) };
+    const prisma = { user, message, $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)) } as any;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.sendMessage(actor(Role.SUPER_ADMIN), ['user-1', 'user-2', 'inactive-user'], 'Subject', 'Body'))
+      .resolves.toEqual({ sentCount: 2, excludedCount: 1 });
+    expect(message.create).toHaveBeenCalledTimes(2);
+    expect(message.create).toHaveBeenCalledWith({ data: { senderId: 'actor-1', receiverId: 'user-1', subject: 'Subject', body: 'Body' } });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'MESSAGE_BATCH_SENT', changes: { recipientCount: 2 } }));
+  });
+
+  it('rejects a batch with zero resolvable recipients without creating a transaction', async () => {
+    const user = { findMany: jest.fn().mockResolvedValue([]) };
+    const message = { create: jest.fn() };
+    const prisma = { user, message, $transaction: jest.fn() } as any;
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, config);
+
+    await expect(service.sendMessage(actor(Role.SUPER_ADMIN), ['missing-1'], 'Subject', 'Body')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates repeated recipient ids into a single resolved message', async () => {
+    const user = { findMany: jest.fn().mockResolvedValue([{ id: 'user-1' }]) };
+    const message = { create: jest.fn().mockResolvedValue({ id: 'msg-1' }) };
+    const prisma = { user, message, $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)) } as any;
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, config);
+
+    await expect(service.sendMessage(actor(Role.SUPER_ADMIN), ['user-1', 'user-1'], 'Subject', 'Body'))
+      .resolves.toEqual({ sentCount: 1, excludedCount: 0 });
+    expect(user.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['user-1'] }, isActive: true } }));
+  });
+
+  it('returns the caller\'s own inbox ordered by newest first', async () => {
+    const message = { findMany: jest.fn().mockResolvedValue([{ id: 'msg-1' }]) };
+    const service = new ManagementService({ message } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.inboxMessages(actor(Role.SUPER_ADMIN))).resolves.toEqual([{ id: 'msg-1' }]);
+    expect(message.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { receiverId: 'actor-1' } }));
+  });
+
+  it('marks the caller\'s own message read idempotently', async () => {
+    const message = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'msg-1', receiverId: 'actor-1', status: 'UNREAD' }),
+      update: jest.fn().mockResolvedValue({ id: 'msg-1', status: 'READ' }),
+    };
+    const service = new ManagementService({ message } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.markMessageRead(actor(Role.SUPER_ADMIN), 'msg-1')).resolves.toEqual({ id: 'msg-1', status: 'READ' });
+    expect(message.update).toHaveBeenCalledWith({ where: { id: 'msg-1' }, data: { status: 'READ' } });
+  });
+
+  it('rejects marking another recipient\'s message as read', async () => {
+    const message = { findUnique: jest.fn().mockResolvedValue({ id: 'msg-1', receiverId: 'someone-else' }), update: jest.fn() };
+    const service = new ManagementService({ message } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.markMessageRead(actor(Role.SUPER_ADMIN), 'msg-1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(message.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('ManagementService reports contract', () => {
+  it('derives financial totals from real scoped invoice rows', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
+    const invoice = { findMany: jest.fn().mockResolvedValue([
+      { status: InvoiceStatus.PAID, totalAmount: 1000 },
+      { status: InvoiceStatus.PENDING, totalAmount: 500 },
+    ]) };
+    const service = new ManagementService({ factory, invoice } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.report(actor(Role.FACTORY_OWNER), 'financial')).resolves.toEqual({
+      type: 'financial', count: 2, totalAmount: 1500, paidAmount: 1000, unpaidAmount: 500,
+    });
+    expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
+  });
+
+  it('scopes gate-pass status aggregation to the caller\'s factories', async () => {
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
+    const gatePass = { groupBy: jest.fn().mockResolvedValue([{ status: 'PENDING', _count: 3 }]) };
+    const service = new ManagementService({ industrialPark, factory, gatePass } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.report(actor(Role.PARK_MANAGER), 'gatepass')).resolves.toEqual({
+      type: 'gatepass', byStatus: [{ status: 'PENDING', count: 3 }],
+    });
+    expect(gatePass.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
+  });
+
+  it('keeps the report aggregation predicate global for super-admin and government-official reads', async () => {
+    const factory = { findMany: jest.fn().mockResolvedValue([]) };
+    const request = { groupBy: jest.fn().mockResolvedValue([]) };
+    const service = new ManagementService({ factory, request } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.report(actor(Role.GOVERNMENT_OFFICIAL), 'requests')).resolves.toEqual({ type: 'requests', byStatus: [] });
+    expect(request.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+});
+
+describe('ManagementService SMS health contract', () => {
+  it('never returns the raw sender or API key, only a masked sender and a presence flag', async () => {
+    const sms = { get: jest.fn((key: string, fallback?: string) => {
+      if (key === 'SMS_PROVIDER') return 'kavenegar';
+      if (key === 'SMS_SENDER') return '10008663';
+      if (key === 'KAVEH_NEGAR_API_KEY') return 'super-secret-api-key';
+      return fallback;
+    }) } as any;
+    const service = new ManagementService({} as any, { record: jest.fn() } as any, sms);
+
+    await expect(service.smsHealth()).resolves.toEqual({ provider: 'kavenegar', configured: true, maskedSender: '1000***63' });
+  });
+
+  it('reports not configured when no provider key is present and mock provider is always considered configured', async () => {
+    const sms = { get: jest.fn((key: string, fallback?: string) => (key === 'SMS_PROVIDER' ? 'mock' : fallback)) } as any;
+    const service = new ManagementService({} as any, { record: jest.fn() } as any, sms);
+
+    await expect(service.smsHealth()).resolves.toEqual({ provider: 'mock', configured: true, maskedSender: null });
   });
 });

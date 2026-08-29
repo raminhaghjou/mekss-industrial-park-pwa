@@ -102,21 +102,53 @@ export const ThemeProvider = ({ children }) => {
               '@media (prefers-reduced-motion: reduce)': {
                 '*, *::before, *::after': { animationDuration: '0.01ms !important', animationIterationCount: '1 !important', transitionDuration: '0.01ms !important', scrollBehavior: 'auto !important' },
               },
+              '@keyframes mekssFadeInUp': {
+                from: { opacity: 0, transform: 'translateY(10px)' },
+                to: { opacity: 1, transform: 'translateY(0)' },
+              },
+              '@keyframes mekssCardIn': {
+                from: { opacity: 0, transform: 'translateY(18px) scale(0.98)' },
+                to: { opacity: 1, transform: 'translateY(0) scale(1)' },
+              },
             },
           },
           MuiButton: {
             defaultProps: { disableElevation: true },
             styleOverrides: {
-              root: { minHeight: 44, borderRadius: 12, paddingInline: 18, textTransform: 'none' },
+              root: {
+                minHeight: 44,
+                borderRadius: 12,
+                paddingInline: 18,
+                textTransform: 'none',
+                transition: 'transform 140ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms ease, background-color 160ms ease',
+                '&:active': { transform: 'scale(0.97)' },
+              },
               contained: { boxShadow: isLight ? '0 5px 14px rgba(0, 110, 220, 0.18)' : '0 5px 16px rgba(0, 0, 0, 0.24)' },
             },
           },
           MuiIconButton: {
-            styleOverrides: { root: { width: 44, height: 44, borderRadius: 12 } },
+            styleOverrides: {
+              root: {
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                transition: 'transform 140ms cubic-bezier(0.16, 1, 0.3, 1), background-color 160ms ease',
+                '&:active': { transform: 'scale(0.92)' },
+              },
+            },
           },
           MuiCard: {
             styleOverrides: {
               root: { borderRadius: 18, border: `1px solid ${border}`, boxShadow: softShadow, backgroundImage: 'none' },
+            },
+          },
+          MuiCardActionArea: {
+            styleOverrides: {
+              root: {
+                transition: 'transform 240ms cubic-bezier(0.16, 1, 0.3, 1)',
+                '&:hover': { transform: 'translateY(-3px)' },
+                '&:active': { transform: 'translateY(-1px) scale(0.99)' },
+              },
             },
           },
           MuiPaper: {
@@ -134,7 +166,8 @@ export const ThemeProvider = ({ children }) => {
               root: {
                 minHeight: 44,
                 borderRadius: 12,
-                transition: 'background-color 160ms ease, color 160ms ease',
+                transition: 'background-color 160ms ease, color 160ms ease, transform 140ms cubic-bezier(0.16, 1, 0.3, 1)',
+                '&:active': { transform: 'scale(0.985)' },
                 '&.Mui-selected': { backgroundColor: alpha(isLight ? '#006EDC' : '#5AA9FF', 0.12), color: isLight ? '#005CB9' : '#8EC5FF' },
                 '&.Mui-selected:hover': { backgroundColor: alpha(isLight ? '#006EDC' : '#5AA9FF', 0.17) },
               },
@@ -156,8 +189,15 @@ export const ThemeProvider = ({ children }) => {
           MuiBottomNavigation: { styleOverrides: { root: { backgroundImage: 'none' } } },
           MuiBottomNavigationAction: {
             styleOverrides: {
-              root: { minWidth: 54, minHeight: 58, padding: '8px 4px 6px' },
-              label: { fontFamily: FONT_STACK, fontSize: '0.68rem', '&.Mui-selected': { fontSize: '0.7rem', fontWeight: 700 } },
+              root: {
+                minWidth: 54,
+                minHeight: 58,
+                padding: '8px 4px 6px',
+                transition: 'color 200ms ease',
+                '& .MuiSvgIcon-root': { transition: 'transform 260ms cubic-bezier(0.16, 1, 0.3, 1)' },
+                '&.Mui-selected .MuiSvgIcon-root': { transform: 'translateY(-2px) scale(1.1)' },
+              },
+              label: { fontFamily: FONT_STACK, fontSize: '0.68rem', transition: 'font-size 160ms ease', '&.Mui-selected': { fontSize: '0.7rem', fontWeight: 700 } },
             },
           },
           MuiTableCell: { styleOverrides: { root: { borderColor: border }, head: { fontWeight: 750 } } },

@@ -5,13 +5,9 @@ import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableConta
 import { Add as AddIcon } from '@mui/icons-material';
 import { requestApi } from '../../services/api/request.api';
 import { getErrorMessage } from '../../utils/apiError';
+import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error', CANCELLED: 'default' };
-const statusLabels = { PENDING: 'در انتظار', APPROVED: 'تایید شده', REJECTED: 'رد شده', CANCELLED: 'لغو شده' };
-const typeLabels = {
-  MISSION: 'ماموریت', TRANSFER: 'انتقال', DAILY_LEAVE: 'مرخصی روزانه', HOURLY_LEAVE: 'مرخصی ساعتی', LOAN: 'وام',
-  SETTLEMENT: 'تسویه حساب', CONSTRUCTION_PERMIT: 'مجوز ساخت', FINAL_INSPECTION: 'بازرسی نهایی', APPOINTMENT: 'وقت ملاقات', OTHER: 'سایر',
-};
 
 const RequestsPage = () => {
   const navigate = useNavigate();

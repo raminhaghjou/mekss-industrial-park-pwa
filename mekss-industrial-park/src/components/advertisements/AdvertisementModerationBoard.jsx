@@ -35,6 +35,7 @@ import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 const categoryLabels = {
   EQUIPMENT: 'تجهیزات',
@@ -66,20 +67,6 @@ const moderationError = (error, fallback) => {
   if (status === 403) return 'دسترسی شما به این آگهی یا شهرک آن مجاز نیست.';
   if (status === 404) return 'آگهی پیدا نشد یا دیگر در دسترس نیست.';
   return getErrorMessage(error, fallback);
-};
-
-const useOnlineStatus = () => {
-  const [online, setOnline] = React.useState(() => typeof navigator === 'undefined' || navigator.onLine);
-  React.useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
-  }, []);
-  return online;
 };
 
 const DetailRow = ({ label, children, ltr = false }) => (

@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateFactoryDto, CreateManagedUserDto, CreateParkDto, FactoryAdminQueryDto, UpdateFactoryDto, UpdateManagedUserDto, UpdateParkDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementDto, CreateFactoryDto, CreateManagedUserDto, CreateParkDto, FactoryAdminQueryDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateManagedUserDto, UpdateParkDto } from './management.dto';
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 
@@ -871,22 +871,45 @@ export class ManagementService {
   }
 
   async announcements() { return this.prisma.announcement.findMany({ where: { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }] }); }
-  async createAnnouncement(actor: AuthenticatedUser, input: any) { this.text(input.title, 'title'); this.text(input.content, 'content'); const item = await this.prisma.announcement.create({ data: { title: input.title, content: input.content, isGlobal: Boolean(input.isGlobal), isPinned: Boolean(input.isPinned), priority: Number(input.priority || 0), parkId: input.parkId, expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined, createdById: actor.id } }); await this.audit.record({ userId: actor.id, action: 'ANNOUNCEMENT_CREATED', entity: 'Announcement', entityId: item.id }); return item; }
+  async createAnnouncement(actor: AuthenticatedUser, input: CreateAnnouncementDto) {
+    if (input.parkId) await this.assertParkScope(actor, input.parkId);
+    const item = await this.prisma.announcement.create({
+      data: {
+        title: input.title,
+        content: input.content,
+        isGlobal: Boolean(input.isGlobal),
+        isPinned: Boolean(input.isPinned),
+        priority: Number(input.priority || 0),
+        parkId: input.parkId,
+        expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+        createdById: actor.id,
+      },
+    });
+    await this.audit.record({ userId: actor.id, action: 'ANNOUNCEMENT_CREATED', entity: 'Announcement', entityId: item.id });
+    return item;
+  }
 
   async managedAnnouncements(actor: AuthenticatedUser) {
     const where = actor.role === Role.SUPER_ADMIN ? {} : { OR: [{ createdById: actor.id }, { parkId: { in: await this.managedParkIds(actor) } }] };
     return this.prisma.announcement.findMany({ where, orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }] });
   }
 
-  async updateAnnouncement(actor: AuthenticatedUser, id: string, input: any) {
+  async updateAnnouncement(actor: AuthenticatedUser, id: string, input: UpdateAnnouncementDto) {
+    if (!Object.keys(input).length) throw new BadRequestException('At least one announcement field must be provided');
     const existing = await this.prisma.announcement.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Announcement not found');
     await this.assertAnnouncementAccess(actor, existing);
-    const data: any = {};
-    for (const key of ['title', 'content', 'isGlobal', 'isPinned', 'priority']) if (input[key] !== undefined) data[key] = input[key];
-    if (input.expiresAt !== undefined) data.expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+    const data: Prisma.AnnouncementUpdateInput = {};
+    const changes: Record<string, Prisma.InputJsonValue> = {};
+    for (const key of ['title', 'content', 'isGlobal', 'isPinned', 'priority'] as const) {
+      if (input[key] !== undefined) { (data as Record<string, unknown>)[key] = input[key]; changes[key] = input[key] as Prisma.InputJsonValue; }
+    }
+    if (input.expiresAt !== undefined) {
+      data.expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+      changes.expiresAt = input.expiresAt ?? null;
+    }
     const item = await this.prisma.announcement.update({ where: { id }, data });
-    await this.audit.record({ userId: actor.id, action: 'ANNOUNCEMENT_UPDATED', entity: 'Announcement', entityId: id, changes: data });
+    await this.audit.record({ userId: actor.id, action: 'ANNOUNCEMENT_UPDATED', entity: 'Announcement', entityId: id, changes: changes as Prisma.InputJsonObject });
     return item;
   }
 
@@ -1503,6 +1526,12 @@ export class ManagementService {
     if (announcement.createdById === user.id) return;
     if (announcement.parkId && (await this.managedParkIds(user)).includes(announcement.parkId)) return;
     throw new ForbiddenException('You do not have access to this announcement');
+  }
+
+  private async assertParkScope(user: AuthenticatedUser, parkId: string): Promise<void> {
+    if (user.role === Role.SUPER_ADMIN) return;
+    const managedIds = await this.managedParkIds(user);
+    if (!managedIds.includes(parkId)) throw new ForbiddenException('You do not have access to this park');
   }
 
   private async factoryIds(user: AuthenticatedUser): Promise<string[]> {

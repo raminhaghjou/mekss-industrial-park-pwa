@@ -1,69 +1,70 @@
-import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Box, Typography, Button, Paper, Tabs, Tab, CircularProgress, Alert } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert } from '@heroui/react';
+import { Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
-import GatePassList from '../../components/gate-pass/GatePassList';
-import CreateGatePassForm from '../../components/gate-pass/CreateGatePassForm';
+import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
+import { EmptyState } from '../../components/common/EmptyState';
 
-function TabPanel({ children, value, index }) {
-  return (
-    <div role="tabpanel" hidden={value !== index} id={`gate-pass-tabpanel-${index}`} aria-labelledby={`gate-pass-tab-${index}`}>
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
-}
+const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', USED: 'primary', CANCELLED: 'default' };
 
-const GatePassesPage = () => {
-  const [tabValue, setTabValue] = useState(0);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-
+export const GatePassesPage = () => {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['gate-passes'],
     queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
   });
 
-  const toggleCreateForm = () => setShowCreateForm(!showCreateForm);
-
-  if (showCreateForm) {
-    return <CreateGatePassForm handleBack={toggleCreateForm} />;
-  }
-
   const passes = data || [];
-  const pendingPasses = passes.filter((p) => p.status === 'PENDING');
-  const approvedPasses = passes.filter((p) => p.status === 'APPROVED');
-  const rejectedPasses = passes.filter((p) => p.status === 'REJECTED');
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">مدیریت برگ خروج</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={toggleCreateForm}>
-          ایجاد برگ خروج جدید
-        </Button>
-      </Box>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <h1 className="text-2xl font-bold text-foreground">برگ‌های خروج</h1>
 
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</Alert>}
-
-      {!isLoading && !isError && (
-        <Paper>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tabValue} onChange={(_, value) => setTabValue(value)} aria-label="gate pass status tabs">
-              <Tab label={`در انتظار تایید (${pendingPasses.length})`} />
-              <Tab label={`تایید شده (${approvedPasses.length})`} />
-              <Tab label={`رد شده (${rejectedPasses.length})`} />
-              <Tab label="تاریخچه" />
-            </Tabs>
-          </Box>
-          <TabPanel value={tabValue} index={0}><GatePassList passes={pendingPasses} /></TabPanel>
-          <TabPanel value={tabValue} index={1}><GatePassList passes={approvedPasses} /></TabPanel>
-          <TabPanel value={tabValue} index={2}><GatePassList passes={rejectedPasses} /></TabPanel>
-          <TabPanel value={tabValue} index={3}><GatePassList passes={passes} /></TabPanel>
-        </Paper>
-      )}
-    </Box>
+      <Card>
+        <CardBody className="p-0">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 rounded-lg" />
+              ))}
+            </div>
+          ) : isError ? (
+            <Alert color="danger" title="خطا در دریافت اطلاعات">
+              {getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}
+            </Alert>
+          ) : passes.length === 0 ? (
+            <EmptyState
+              icon={<Ticket className="h-6 w-6" />}
+              title="هیچ برگ خروجی ثبت نشده است"
+              description="برگ‌های خروج صادر شده برای واحد صنعتی شما در اینجا نمایش داده می‌شوند."
+            />
+          ) : (
+            <Table removeWrapper aria-label="برگ‌های خروج">
+              <TableHeader>
+                <TableColumn>نام راننده</TableColumn>
+                <TableColumn>شماره پلاک</TableColumn>
+                <TableColumn>تاریخ خروج</TableColumn>
+                <TableColumn>وضعیت</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {passes.map((pass) => (
+                  <TableRow key={pass.id}>
+                    <TableCell>{pass.driverName}</TableCell>
+                    <TableCell dir="ltr">{pass.licensePlate}</TableCell>
+                    <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
+                    <TableCell>
+                      <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="flat">
+                        {statusLabels[pass.status] || pass.status}
+                      </Chip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 

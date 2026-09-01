@@ -1,27 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Input, Button, Card, CardBody, CardHeader, Divider, Tabs, Tab } from '@heroui/react';
+import { Eye, EyeOff, Phone, Lock, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
-import {
-  TextField,
-  Button,
-  Typography,
-  Box,
-  IconButton,
-  InputAdornment,
-  CircularProgress,
-  Grid,
-} from '@mui/material';
-import {
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  Phone as PhoneIcon,
-  Lock as LockIcon,
-} from '@mui/icons-material';
-import {
-  AuthCard as LoginPaper,
-  AuthSurface as LoginContainer,
-} from '../../components/auth/AuthSurface';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -36,13 +18,7 @@ export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const [loginMethod, setLoginMethod] = useState('password');
 
   const handleSendOtp = async () => {
     if (!formData.phoneNumber) {
@@ -73,7 +49,6 @@ export const LoginPage = () => {
     setLoading(false);
 
     if (result.success) {
-      // Handle OTP verification success
       showNotification('ورود با موفقیت انجام شد', 'success');
       navigate('/dashboard');
     } else {
@@ -101,154 +76,127 @@ export const LoginPage = () => {
     }
   };
 
-  const handleTogglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
   return (
-    <LoginContainer>
-      <LoginPaper elevation={0}>
-        <Box sx={{ mb: 3.5 }}>
-          <Typography variant="h4" component="h1" fontWeight={850} gutterBottom>
-            خوش آمدید
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            برای ورود به پنل، شماره همراه و رمز عبور خود را وارد کنید.
-          </Typography>
-        </Box>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 p-4">
+      <div className="w-full max-w-md animate-scale-in">
+        <Card className="border border-white/20 bg-white/95 backdrop-blur-xl shadow-2xl dark:bg-default-100/95">
+          <CardHeader className="flex flex-col gap-2 px-6 pt-8 pb-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-2xl font-bold text-white shadow-lg">
+              M
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">ورود به سامانه</h1>
+            <p className="text-sm text-foreground-500">مدیریت یکپارچه شهرک صنعتی</p>
+          </CardHeader>
+          
+          <Divider />
+          
+          <CardBody className="p-6">
+            <Tabs
+              selectedKey={loginMethod}
+              onSelectionChange={setLoginMethod}
+              variant="underlined"
+              classNames={{
+                tabList: 'w-full',
+                tab: 'text-sm',
+              }}
+            >
+              <Tab key="password" title="ورود با رمز عبور" />
+              <Tab key="otp" title="ورود با کد یکبار" />
+            </Tabs>
 
-        <Box component="form" onSubmit={handlePasswordLogin} sx={{ mt: 1 }}>
-          {!otpSent ? (
-            <>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="phoneNumber"
+            <form onSubmit={handlePasswordLogin} className="mt-6 flex flex-col gap-4">
+              <Input
+                type="tel"
                 label="شماره تلفن"
-                name="phoneNumber"
-                autoComplete="tel"
-                autoFocus
+                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
                 value={formData.phoneNumber}
-                onChange={handleChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PhoneIcon />
-                    </InputAdornment>
-                  ),
-                }}
+                onValueChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+                startContent={<Phone className="h-4 w-4 text-default-400" />}
+                variant="bordered"
+                dir="ltr"
+                isRequired
               />
-              
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                name="password"
-                label="رمز عبور"
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                autoComplete="current-password"
-                value={formData.password}
-                onChange={handleChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="toggle password visibility"
-                        onClick={handleTogglePasswordVisibility}
-                        edge="end"
-                      >
-                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              
+
+              {loginMethod === 'password' && (
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  label="رمز عبور"
+                  placeholder="رمز عبور خود را وارد کنید"
+                  value={formData.password}
+                  onValueChange={(value) => setFormData({ ...formData, password: value })}
+                  startContent={<Lock className="h-4 w-4 text-default-400" />}
+                  endContent={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-default-400 hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
+                  variant="bordered"
+                  isRequired
+                />
+              )}
+
+              {loginMethod === 'otp' && (
+                <>
+                  <Button
+                    type="button"
+                    color="secondary"
+                    variant="flat"
+                    onPress={handleSendOtp}
+                    isLoading={loading && !otpSent}
+                    isDisabled={!formData.phoneNumber || otpSent}
+                  >
+                    {otpSent ? 'کد ارسال شد' : 'ارسال کد تایید'}
+                  </Button>
+
+                  {otpSent && (
+                    <Input
+                      type="text"
+                      label="کد تایید"
+                      placeholder="۶ رقمی"
+                      value={otpCode}
+                      onValueChange={setOtpCode}
+                      maxLength={6}
+                      variant="bordered"
+                      dir="ltr"
+                      isRequired
+                    />
+                  )}
+                </>
+              )}
+
               <Button
                 type="submit"
-                fullWidth
-                variant="contained"
-                sx={{ mt: 3, mb: 2 }}
-                disabled={loading}
+                color="primary"
+                size="lg"
+                className="mt-2 font-semibold"
+                isLoading={loading}
+                isDisabled={loginMethod === 'otp' && (!otpSent || otpCode.length !== 6)}
               >
-                {loading ? <CircularProgress size={24} /> : 'ورود'}
+                {loginMethod === 'otp' ? 'تایید و ورود' : 'ورود'}
               </Button>
-              
-              <Button
-                fullWidth
-                variant="outlined"
-                sx={{ mb: 2 }}
-                onClick={handleSendOtp}
-                disabled={loading}
-              >
-                {loading ? <CircularProgress size={24} /> : 'ورود با کد تایید'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="otp"
-                label="کد تایید"
-                name="otp"
-                autoFocus
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
-                inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
-              />
-              
-              <Button
-                fullWidth
-                variant="contained"
-                sx={{ mt: 3, mb: 2 }}
-                onClick={handleOtpLogin}
-                disabled={loading}
-              >
-                {loading ? <CircularProgress size={24} /> : 'تایید و ورود'}
-              </Button>
-              
-              <Button
-                fullWidth
-                variant="text"
-                sx={{ mb: 2 }}
-                onClick={() => {
-                  setOtpSent(false);
-                  setOtpCode('');
-                }}
-              >
-                بازگشت
-              </Button>
-            </>
-          )}
-          
-          <Grid container>
-            <Grid item xs>
-              <Link to="/forgot-password" style={{ textDecoration: 'none' }}>
-                <Typography variant="body2" color="primary">
-                  رمز عبور را فراموش کرده‌اید؟
-                </Typography>
+            </form>
+
+            <div className="mt-6 flex items-center justify-between text-sm">
+              <Link to="/register" className="text-primary-500 hover:text-primary-600 flex items-center gap-1">
+                ثبت‌نام
+                <ArrowLeft className="h-4 w-4" />
               </Link>
-            </Grid>
-            <Grid item>
-              <Link to="/register" style={{ textDecoration: 'none' }}>
-                <Typography variant="body2" color="primary">
-                  ثبت نام
-                </Typography>
+              <Link to="/forgot-password" className="text-foreground-500 hover:text-foreground-600">
+                فراموشی رمز عبور
               </Link>
-            </Grid>
-          </Grid>
-        </Box>
-      </LoginPaper>
-    </LoginContainer>
+            </div>
+          </CardBody>
+        </Card>
+
+        <p className="mt-6 text-center text-sm text-white/70">
+          مدیریت یکپارچه، برای شهری که همیشه در حرکت است.
+        </p>
+      </div>
+    </div>
   );
 };
 

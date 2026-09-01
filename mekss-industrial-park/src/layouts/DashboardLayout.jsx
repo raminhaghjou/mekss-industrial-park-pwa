@@ -1,532 +1,244 @@
-import { useMemo, useRef, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useRef } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-  AppBar,
+  Navbar,
+  NavbarBrand,
+  NavbarContent,
+  NavbarItem,
+  NavbarMenuToggle,
+  NavbarMenu,
+  NavbarMenuItem,
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarItem,
+  SidebarMenu,
+  SidebarSection,
+  Button,
   Avatar,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
   Badge,
-  BottomNavigation,
-  BottomNavigationAction,
-  Box,
   Divider,
-  Drawer,
-  IconButton,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  ListSubheader,
-  Menu,
-  MenuItem,
-  Stack,
-  Toolbar,
-  Tooltip,
-  Typography,
-  useMediaQuery,
-} from '@mui/material';
+  useDisclosure,
+} from '@heroui/react';
 import {
-  AccountCircle as AccountCircleIcon,
-  AdUnits as AdUnitsIcon,
-  AdminPanelSettings as AdminPanelSettingsIcon,
-  Analytics as AnalyticsIcon,
-  Assignment as AssignmentIcon,
-  Business as BusinessIcon,
-  Campaign as CampaignIcon,
-  ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon,
-  ConfirmationNumber as ConfirmationNumberIcon,
-  Dashboard as DashboardIcon,
-  Logout as LogoutIcon,
-  Menu as MenuIcon,
-  Message as MessageIcon,
-  MoreHoriz as MoreIcon,
-  Notifications as NotificationsIcon,
-  Person as PersonIcon,
-  Receipt as ReceiptIcon,
-  Security as SecurityIcon,
-  Settings as SettingsIcon,
-  SupervisorAccount as SuperAdminIcon,
-  Warning as WarningIcon,
-} from '@mui/icons-material';
+  LayoutDashboard,
+  Building2,
+  FileText,
+  Receipt,
+  Ticket,
+  MessageSquare,
+  Bell,
+  Megaphone,
+  AlertTriangle,
+  Settings,
+  User,
+  LogOut,
+  Menu,
+  ShieldCheck,
+  Users,
+  MapPin,
+  Phone,
+  ChevronLeft,
+} from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
-import { messageApi } from '../services/api/message.api';
+import { useNotification } from '../providers/NotificationProvider';
 import { roleLabels } from '../constants/persianLabels';
-import { PageTransition } from '../components/common/PageTransition';
 
-const EXPANDED_DRAWER_WIDTH = 288;
-const COLLAPSED_DRAWER_WIDTH = 88;
-const MOBILE_DRAWER_WIDTH = 304;
-
-const dashboardItem = { text: 'داشبورد', icon: <DashboardIcon />, path: '/dashboard' };
-
-const navigationByRole = {
-  FACTORY_OWNER: [
-    {
-      label: 'عملیات واحد',
-      items: [
-        { text: 'برگ‌های خروج', icon: <ConfirmationNumberIcon />, path: '/gate-passes' },
-        { text: 'قبض‌ها', icon: <ReceiptIcon />, path: '/invoices' },
-        { text: 'درخواست‌های من', icon: <AssignmentIcon />, path: '/requests' },
-      ],
-    },
-    {
-      label: 'ارتباطات',
-      items: [
-        { text: 'صندوق پیام', icon: <MessageIcon />, path: '/messages' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
-        { text: 'آگهی‌ها', icon: <AdUnitsIcon />, path: '/advertisements' },
-        { text: 'امداد و حریق', icon: <WarningIcon />, path: '/emergency' },
-      ],
-    },
-  ],
-  PARK_MANAGER: [
-    {
-      label: 'مدیریت شهرک',
-      items: [
-        { text: 'واحدهای صنعتی', icon: <BusinessIcon />, path: '/admin/factories' },
-        { text: 'برگ‌های خروج', icon: <ConfirmationNumberIcon />, path: '/admin/gate-passes' },
-        { text: 'قبض‌ها', icon: <ReceiptIcon />, path: '/admin/invoices' },
-        { text: 'درخواست‌ها', icon: <AssignmentIcon />, path: '/admin/requests' },
-        { text: 'گزارش‌ها', icon: <AnalyticsIcon />, path: '/admin/reports' },
-      ],
-    },
-    {
-      label: 'انتشار و ارتباطات',
-      items: [
-        { text: 'ارسال پیام', icon: <MessageIcon />, path: '/admin/messages' },
-        { text: 'صندوق پیام', icon: <NotificationsIcon />, path: '/messages' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/admin/announcements' },
-        { text: 'آگهی‌ها', icon: <AdUnitsIcon />, path: '/admin/advertisements' },
-        { text: 'امداد و حریق', icon: <WarningIcon />, path: '/emergency' },
-      ],
-    },
-  ],
-  SECURITY_GUARD: [
-    {
-      label: 'حراست و ایمنی',
-      items: [
-        { text: 'برگ‌های در انتظار', icon: <SecurityIcon />, path: '/guard/gate-passes' },
-        { text: 'اعلام‌های حریق', icon: <WarningIcon />, path: '/guard/emergency' },
-        { text: 'صندوق پیام', icon: <MessageIcon />, path: '/messages' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
-      ],
-    },
-  ],
-  GOVERNMENT_OFFICIAL: [
-    {
-      label: 'نظارت',
-      items: [
-        { text: 'گزارش‌ها و آمار', icon: <AnalyticsIcon />, path: '/admin/reports' },
-        { text: 'قبض‌ها', icon: <ReceiptIcon />, path: '/invoices' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/announcements' },
-        { text: 'صندوق پیام', icon: <MessageIcon />, path: '/messages' },
-      ],
-    },
-  ],
-  SUPER_ADMIN: [
-    {
-      label: 'مدیریت سامانه',
-      items: [
-        { text: 'شهرک‌ها', icon: <AdminPanelSettingsIcon />, path: '/superadmin/parks' },
-        { text: 'کاربران', icon: <SuperAdminIcon />, path: '/superadmin/users' },
-        { text: 'تنظیمات پیامک', icon: <SettingsIcon />, path: '/superadmin/sms-config' },
-      ],
-    },
-    {
-      label: 'عملیات شهرک',
-      items: [
-        { text: 'واحدهای صنعتی', icon: <BusinessIcon />, path: '/admin/factories' },
-        { text: 'برگ‌های خروج', icon: <ConfirmationNumberIcon />, path: '/admin/gate-passes' },
-        { text: 'قبض‌ها', icon: <ReceiptIcon />, path: '/admin/invoices' },
-        { text: 'درخواست‌ها', icon: <AssignmentIcon />, path: '/admin/requests' },
-        { text: 'ارسال پیام', icon: <MessageIcon />, path: '/admin/messages' },
-        { text: 'اطلاعیه‌ها', icon: <CampaignIcon />, path: '/admin/announcements' },
-        { text: 'آگهی‌ها', icon: <AdUnitsIcon />, path: '/superadmin/advertisements' },
-        { text: 'گزارش‌ها', icon: <AnalyticsIcon />, path: '/admin/reports' },
-      ],
-    },
-    {
-      label: 'حراست و ایمنی',
-      items: [
-        { text: 'کنترل برگ خروج', icon: <SecurityIcon />, path: '/guard/gate-passes' },
-        { text: 'اعلام‌های حریق', icon: <WarningIcon />, path: '/guard/emergency' },
-      ],
-    },
-  ],
-};
-
-const EMPTY_GROUPS = [];
-
-const primaryMobilePathByRole = {
-  FACTORY_OWNER: '/gate-passes',
-  PARK_MANAGER: '/admin/factories',
-  SECURITY_GUARD: '/guard/gate-passes',
-  GOVERNMENT_OFFICIAL: '/admin/reports',
-  SUPER_ADMIN: '/superadmin/parks',
-};
-
-const isPathActive = (currentPath, itemPath) =>
-  currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+const navigationItems = [
+  { path: '/dashboard', text: 'داشبورد', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
+  { path: '/admin/factories', text: 'واحدهای صنعتی', icon: Building2, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
+  { path: '/admin/invoices', text: 'قبض‌ها', icon: Receipt, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
+  { path: '/invoices', text: 'قبض‌های من', icon: Receipt, roles: ['FACTORY_OWNER'] },
+  { path: '/admin/gate-passes', text: 'برگ‌های خروج', icon: Ticket, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
+  { path: '/gate-passes', text: 'برگ‌های خروج من', icon: Ticket, roles: ['FACTORY_OWNER'] },
+  { path: '/guard/gate-passes', text: 'تایید خروج', icon: ShieldCheck, roles: ['SECURITY_GUARD'] },
+  { path: '/admin/requests', text: 'درخواست‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
+  { path: '/requests', text: 'درخواست‌های من', icon: FileText, roles: ['FACTORY_OWNER'] },
+  { path: '/messages', text: 'پیام‌ها', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
+  { path: '/announcements', text: 'اطلاعیه‌ها', icon: Bell, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'SECURITY_GUARD', 'EMPLOYEE'] },
+  { path: '/advertisements', text: 'آگهی‌ها', icon: Megaphone, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
+  { path: '/emergency', text: 'هشدار اضطراری', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'SECURITY_GUARD'] },
+  { path: '/superadmin/parks', text: 'شهرک‌ها', icon: MapPin, roles: ['SUPER_ADMIN'] },
+  { path: '/superadmin/users', text: 'کاربران', icon: Users, roles: ['SUPER_ADMIN'] },
+  { path: '/admin/reports', text: 'گزارش‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'GOVERNMENT_OFFICIAL'] },
+];
 
 export const DashboardLayout = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isDesktop = useMediaQuery(
-    /** @param {import('@mui/material').Theme} theme */ (theme) => theme.breakpoints.up('lg'),
-  );
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [railExpanded, setRailExpanded] = useState(true);
-  const [profileAnchor, setProfileAnchor] = useState(null);
+  const { user, logout } = useAuth();
+  const { showNotification } = useNotification();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const menuTriggerRef = useRef(null);
 
-  const closeMobileDrawer = () => {
-    setMobileDrawerOpen(false);
-    // MUI's Modal restores focus to the last-focused element by default, but
-    // that element is not always the hamburger trigger (e.g. after using the
-    // "more" bottom-nav action). Return focus there explicitly for a
-    // predictable keyboard/screen-reader experience.
-    window.setTimeout(() => menuTriggerRef.current?.focus(), 0);
+  const filteredNavItems = useMemo(() => {
+    return navigationItems.filter(item => item.roles.includes(user?.role));
+  }, [user?.role]);
+
+  const activeItem = filteredNavItems.find(item => location.pathname === item.path);
+
+  const handleLogout = async () => {
+    await logout();
+    showNotification('با موفقیت خارج شدید', 'success');
+    navigate('/login');
   };
-
-  const roleGroups = navigationByRole[user?.role] || EMPTY_GROUPS;
-  const allNavigationItems = useMemo(
-    () => [dashboardItem, ...roleGroups.flatMap((group) => group.items)],
-    [roleGroups],
-  );
-
-  const { data: inbox } = useQuery({
-    queryKey: ['messages', 'inbox'],
-    queryFn: () => messageApi.getInbox().then((response) => response.data),
-    staleTime: 30_000,
-  });
-  const unreadCount = Array.isArray(inbox)
-    ? inbox.filter((message) => message.status === 'UNREAD').length
-    : 0;
-
-  const activeItem = allNavigationItems
-    .slice()
-    .sort((a, b) => b.path.length - a.path.length)
-    .find((item) => isPathActive(location.pathname, item.path));
-
-  const handleNavigate = (path) => {
-    navigate(path);
-    if (mobileDrawerOpen) closeMobileDrawer();
-    setProfileAnchor(null);
-  };
-
-  const handleLogout = () => {
-    setProfileAnchor(null);
-    logout();
-  };
-
-  const renderNavigationItem = (item, expanded) => {
-    const selected = isPathActive(location.pathname, item.path);
-    const button = (
-      <ListItemButton
-        selected={selected}
-        onClick={() => handleNavigate(item.path)}
-        aria-current={selected ? 'page' : undefined}
-        aria-label={!expanded ? item.text : undefined}
-        sx={{
-          minHeight: 48,
-          justifyContent: expanded ? 'initial' : 'center',
-          px: expanded ? 1.5 : 1,
-          mx: 1,
-          my: 0.25,
-        }}
-      >
-        <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center', me: expanded ? 1.5 : 0 }}>
-          {item.icon}
-        </ListItemIcon>
-        {expanded && <ListItemText primary={item.text} primaryTypographyProps={{ noWrap: true }} />}
-      </ListItemButton>
-    );
-
-    return (
-      <ListItem key={item.path} disablePadding sx={{ display: 'block' }}>
-        {expanded ? button : <Tooltip title={item.text} placement="left">{button}</Tooltip>}
-      </ListItem>
-    );
-  };
-
-  const drawerContent = (expanded, temporary = false) => (
-    <Box
-      component="nav"
-      aria-label="منوی اصلی سامانه"
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        pt: 'env(safe-area-inset-top)',
-        pb: 'env(safe-area-inset-bottom)',
-      }}
-    >
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={1.25}
-        sx={{ minHeight: 72, px: expanded ? 2 : 1.5, flexShrink: 0 }}
-      >
-        <Box
-          aria-hidden="true"
-          sx={{
-            width: 40,
-            height: 40,
-            flexShrink: 0,
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: 2.5,
-            bgcolor: 'primary.main',
-            color: 'primary.contrastText',
-            fontWeight: 800,
-            letterSpacing: '-0.04em',
-          }}
-        >
-          M
-        </Box>
-        {expanded && (
-          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-            <Typography variant="subtitle1" fontWeight={800} noWrap>MEKSS</Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>مدیریت شهرک صنعتی</Typography>
-          </Box>
-        )}
-        <Tooltip title={temporary ? 'بستن منو' : expanded ? 'جمع کردن منو' : 'باز کردن منو'}>
-          <IconButton
-            onClick={() => temporary ? closeMobileDrawer() : setRailExpanded((value) => !value)}
-            aria-label={temporary ? 'بستن منو' : expanded ? 'جمع کردن منو' : 'باز کردن منو'}
-            size="small"
-          >
-            {temporary ? <ChevronRightIcon /> : expanded ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-          </IconButton>
-        </Tooltip>
-      </Stack>
-
-      <Divider />
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', py: 1 }}>
-        <List disablePadding>{renderNavigationItem(dashboardItem, expanded)}</List>
-        {roleGroups.map((group) => (
-          <List
-            key={group.label}
-            disablePadding
-            subheader={expanded ? (
-              <ListSubheader
-                disableSticky
-                component="div"
-                sx={{ bgcolor: 'transparent', lineHeight: '36px', fontSize: '0.72rem', fontWeight: 700 }}
-              >
-                {group.label}
-              </ListSubheader>
-            ) : <Divider sx={{ my: 1, mx: 2 }} />}
-          >
-            {group.items.map((item) => renderNavigationItem(item, expanded))}
-          </List>
-        ))}
-      </Box>
-
-      <Divider />
-      {expanded && (
-        <Stack direction="row" alignItems="center" spacing={1.25} sx={{ px: 2, py: 1.5 }}>
-          <Avatar sx={{ width: 40, height: 40, bgcolor: 'primary.main' }}>
-            {user?.name?.charAt(0) || <AccountCircleIcon />}
-          </Avatar>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={700} noWrap>{user?.name || 'کاربر سامانه'}</Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {roleLabels[user?.role] || user?.role}
-            </Typography>
-          </Box>
-        </Stack>
-      )}
-      <List disablePadding sx={{ px: 1, pb: 1 }}>
-        {renderNavigationItem({ text: 'پروفایل', icon: <PersonIcon />, path: '/profile' }, expanded)}
-        {renderNavigationItem({ text: 'تنظیمات', icon: <SettingsIcon />, path: '/settings' }, expanded)}
-        <ListItem disablePadding>
-          <Tooltip title={!expanded ? 'خروج از حساب' : ''} placement="left">
-            <ListItemButton
-              onClick={handleLogout}
-              aria-label="خروج از حساب"
-              sx={{
-                minHeight: 48,
-                justifyContent: expanded ? 'initial' : 'center',
-                px: expanded ? 1.5 : 1,
-                mx: 1,
-                color: 'error.main',
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center', me: expanded ? 1.5 : 0, color: 'inherit' }}>
-                <LogoutIcon />
-              </ListItemIcon>
-              {expanded && <ListItemText primary="خروج از حساب" />}
-            </ListItemButton>
-          </Tooltip>
-        </ListItem>
-      </List>
-    </Box>
-  );
-
-  const primaryMobileItem = allNavigationItems.find(
-    (item) => item.path === primaryMobilePathByRole[user?.role],
-  ) || dashboardItem;
-  const bottomPaths = ['/dashboard', primaryMobileItem.path, '/messages', '/announcements'];
-  const bottomValue = bottomPaths.find((path) => isPathActive(location.pathname, path)) || false;
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100dvh', bgcolor: 'background.default' }}>
-      {isDesktop && (
-        <Drawer
-          variant="permanent"
-          anchor="right"
-          open
-          sx={{
-            width: railExpanded ? EXPANDED_DRAWER_WIDTH : COLLAPSED_DRAWER_WIDTH,
-            flexShrink: 0,
-            '& .MuiDrawer-paper': {
-              width: railExpanded ? EXPANDED_DRAWER_WIDTH : COLLAPSED_DRAWER_WIDTH,
-              boxSizing: 'border-box',
-              overflowX: 'hidden',
-              borderInlineStart: '1px solid',
-              borderColor: 'divider',
-            },
-          }}
-        >
-          {drawerContent(railExpanded)}
-        </Drawer>
-      )}
-
-      {!isDesktop && (
-        <Drawer
-          variant="temporary"
-          anchor="right"
-          open={mobileDrawerOpen}
-          onClose={closeMobileDrawer}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            '& .MuiDrawer-paper': {
-              width: MOBILE_DRAWER_WIDTH,
-              maxWidth: 'calc(100vw - 40px)',
-              boxSizing: 'border-box',
-              borderStartStartRadius: 24,
-              borderEndStartRadius: 24,
-            },
-          }}
-        >
-          {drawerContent(true, true)}
-        </Drawer>
-      )}
-
-      <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0, flexGrow: 1 }}>
-        <AppBar
-          position="sticky"
-          color="transparent"
-          elevation={0}
-          sx={{
-            top: 0,
-            bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(248, 250, 252, 0.82)' : 'rgba(13, 15, 18, 0.82)',
-            backdropFilter: 'saturate(160%) blur(18px)',
-            WebkitBackdropFilter: 'saturate(160%) blur(18px)',
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Toolbar sx={{ minHeight: { xs: 60, sm: 68 }, pt: 'env(safe-area-inset-top)', px: { xs: 1.25, sm: 2.5 } }}>
-            {!isDesktop && (
-              <IconButton ref={menuTriggerRef} onClick={() => setMobileDrawerOpen(true)} aria-label="باز کردن منوی اصلی" edge="start">
-                <MenuIcon />
-              </IconButton>
-            )}
-            <Box sx={{ minWidth: 0, flexGrow: 1, px: 1 }}>
-              <Typography component="h1" variant="subtitle1" fontWeight={800} noWrap>
-                {activeItem?.text || 'سامانه مدیریت شهرک صنعتی'}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
-                {roleLabels[user?.role] || 'پنل کاربری MEKSS'}
-              </Typography>
-            </Box>
-            <Tooltip title="پیام‌ها">
-              <IconButton onClick={() => handleNavigate('/messages')} aria-label={`${unreadCount} پیام خوانده‌نشده`}>
-                <Badge badgeContent={unreadCount} max={99} color="error">
-                  <NotificationsIcon />
-                </Badge>
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="حساب کاربری">
-              <IconButton onClick={(event) => setProfileAnchor(event.currentTarget)} aria-label="باز کردن منوی حساب کاربری">
-                <Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: '0.9rem' }}>
-                  {user?.name?.charAt(0) || <AccountCircleIcon fontSize="small" />}
-                </Avatar>
-              </IconButton>
-            </Tooltip>
-          </Toolbar>
-        </AppBar>
-
-        <Box
-          component="main"
-          id="main-content"
-          sx={{
-            width: '100%',
-            maxWidth: 1600,
-            mx: 'auto',
-            flexGrow: 1,
-            p: { xs: 1.5, sm: 2.5, lg: 3 },
-            pb: { xs: 'calc(92px + env(safe-area-inset-bottom))', lg: 3 },
-          }}
-        >
-          <PageTransition>
-            <Outlet />
-          </PageTransition>
-        </Box>
-      </Box>
-
-      {!isDesktop && (
-        <BottomNavigation
-          showLabels
-          value={bottomValue}
-          onChange={(_event, value) => {
-            if (value === 'more') setMobileDrawerOpen(true);
-            else handleNavigate(value);
-          }}
-          aria-label="دسترسی سریع"
-          sx={{
-            position: 'fixed',
-            insetInline: 0,
-            bottom: 0,
-            zIndex: (theme) => theme.zIndex.appBar,
-            height: 'calc(68px + env(safe-area-inset-bottom))',
-            pb: 'env(safe-area-inset-bottom)',
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            bgcolor: (theme) => theme.palette.mode === 'light' ? 'rgba(255, 255, 255, 0.94)' : 'rgba(24, 26, 30, 0.94)',
-            backdropFilter: 'saturate(150%) blur(18px)',
-            WebkitBackdropFilter: 'saturate(150%) blur(18px)',
-          }}
-        >
-          <BottomNavigationAction label="خانه" value="/dashboard" icon={<DashboardIcon />} />
-          <BottomNavigationAction label={primaryMobileItem.text} value={primaryMobileItem.path} icon={primaryMobileItem.icon} />
-          <BottomNavigationAction
-            label="پیام‌ها"
-            value="/messages"
-            icon={<Badge badgeContent={unreadCount} max={99} color="error"><MessageIcon /></Badge>}
-          />
-          <BottomNavigationAction label="اطلاعیه‌ها" value="/announcements" icon={<CampaignIcon />} />
-          <BottomNavigationAction label="بیشتر" value="more" icon={<MoreIcon />} />
-        </BottomNavigation>
-      )}
-
-      <Menu
-        anchorEl={profileAnchor}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        open={Boolean(profileAnchor)}
-        onClose={() => setProfileAnchor(null)}
-        slotProps={{ paper: { sx: { mt: 1, minWidth: 190 } } }}
-      >
-        <MenuItem onClick={() => handleNavigate('/profile')}><PersonIcon fontSize="small" sx={{ me: 1.25 }} />پروفایل</MenuItem>
-        <MenuItem onClick={() => handleNavigate('/settings')}><SettingsIcon fontSize="small" sx={{ me: 1.25 }} />تنظیمات</MenuItem>
+    <div className="flex min-h-screen bg-background">
+      {/* Desktop Sidebar */}
+      <Sidebar className="hidden lg:flex" defaultCollapsed={false}>
+        <SidebarHeader className="flex items-center gap-2 px-4 py-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-lg font-bold text-white">
+            M
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-foreground">MEKSS</span>
+            <span className="text-xs text-foreground-500">مدیریت شهرک صنعتی</span>
+          </div>
+        </SidebarHeader>
+        
         <Divider />
-        <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}><LogoutIcon fontSize="small" sx={{ me: 1.25 }} />خروج از حساب</MenuItem>
-      </Menu>
-    </Box>
+        
+        <SidebarContent>
+          <SidebarSection title="منوی اصلی">
+            {filteredNavItems.map((item) => (
+              <SidebarItem
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                isActive={location.pathname === item.path}
+                startContent={<item.icon className="h-5 w-5" />}
+              >
+                {item.text}
+              </SidebarItem>
+            ))}
+          </SidebarSection>
+        </SidebarContent>
+      </Sidebar>
+
+      {/* Mobile Drawer */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="absolute right-0 top-0 h-full w-72 bg-background shadow-2xl">
+            <div className="flex items-center justify-between border-b border-default-200 px-4 py-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-lg font-bold text-white">
+                  M
+                </div>
+                <span className="font-bold">MEKSS</span>
+              </div>
+              <Button variant="light" isIconOnly onClick={() => setSidebarOpen(false)}>
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            </div>
+            <nav className="flex flex-col gap-1 p-2">
+              {filteredNavItems.map((item) => (
+                <Button
+                  key={item.path}
+                  variant={location.pathname === item.path ? 'flat' : 'light'}
+                  color={location.pathname === item.path ? 'primary' : 'default'}
+                  className="justify-start"
+                  startContent={<item.icon className="h-5 w-5" />}
+                  onClick={() => {
+                    navigate(item.path);
+                    setSidebarOpen(false);
+                  }}
+                >
+                  {item.text}
+                </Button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col">
+        {/* Top Navbar */}
+        <Navbar isBordered className="shadow-sm">
+          <NavbarContent>
+            <Button
+              ref={menuTriggerRef}
+              variant="light"
+              isIconOnly
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <NavbarBrand>
+              <h1 className="text-lg font-bold text-foreground">
+                {activeItem?.text || 'سامانه مدیریت شهرک صنعتی'}
+              </h1>
+            </NavbarBrand>
+          </NavbarContent>
+
+          <NavbarContent justify="end">
+            <NavbarItem>
+              <Badge color="danger" content="" shape="circle" isInvisible={true}>
+                <Button variant="light" isIconOnly>
+                  <Bell className="h-5 w-5" />
+                </Button>
+              </Badge>
+            </NavbarItem>
+            
+            <NavbarItem>
+              <Dropdown placement="bottom-end">
+                <DropdownTrigger>
+                  <Button variant="light" className="flex items-center gap-2">
+                    <Avatar
+                      name={user?.name?.charAt(0) || 'U'}
+                      size="sm"
+                      className="bg-gradient-to-br from-primary-500 to-primary-700 text-white"
+                    />
+                    <div className="hidden flex-col items-start md:flex">
+                      <span className="text-sm font-medium">{user?.name || 'کاربر'}</span>
+                      <span className="text-xs text-foreground-500">{roleLabels[user?.role] || user?.role}</span>
+                    </div>
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu aria-label="Profile actions">
+                  <DropdownItem
+                    key="profile"
+                    startContent={<User className="h-4 w-4" />}
+                    onClick={() => navigate('/profile')}
+                  >
+                    پروفایل
+                  </DropdownItem>
+                  <DropdownItem
+                    key="settings"
+                    startContent={<Settings className="h-4 w-4" />}
+                    onClick={() => navigate('/settings')}
+                  >
+                    تنظیمات
+                  </DropdownItem>
+                  <DropdownItem
+                    key="logout"
+                    color="danger"
+                    startContent={<LogOut className="h-4 w-4" />}
+                    onClick={handleLogout}
+                  >
+                    خروج
+                  </DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+            </NavbarItem>
+          </NavbarContent>
+        </Navbar>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <div className="mx-auto max-w-7xl animate-fade-in">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </div>
   );
 };
+
+export default DashboardLayout;

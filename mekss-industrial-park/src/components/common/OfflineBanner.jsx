@@ -1,51 +1,34 @@
-import { useEffect, useState } from 'react';
-import { Alert } from '@mui/material';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
-/**
- * Persian offline indicator. Mutations are blocked separately by the shared
- * Axios client; when connectivity returns, active server state is refreshed
- * so stale cached data is not presented as current.
- */
 export const OfflineBanner = () => {
-  const queryClient = useQueryClient();
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator === 'undefined' ? true : navigator.onLine,
-  );
+  const isOnline = useOnlineStatus();
+  const [wasOffline, setWasOffline] = useState(false);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      void queryClient.invalidateQueries({ refetchType: 'active' });
-    };
-    const handleOffline = () => setIsOnline(false);
+    if (!isOnline) {
+      setWasOffline(true);
+    }
+  }, [isOnline]);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [queryClient]);
-
-  if (isOnline) return null;
+  if (isOnline && !wasOffline) return null;
 
   return (
-    <Alert
-      severity="warning"
-      variant="filled"
-      role="status"
-      aria-live="polite"
-      sx={{
-        borderRadius: 0,
-        justifyContent: 'center',
-        position: 'relative',
-        zIndex: (theme) => theme.zIndex.appBar + 1,
-        '& .MuiAlert-message': { textAlign: 'center' },
-      }}
-    >
-      اتصال اینترنت برقرار نیست. اطلاعات ممکن است قدیمی باشد؛ ثبت و ویرایش پس از اتصال دوباره فعال می‌شود.
-    </Alert>
+    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up">
+      {!isOnline ? (
+        <div className="rounded-lg bg-danger-500 px-4 py-3 text-white shadow-lg">
+          <p className="font-medium">اتصال به اینترنت قطع شد</p>
+          <p className="text-sm opacity-90">برخی اطلاعات ممکن است به‌روز نباشند.</p>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between rounded-lg bg-success-500 px-4 py-3 text-white shadow-lg">
+          <p className="font-medium">اتصال برقرار شد</p>
+          <button onClick={() => setWasOffline(false)} className="text-sm underline">
+            بستن
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 

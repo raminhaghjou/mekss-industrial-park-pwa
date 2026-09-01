@@ -1,16 +1,15 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, CircularProgress, Alert } from '@mui/material';
-import { Add as AddIcon, AssignmentOutlined as RequestOutlineIcon } from '@mui/icons-material';
+import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert } from '@heroui/react';
+import { Plus, FileText } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
 
-const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error', CANCELLED: 'default' };
+const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'default' };
 
-const RequestsPage = () => {
+export const RequestsPage = () => {
   const navigate = useNavigate();
 
   const { data, isLoading, isError, error } = useQuery({
@@ -21,51 +20,59 @@ const RequestsPage = () => {
   const requests = data || [];
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">درخواست‌های من</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/requests/new/general')}>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">درخواست‌های من</h1>
+        <Button color="primary" startContent={<Plus className="h-4 w-4" />} onClick={() => navigate('/requests/new/general')}>
           ثبت درخواست جدید
         </Button>
-      </Box>
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}</Alert>}
-      {!isLoading && !isError && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>نوع</TableCell>
-                <TableCell>موضوع</TableCell>
-                <TableCell>تاریخ</TableCell>
-                <TableCell>وضعیت</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {requests.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4}>
-                    <EmptyState
-                      icon={<RequestOutlineIcon fontSize="medium" />}
-                      title="هنوز درخواستی ثبت نکرده‌اید"
-                      description="با دکمه «ثبت درخواست جدید» می‌توانید اولین درخواست خود را ارسال کنید."
-                    />
-                  </TableCell>
-                </TableRow>
-              )}
-              {requests.map((req) => (
-                <TableRow key={req.id}>
-                  <TableCell>{typeLabels[req.type] || req.type}</TableCell>
-                  <TableCell>{req.title}</TableCell>
-                  <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
-                  <TableCell><Chip label={statusLabels[req.status] || req.status} color={statusColors[req.status] || 'default'} size="small" /></TableCell>
-                </TableRow>
+      </div>
+
+      <Card>
+        <CardBody className="p-0">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 rounded-lg" />
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-    </Box>
+            </div>
+          ) : isError ? (
+            <Alert color="danger" title="خطا در دریافت اطلاعات">
+              {getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}
+            </Alert>
+          ) : requests.length === 0 ? (
+            <EmptyState
+              icon={<FileText className="h-6 w-6" />}
+              title="هنوز درخواستی ثبت نکرده‌اید"
+              description="با دکمه «ثبت درخواست جدید» می‌توانید اولین درخواست خود را ارسال کنید."
+            />
+          ) : (
+            <Table removeWrapper aria-label="درخواست‌ها">
+              <TableHeader>
+                <TableColumn>نوع</TableColumn>
+                <TableColumn>موضوع</TableColumn>
+                <TableColumn>تاریخ</TableColumn>
+                <TableColumn>وضعیت</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {requests.map((req) => (
+                  <TableRow key={req.id}>
+                    <TableCell>{typeLabels[req.type] || req.type}</TableCell>
+                    <TableCell>{req.title}</TableCell>
+                    <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
+                    <TableCell>
+                      <Chip color={statusColors[req.status] || 'default'} size="sm" variant="flat">
+                        {statusLabels[req.status] || req.status}
+                      </Chip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 

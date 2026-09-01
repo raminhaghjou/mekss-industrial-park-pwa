@@ -1,83 +1,66 @@
-import { useEffect, useState } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Button,
-  TextField,
-} from '@mui/material';
+import { useState } from 'react';
+import { Modal, Button, TextArea } from '@heroui/react';
 
-/**
- * Accessible confirmation dialog. Replaces browser `confirm`/`prompt` with a
- * focus-trapped, keyboard-operable MUI dialog. When `requireReason` is true,
- * the confirm action is disabled until a non-blank reason is entered.
- */
 export const ConfirmDialog = ({
   open,
   title,
   description,
   confirmLabel = 'تایید',
   cancelLabel = 'انصراف',
+  confirmColor = 'primary',
   requireReason = false,
   reasonLabel = 'دلیل',
-  reasonMultiline = true,
-  reasonType = 'text',
-  trimReason = true,
-  confirmColor = 'primary',
   loading = false,
-  disabled = false,
   onConfirm,
   onClose,
 }) => {
   const [reason, setReason] = useState('');
 
-  useEffect(() => {
-    if (!open) setReason('');
-  }, [open]);
-
   const handleConfirm = () => {
-    if (disabled || (requireReason && !reason.trim())) return;
-    onConfirm(requireReason ? (trimReason ? reason.trim() : reason) : undefined);
+    if (requireReason && !reason.trim()) return;
+    onConfirm?.(reason.trim());
+    setReason('');
   };
 
   const handleClose = () => {
     setReason('');
-    onClose();
+    onClose?.();
   };
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth aria-labelledby="confirm-dialog-title">
-      <DialogTitle id="confirm-dialog-title">{title}</DialogTitle>
-      <DialogContent>
-        {description && <DialogContentText sx={{ mb: requireReason ? 2 : 0 }}>{description}</DialogContentText>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
+      <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-2 text-lg font-semibold">{title}</h3>
+        {description && <p className="mb-4 text-foreground-600">{description}</p>}
         {requireReason && (
-          <TextField
-            autoFocus
-            fullWidth
-            required
-            multiline={reasonMultiline}
-            minRows={reasonMultiline ? 2 : undefined}
-            type={reasonType}
-            label={reasonLabel}
+          <textarea
+            className="mb-4 w-full rounded-lg border border-default-300 p-2 focus:border-primary-500 focus:outline-none"
+            placeholder={`${reasonLabel} را وارد کنید...`}
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
           />
         )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={loading}>{cancelLabel}</Button>
-        <Button
-          onClick={handleConfirm}
-          color={/** @type {'primary' | 'error'} */ (confirmColor)}
-          variant="contained"
-          disabled={disabled || loading || (requireReason && !reason.trim())}
-        >
-          {confirmLabel}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        <div className="flex justify-end gap-2">
+          <button
+            className="rounded-lg px-4 py-2 text-foreground-600 hover:bg-default-100"
+            onClick={handleClose}
+            disabled={loading}
+          >
+            {cancelLabel}
+          </button>
+          <button
+            className={`rounded-lg px-4 py-2 text-white ${confirmColor === 'danger' ? 'bg-danger-500 hover:bg-danger-600' : 'bg-primary-500 hover:bg-primary-600'} disabled:opacity-50`}
+            onClick={handleConfirm}
+            disabled={(requireReason && !reason.trim()) || loading}
+          >
+            {loading ? '...' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

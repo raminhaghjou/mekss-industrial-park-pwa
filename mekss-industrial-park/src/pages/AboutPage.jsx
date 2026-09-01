@@ -1,41 +1,41 @@
-import React from 'react';
-import { Box, Typography, Paper, Container } from '@mui/material';
+import { Card, CardBody, CardHeader } from '@heroui/react';
 
 export const AboutPage = () => {
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          درباره سامانه مدیریت شهرک صنعتی مکث (Mekss)
-        </Typography>
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="body1" paragraph>
-            سامانه مکث یک پلتفرم جامع و یکپارچه برای مدیریت هوشمند شهرک‌های صنعتی است. هدف ما در مکث، تسهیل فرآیندها، افزایش امنیت، و بهبود ارتباطات میان مدیران شهرک، صاحبان واحدهای صنعتی، و پرسنل نگهبانی است.
-          </Typography>
-          <Typography variant="h6" gutterBottom>
-            امکانات کلیدی سامانه:
-          </Typography>
-          <Typography component="div" variant="body1">
-            <ul>
-              <li>مدیریت یکپارچه واحدهای صنعتی و اطلاعات مربوط به آن‌ها</li>
-              <li>سیستم هوشمند صدور و اعتبارسنجی برگ خروج (Gate Pass)</li>
-              <li>مدیریت آنلاین قبوض و پرداخت‌های الکترونیکی</li>
-              <li>پنل ارتباطی قدرتمند شامل صندوق پیام، اطلاعیه‌ها و آگهی‌ها</li>
-              <li>سیستم ثبت و پیگیری درخواست‌ها به صورت آنلاین</li>
-              <li>داشبوردهای تحلیلی و گزارش‌گیری برای مدیران</li>
-              <li>سیستم اعلام و مدیریت شرایط اضطراری مانند حریق</li>
-              <li>قابلیت استفاده به عنوان Progressive Web App (PWA) برای دسترسی آسان بر روی موبایل</li>
-            </ul>
-          </Typography>
-          <Typography variant="body1" paragraph sx={{ mt: 2 }}>
-            ما معتقدیم با استفاده از تکنولوژی‌های نوین می‌توانیم به بهره‌وری و امنیت شهرک‌های صنعتی کمک شایانی کنیم. سامانه مکث با همین رویکرد طراحی و توسعه داده شده است.
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
-            &copy; {new Date().getFullYear()} شرکت مهندسی مکث. تمامی حقوق محفوظ است.
-          </Typography>
-        </Paper>
-      </Box>
-    </Container>
+    <div className="mx-auto max-w-2xl animate-fade-in">
+      <h1 className="mb-6 text-2xl font-bold text-foreground">درباره سامانه</h1>
+      
+      <Card>
+        <CardHeader className="p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-xl font-bold text-white">
+              M
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">MEKSS</h2>
+              <p className="text-sm text-foreground-500">مدیریت یکپارچه شهرک صنعتی</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardBody className="p-6">
+          <div className="flex flex-col gap-4 text-foreground-600">
+            <p>
+              سامانه مدیریت یکپارچه شهرک‌های صنعتی (MEKSS) یک پلتفرم جامع برای مدیریت 
+              واحدهای صنعتی، برگ‌های خروج، قبض‌ها، درخواست‌ها و اطلاعیه‌ها است.
+            </p>
+            <p>
+              این سامانه با هدف ساده‌سازی فرآیندهای مدیریتی و افزایش بهره‌وری در 
+              شهرک‌های صنعتی طراحی و پیاده‌سازی شده است.
+            </p>
+            <div className="mt-4 rounded-lg bg-primary-50 p-4 dark:bg-primary-950">
+              <p className="text-sm text-primary-700 dark:text-primary-300">
+                نسخه: 1.0.0
+              </p>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 

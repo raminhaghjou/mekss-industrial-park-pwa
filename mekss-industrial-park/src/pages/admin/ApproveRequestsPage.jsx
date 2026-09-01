@@ -1,37 +1,20 @@
-import React from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import {
-  Box,
-  Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Tooltip,
-  Chip,
-  Tabs,
-  Tab,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon, AssignmentOutlined as RequestOutlineIcon } from '@mui/icons-material';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Tabs, Tab, Skeleton, Alert } from '@heroui/react';
+import { Check, X, FileText } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { useNotification } from '../../providers/NotificationProvider';
+import { getErrorMessage } from '../../utils/apiError';
+import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
-import { getErrorMessage } from '../../utils/apiError';
-import { requestStatusLabels as statusLabels } from '../../constants/persianLabels';
 
-const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'error', CANCELLED: 'default' };
+const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'default' };
 
-const ApproveRequestsPage = () => {
-  const [tab, setTab] = React.useState(0);
-  const [approveTarget, setApproveTarget] = React.useState(null);
-  const [rejectTarget, setRejectTarget] = React.useState(null);
+export const ApproveRequestsPage = () => {
+  const [tab, setTab] = useState('pending');
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
 
@@ -40,106 +23,124 @@ const ApproveRequestsPage = () => {
     queryFn: () => requestApi.getRequests().then((res) => res.data),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['requests', 'managed'] });
+  const requests = data || [];
+  const filteredRequests = requests.filter((r) => (tab === 'pending' ? r.status === 'PENDING' : r.status !== 'PENDING'));
 
   const approveMutation = useMutation({
-    mutationFn: (/** @type {string} */ id) => requestApi.approveRequest(id),
-    onSuccess: () => { showNotification('درخواست با موفقیت تایید شد.', 'success'); setApproveTarget(null); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'تایید درخواست ناموفق بود.'), 'error'),
+    mutationFn: (id) => requestApi.approveRequest(id),
+    onSuccess: () => {
+      showNotification('درخواست با موفقیت تایید شد', 'success');
+      setApproveTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['requests', 'managed'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'تایید درخواست ناموفق بود'), 'error'),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (/** @type {{id: string, reason: string}} */ { id, reason }) => requestApi.rejectRequest(id, { reason }),
-    onSuccess: () => { showNotification('درخواست رد شد.', 'success'); setRejectTarget(null); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'رد درخواست ناموفق بود.'), 'error'),
+    mutationFn: ({ id, reason }) => requestApi.rejectRequest(id, { reason }),
+    onSuccess: () => {
+      showNotification('درخواست رد شد', 'success');
+      setRejectTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['requests', 'managed'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'رد درخواست ناموفق بود'), 'error'),
   });
 
-  const requests = data || [];
-  const filteredRequests = requests.filter((req) => (tab === 0 ? req.status === 'PENDING' : req.status !== 'PENDING'));
-
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        تایید درخواست‌ها
-      </Typography>
-      <Paper>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-            <Tab label="در انتظار بررسی" />
-            <Tab label="تاریخچه" />
-          </Tabs>
-        </Box>
-        {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-        {isError && <Alert severity="error" sx={{ m: 2 }}>{getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}</Alert>}
-        {!isLoading && !isError && (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>واحد صنعتی</TableCell>
-                  <TableCell>موضوع</TableCell>
-                  <TableCell>تاریخ</TableCell>
-                  <TableCell>وضعیت</TableCell>
-                  <TableCell align="center">عملیات</TableCell>
-                </TableRow>
-              </TableHead>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <h1 className="text-2xl font-bold text-foreground">تایید درخواست‌ها</h1>
+
+      <Card>
+        <CardBody className="p-0">
+          <div className="border-b border-default-200 p-2">
+            <Tabs selectedKey={tab} onSelectionChange={setTab} variant="underlined">
+              <Tab key="pending" title="در انتظار تایید" />
+              <Tab key="history" title="تاریخچه" />
+            </Tabs>
+          </div>
+
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 rounded-lg" />
+              ))}
+            </div>
+          ) : isError ? (
+            <Alert color="danger" title="خطا در دریافت اطلاعات">
+              {getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}
+            </Alert>
+          ) : filteredRequests.length === 0 ? (
+            <EmptyState
+              icon={<FileText className="h-6 w-6" />}
+              title={tab === 'pending' ? 'درخواستی در انتظار بررسی نیست' : 'تاریخچه‌ای برای نمایش وجود ندارد'}
+              description={tab === 'pending' ? 'درخواست‌های جدید واحدهای صنعتی برای بررسی در این بخش نمایش داده می‌شوند.' : undefined}
+            />
+          ) : (
+            <Table removeWrapper aria-label="درخواست‌ها">
+              <TableHeader>
+                <TableColumn>نوع</TableColumn>
+                <TableColumn>موضوع</TableColumn>
+                <TableColumn>واحد صنعتی</TableColumn>
+                <TableColumn>تاریخ</TableColumn>
+                <TableColumn>وضعیت</TableColumn>
+                <TableColumn>عملیات</TableColumn>
+              </TableHeader>
               <TableBody>
-                {filteredRequests.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5}>
-                      <EmptyState
-                        icon={<RequestOutlineIcon fontSize="medium" />}
-                        title={tab === 0 ? 'درخواستی در انتظار بررسی نیست' : 'تاریخچه‌ای برای نمایش وجود ندارد'}
-                        description={tab === 0 ? 'درخواست‌های جدید واحدهای صنعتی برای بررسی در این بخش نمایش داده می‌شوند.' : undefined}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )}
                 {filteredRequests.map((req) => (
                   <TableRow key={req.id}>
-                    <TableCell>{req.factory?.name || '—'}</TableCell>
+                    <TableCell>{typeLabels[req.type] || req.type}</TableCell>
                     <TableCell>{req.title}</TableCell>
+                    <TableCell>{req.factory?.name || '—'}</TableCell>
                     <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
                     <TableCell>
-                      <Chip label={statusLabels[req.status] || req.status} color={statusColors[req.status] || 'default'} size="small" />
+                      <Chip color={statusColors[req.status] || 'default'} size="sm" variant="flat">
+                        {statusLabels[req.status] || req.status}
+                      </Chip>
                     </TableCell>
-                    <TableCell align="center">
+                    <TableCell>
                       {req.status === 'PENDING' && (
-                        <>
-                          <Tooltip title="تایید">
-                            <span>
-                              <IconButton color="success" onClick={() => setApproveTarget(req.id)} disabled={approveMutation.isPending}>
-                                <ApproveIcon />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                          <Tooltip title="رد کردن">
-                            <span>
-                              <IconButton color="error" onClick={() => setRejectTarget(req.id)}>
-                                <RejectIcon />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        </>
+                        <div className="flex gap-2">
+                          <Button
+                            color="success"
+                            variant="flat"
+                            size="sm"
+                            isIconOnly
+                            onClick={() => setApproveTarget(req.id)}
+                            isLoading={approveMutation.isPending}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            color="danger"
+                            variant="flat"
+                            size="sm"
+                            isIconOnly
+                            onClick={() => setRejectTarget(req.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
-        )}
-      </Paper>
+          )}
+        </CardBody>
+      </Card>
+
       <ConfirmDialog
         open={Boolean(approveTarget)}
         title="تایید درخواست"
-        description="با تایید این درخواست، نتیجه برای متقاضی نهایی می‌شود. آیا اطمینان دارید؟"
+        description="آیا از تایید این درخواست اطمینان دارید؟"
         confirmLabel="تایید"
         confirmColor="primary"
         loading={approveMutation.isPending}
         onConfirm={() => approveMutation.mutate(approveTarget)}
         onClose={() => setApproveTarget(null)}
       />
+
       <ConfirmDialog
         open={Boolean(rejectTarget)}
         title="رد درخواست"
@@ -147,12 +148,12 @@ const ApproveRequestsPage = () => {
         requireReason
         reasonLabel="دلیل رد"
         confirmLabel="رد کردن"
-        confirmColor="error"
+        confirmColor="danger"
         loading={rejectMutation.isPending}
         onConfirm={(reason) => rejectMutation.mutate({ id: rejectTarget, reason })}
         onClose={() => setRejectTarget(null)}
       />
-    </Box>
+    </div>
   );
 };
 

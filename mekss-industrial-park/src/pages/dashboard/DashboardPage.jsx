@@ -1,16 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Grid, Typography, Box, Card, CardContent, CardActionArea, Alert, Chip, Skeleton, Stack } from '@mui/material';
-import {
-  Business as BusinessIcon,
-  ConfirmationNumber as ConfirmationNumberIcon,
-  Receipt as ReceiptIcon,
-  Assignment as AssignmentIcon,
-  Warning as WarningIcon,
-  AdUnits as AdUnitsIcon,
-  ChevronLeft as ChevronLeftIcon,
-} from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
+import { Card, Button, Skeleton, Alert } from '@heroui/react';
+import { Building2, Ticket, Receipt, FileText, AlertTriangle, Megaphone, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -24,63 +15,37 @@ const roleTitles = {
   EMPLOYEE: 'داشبورد',
 };
 
-const StatCard = ({ icon, label, value, color = 'primary.main', onClick, badge = undefined, index = 0 }) => (
-  <Grid item xs={12} sm={6} md={3}>
-    <Card
-      sx={{
-        height: '100%',
-        opacity: 0,
-        animation: `mekssCardIn 460ms cubic-bezier(0.16, 1, 0.3, 1) ${index * 70}ms both`,
-      }}
-    >
-      <CardActionArea onClick={onClick} disabled={!onClick} sx={{ height: '100%' }}>
-        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2.5 }}>
-          <Box
-            aria-hidden="true"
-            sx={{
-              width: 52,
-              height: 52,
-              flexShrink: 0,
-              display: 'grid',
-              placeItems: 'center',
-              borderRadius: 3,
-              fontSize: 26,
-              color,
-              background: (theme) => {
-                const paletteKey = color.split('.')[0];
-                const base = theme.palette[paletteKey]?.main || theme.palette.primary.main;
-                return `linear-gradient(155deg, ${alpha(base, 0.16)}, ${alpha(base, 0.06)})`;
-              },
-            }}
-          >
-            {icon}
-          </Box>
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="h4" fontWeight={800}>{value}</Typography>
-            <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
-          </Box>
-          {Boolean(badge) && <Chip label={badge} color="warning" size="small" sx={{ fontWeight: 700 }} />}
-          {Boolean(onClick) && !badge && (
-            <ChevronLeftIcon fontSize="small" sx={{ color: 'text.disabled', flexShrink: 0 }} />
-          )}
-        </CardContent>
-      </CardActionArea>
-    </Card>
-  </Grid>
-);
+const colorMap = {
+  primary: 'bg-gradient-to-br from-primary-500 to-primary-600',
+  success: 'bg-gradient-to-br from-success-500 to-success-600',
+  warning: 'bg-gradient-to-br from-warning-500 to-warning-600',
+  danger: 'bg-gradient-to-br from-danger-500 to-danger-600',
+  secondary: 'bg-gradient-to-br from-secondary-500 to-secondary-600',
+};
 
-const StatCardSkeleton = ({ index = 0 }) => (
-  <Grid item xs={12} sm={6} md={3}>
-    <Card sx={{ height: '100%', opacity: 0, animation: `mekssFadeInUp 320ms ease ${index * 60}ms both` }}>
-      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2.5 }}>
-        <Skeleton variant="rounded" width={52} height={52} sx={{ borderRadius: 3, flexShrink: 0 }} />
-        <Box sx={{ flexGrow: 1 }}>
-          <Skeleton variant="text" width="45%" height={34} />
-          <Skeleton variant="text" width="70%" height={20} />
-        </Box>
-      </CardContent>
-    </Card>
-  </Grid>
+const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge, index }) => (
+  <Card
+    className={`cursor-${onClick ? 'pointer' : 'default'} animate-slide-up p-4`}
+    style={{ animationDelay: `${index * 70}ms` }}
+    isPressable={!!onClick}
+    onPress={onClick}
+  >
+    <div className="flex items-center gap-4">
+      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-white ${colorMap[color]}`}>
+        <Icon className="h-7 w-7" />
+      </div>
+      <div className="flex flex-1 flex-col gap-1">
+        <span className="text-2xl font-bold text-foreground">{value}</span>
+        <span className="text-sm text-foreground-500">{label}</span>
+      </div>
+      {badge && (
+        <span className="rounded-full bg-warning-100 px-2 py-1 text-xs font-medium text-warning-700">{badge}</span>
+      )}
+      {onClick && !badge && (
+        <ChevronLeft className="h-5 w-5 text-default-400" />
+      )}
+    </div>
+  </Card>
 );
 
 export const DashboardPage = () => {
@@ -94,30 +59,34 @@ export const DashboardPage = () => {
 
   if (isLoading) {
     return (
-      <Box>
-        <Skeleton variant="text" width={220} height={44} sx={{ mb: 2 }} />
-        <Grid container spacing={3}>
-          {[0, 1, 2, 3].map((index) => <StatCardSkeleton key={index} index={index} />)}
-        </Grid>
-      </Box>
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-10 w-48 rounded-lg" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-32 rounded-xl" />
+          ))}
+        </div>
+      </div>
     );
   }
 
   if (isError) {
     return (
       <Alert
-        severity="error"
-        action={(
-          <Chip
-            label={isFetching ? 'در حال تلاش...' : 'تلاش دوباره'}
-            onClick={() => refetch()}
-            disabled={isFetching}
-            size="small"
-            sx={{ cursor: 'pointer', fontWeight: 700 }}
-          />
-        )}
+        color="danger"
+        title="خطا در دریافت اطلاعات"
       >
-        {getErrorMessage(error, 'دریافت اطلاعات داشبورد ناموفق بود.')}
+        <p>{getErrorMessage(error, 'دریافت اطلاعات داشبورد ناموفق بود.')}</p>
+        <Button
+          color="danger"
+          variant="solid"
+          size="sm"
+          className="mt-2"
+          onClick={() => refetch()}
+          isLoading={isFetching}
+        >
+          تلاش دوباره
+        </Button>
       </Alert>
     );
   }
@@ -129,63 +98,74 @@ export const DashboardPage = () => {
   const canModerateAds = capabilities.includes('moderate_advertisements') || capabilities.includes('manage_advertisements');
 
   return (
-    <Box>
-      <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mb: 2.5, flexWrap: 'wrap', gap: 0.5 }}>
-        <Typography variant="h4" fontWeight={800}>{roleTitles[user?.role] || 'داشبورد'}</Typography>
-        <Typography variant="body2" color="text.secondary">
-          {user?.name ? `خوش آمدید، ${user.name}` : ''}
-        </Typography>
-      </Stack>
-      <Grid container spacing={3}>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">{roleTitles[user?.role] || 'داشبورد'}</h1>
+        {user?.name && (
+          <span className="text-sm text-foreground-500">خوش آمدید، {user.name}</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <StatCard
           index={0}
-          icon={<BusinessIcon fontSize="inherit" />}
+          icon={Building2}
           label="واحدهای صنعتی"
           value={data?.factories ?? 0}
+          color="primary"
           onClick={canManageFactories ? () => navigate('/admin/factories') : undefined}
         />
+        
         <StatCard
           index={1}
-          icon={<ConfirmationNumberIcon fontSize="inherit" />}
+          icon={Ticket}
           label="برگ‌های خروج"
           value={data?.gatePasses ?? 0}
+          color="success"
           badge={data?.pendingWork?.gatePasses ? `${data.pendingWork.gatePasses} در انتظار` : undefined}
           onClick={canApproveGatePasses ? () => navigate('/admin/gate-passes') : () => navigate('/gate-passes')}
         />
+        
         <StatCard
           index={2}
-          icon={<ReceiptIcon fontSize="inherit" />}
+          icon={Receipt}
           label="قبض‌ها"
           value={data?.invoices ?? 0}
+          color="secondary"
           onClick={() => navigate('/invoices')}
         />
+        
         <StatCard
           index={3}
-          icon={<AssignmentIcon fontSize="inherit" />}
+          icon={FileText}
           label="درخواست‌ها"
           value={data?.requests ?? 0}
+          color="warning"
           badge={data?.pendingWork?.requests ? `${data.pendingWork.requests} در انتظار` : undefined}
           onClick={canApproveRequests ? () => navigate('/admin/requests') : () => navigate('/requests')}
         />
+        
         <StatCard
           index={4}
-          icon={<WarningIcon fontSize="inherit" />}
+          icon={AlertTriangle}
           label="هشدارهای اضطراری باز"
           value={data?.openEmergencies ?? 0}
-          color="error.main"
+          color="danger"
           onClick={() => navigate('/emergency')}
         />
+        
         {canModerateAds && (
           <StatCard
             index={5}
-            icon={<AdUnitsIcon fontSize="inherit" />}
+            icon={Megaphone}
             label="آگهی‌های در انتظار تایید"
             value={data?.pendingWork?.advertisements ?? 0}
+            color="primary"
             onClick={() => navigate(user?.role === 'SUPER_ADMIN' ? '/superadmin/advertisements' : '/admin/advertisements')}
           />
         )}
-      </Grid>
-    </Box>
+      </div>
+    </div>
   );
 };
 

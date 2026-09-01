@@ -1,75 +1,70 @@
-import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Paper, Tabs, Tab, CircularProgress, Alert } from '@mui/material';
+import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, Tabs, Tab } from '@heroui/react';
+import { Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
+import { EmptyState } from '../../components/common/EmptyState';
 
-const InvoiceList = ({ invoices }) => {
-  const navigate = useNavigate();
+const statusColors = { PENDING: 'warning', PAID: 'success', OVERDUE: 'danger', CANCELLED: 'default' };
+const statusLabels = { PENDING: 'پرداخت نشده', PAID: 'پرداخت شده', OVERDUE: 'سررسید گذشته', CANCELLED: 'لغو شده' };
 
-  if (!invoices || invoices.length === 0) {
-    return <Typography sx={{ p: 2 }}>هیچ قبضی برای نمایش وجود ندارد.</Typography>;
-  }
-
-  return (
-    <Box>
-      {invoices.map((invoice) => (
-        <Paper key={invoice.id} sx={{ p: 2, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h6">{invoice.description}</Typography>
-            <Typography color="text.secondary">مبلغ: {Number(invoice.totalAmount).toLocaleString('fa-IR')} ریال</Typography>
-            <Typography color="text.secondary">مهلت پرداخت: {new Date(invoice.dueDate).toLocaleDateString('fa-IR')}</Typography>
-          </Box>
-          <Box sx={{ textAlign: 'right' }}>
-            {invoice.status === 'PENDING' || invoice.status === 'OVERDUE' ? (
-              <Button variant="contained" color="primary" onClick={() => navigate(`/invoices/pay/${invoice.id}`)}>
-                پرداخت
-              </Button>
-            ) : (
-              <Typography color="success.main">پرداخت شده</Typography>
-            )}
-          </Box>
-        </Paper>
-      ))}
-    </Box>
-  );
-};
-
-const InvoicesPage = () => {
-  const [tabValue, setTabValue] = useState(0);
-
+export const InvoicesPage = () => {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['invoices'],
     queryFn: () => invoiceApi.getInvoices().then((res) => res.data),
   });
 
   const invoices = data || [];
-  const unpaidInvoices = invoices.filter((inv) => inv.status === 'PENDING' || inv.status === 'OVERDUE');
-  const paidInvoices = invoices.filter((inv) => inv.status === 'PAID');
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        مدیریت قبض‌ها
-      </Typography>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <h1 className="text-2xl font-bold text-foreground">قبض‌ها</h1>
 
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}</Alert>}
-
-      {!isLoading && !isError && (
-        <Paper>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tabValue} onChange={(_, value) => setTabValue(value)} aria-label="invoice status tabs">
-              <Tab label={`پرداخت نشده (${unpaidInvoices.length})`} />
-              <Tab label={`پرداخت شده (${paidInvoices.length})`} />
-            </Tabs>
-          </Box>
-          {tabValue === 0 && <Box sx={{ p: 2 }}><InvoiceList invoices={unpaidInvoices} /></Box>}
-          {tabValue === 1 && <Box sx={{ p: 2 }}><InvoiceList invoices={paidInvoices} /></Box>}
-        </Paper>
-      )}
-    </Box>
+      <Card>
+        <CardBody className="p-0">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 rounded-lg" />
+              ))}
+            </div>
+          ) : isError ? (
+            <Alert color="danger" title="خطا در دریافت اطلاعات">
+              {getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}
+            </Alert>
+          ) : invoices.length === 0 ? (
+            <EmptyState
+              icon={<Receipt className="h-6 w-6" />}
+              title="هیچ قبضی برای نمایش وجود ندارد"
+              description="قبض‌های صادر شده در این فهرست نمایش داده می‌شوند."
+            />
+          ) : (
+            <Table removeWrapper aria-label="قبض‌ها">
+              <TableHeader>
+                <TableColumn>شماره قبض</TableColumn>
+                <TableColumn>شرح</TableColumn>
+                <TableColumn>مبلغ (ریال)</TableColumn>
+                <TableColumn>وضعیت</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {invoices.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell dir="ltr">{invoice.invoiceNumber}</TableCell>
+                    <TableCell>{invoice.description}</TableCell>
+                    <TableCell dir="ltr">{Number(invoice.totalAmount).toLocaleString('fa-IR')}</TableCell>
+                    <TableCell>
+                      <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="flat">
+                        {statusLabels[invoice.status] || invoice.status}
+                      </Chip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 

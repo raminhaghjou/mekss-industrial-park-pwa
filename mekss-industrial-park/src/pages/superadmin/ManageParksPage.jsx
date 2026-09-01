@@ -1,202 +1,184 @@
-import React from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  CircularProgress,
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
-  Chip,
-} from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, LocationCityOutlined as ParkOutlineIcon } from '@mui/icons-material';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Skeleton, Alert } from '@heroui/react';
+import { Plus, Pencil, Trash2, MapPin } from 'lucide-react';
 import { parkApi } from '../../services/api/park.api';
 import { useNotification } from '../../providers/NotificationProvider';
+import { getErrorMessage } from '../../utils/apiError';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
-import { getErrorMessage } from '../../utils/apiError';
 
-const emptyForm = { code: '', name: '', province: '', city: '', address: '', phoneNumber: '', guardPhone: '', email: '' };
-
-const ManageParksPage = () => {
+export const ManageParksPage = () => {
+  const [formOpen, setFormOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [formData, setFormData] = useState({ code: '', name: '', province: '', city: '', address: '', phoneNumber: '' });
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
-  const [formOpen, setFormOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState(null);
-  const [form, setForm] = React.useState(emptyForm);
-  const [deleteTarget, setDeleteTarget] = React.useState(null);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['parks', 'managed'],
+    queryKey: ['parks'],
     queryFn: () => parkApi.getParks().then((res) => res.data),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['parks', 'managed'] });
-
-  const closeForm = () => { setFormOpen(false); setEditing(null); setForm(emptyForm); };
-
   const createMutation = useMutation({
-    mutationFn: (/** @type {typeof emptyForm} */ payload) => parkApi.createPark(payload),
-    onSuccess: () => { showNotification('شهرک صنعتی با موفقیت ثبت شد.', 'success'); closeForm(); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'ثبت شهرک صنعتی ناموفق بود.'), 'error'),
+    mutationFn: (data) => parkApi.createPark(data),
+    onSuccess: () => {
+      showNotification('شهرک صنعتی با موفقیت ایجاد شد', 'success');
+      setFormOpen(false);
+      resetForm();
+      queryClient.invalidateQueries({ queryKey: ['parks'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'ایجاد شهرک ناموفق بود'), 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (/** @type {{id: string, payload: any}} */ { id, payload }) => parkApi.updatePark(id, payload),
-    onSuccess: () => { showNotification('شهرک صنعتی با موفقیت ویرایش شد.', 'success'); closeForm(); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'ویرایش شهرک صنعتی ناموفق بود.'), 'error'),
+    mutationFn: ({ id, data }) => parkApi.updatePark(id, data),
+    onSuccess: () => {
+      showNotification('شهرک صنعتی با موفقیت ویرایش شد', 'success');
+      setFormOpen(false);
+      resetForm();
+      queryClient.invalidateQueries({ queryKey: ['parks'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'ویرایش شهرک ناموفق بود'), 'error'),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (/** @type {string} */ id) => parkApi.deletePark(id),
-    onSuccess: () => { showNotification('شهرک صنعتی حذف شد.', 'success'); setDeleteTarget(null); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'حذف شهرک صنعتی ناموفق بود. ممکن است واحدهای صنعتی وابسته داشته باشد.'), 'error'),
+    mutationFn: (id) => parkApi.deletePark(id),
+    onSuccess: () => {
+      showNotification('شهرک صنعتی حذف شد', 'success');
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['parks'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'حذف شهرک ناموفق بود'), 'error'),
   });
 
-  const startCreate = () => { setEditing(null); setForm(emptyForm); setFormOpen(true); };
+  const parks = data || [];
+
+  const resetForm = () => {
+    setFormData({ code: '', name: '', province: '', city: '', address: '', phoneNumber: '' });
+    setEditTarget(null);
+  };
+
   const startEdit = (park) => {
-    setEditing(park);
-    setForm({ code: park.code, name: park.name, province: park.province, city: park.city, address: park.address, phoneNumber: park.phoneNumber, guardPhone: park.guardPhone, email: park.email || '' });
+    setFormData({
+      code: park.code || '',
+      name: park.name || '',
+      province: park.province || '',
+      city: park.city || '',
+      address: park.address || '',
+      phoneNumber: park.phoneNumber || '',
+    });
+    setEditTarget(park.id);
     setFormOpen(true);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const required = editing ? ['name', 'province', 'city', 'address', 'phoneNumber', 'guardPhone'] : ['code', 'name', 'province', 'city', 'address', 'phoneNumber', 'guardPhone'];
-    if (required.some((field) => !form[field]?.trim())) {
-      showNotification('لطفا تمام فیلدهای الزامی را پر کنید.', 'error');
-      return;
-    }
-    if (editing) {
-      const updatePayload = { ...form };
-      delete updatePayload.code;
-      updateMutation.mutate({ id: editing.id, payload: updatePayload });
+  const handleSubmit = () => {
+    if (editTarget) {
+      updateMutation.mutate({ id: editTarget, data: formData });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate(formData);
     }
   };
 
-  const parks = data?.items || [];
-  const saving = createMutation.isPending || updateMutation.isPending;
-
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">مدیریت شهرک‌های صنعتی</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={startCreate}>افزودن شهرک جدید</Button>
-      </Box>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">مدیریت شهرک‌های صنعتی</h1>
+        <Button color="primary" startContent={<Plus className="h-4 w-4" />} onClick={() => { resetForm(); setFormOpen(true); }}>
+          افزودن شهرک جدید
+        </Button>
+      </div>
 
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت لیست شهرک‌ها ناموفق بود.')}</Alert>}
-      {!isLoading && !isError && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>کد</TableCell>
-                <TableCell>نام شهرک</TableCell>
-                <TableCell>موقعیت</TableCell>
-                <TableCell>مدیر(ها)</TableCell>
-                <TableCell>وضعیت</TableCell>
-                <TableCell align="center">عملیات</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {parks.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6}>
-                    <EmptyState
-                      icon={<ParkOutlineIcon fontSize="medium" />}
-                      title="هنوز شهرک صنعتی ثبت نشده است"
-                      description="با دکمه «افزودن شهرک جدید» می‌توانید اولین شهرک صنعتی را ثبت کنید."
-                    />
-                  </TableCell>
-                </TableRow>
-              )}
-              {parks.map((park) => (
-                <TableRow key={park.id}>
-                  <TableCell>{park.code}</TableCell>
-                  <TableCell>{park.name}</TableCell>
-                  <TableCell>{park.province} - {park.city}</TableCell>
-                  <TableCell>{park.managers?.map((m) => m.name).join('، ') || '—'}</TableCell>
-                  <TableCell><Chip label={park.status === 'ACTIVE' ? 'فعال' : 'غیرفعال'} color={park.status === 'ACTIVE' ? 'success' : 'default'} size="small" /></TableCell>
-                  <TableCell align="center">
-                    <IconButton size="small" onClick={() => startEdit(park)}><EditIcon /></IconButton>
-                    <IconButton size="small" color="error" onClick={() => setDeleteTarget(park.id)}><DeleteIcon /></IconButton>
-                  </TableCell>
-                </TableRow>
+      <Card>
+        <CardBody className="p-0">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 rounded-lg" />
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+            </div>
+          ) : isError ? (
+            <Alert color="danger" title="خطا در دریافت اطلاعات">
+              {getErrorMessage(error, 'دریافت لیست شهرک‌ها ناموفق بود.')}
+            </Alert>
+          ) : parks.length === 0 ? (
+            <EmptyState
+              icon={<MapPin className="h-6 w-6" />}
+              title="هنوز شهرک صنعتی ثبت نشده است"
+              description="با دکمه «افزودن شهرک جدید» می‌توانید اولین شهرک صنعتی را ثبت کنید."
+            />
+          ) : (
+            <Table removeWrapper aria-label="شهرک‌های صنعتی">
+              <TableHeader>
+                <TableColumn>کد</TableColumn>
+                <TableColumn>نام شهرک</TableColumn>
+                <TableColumn>موقعیت</TableColumn>
+                <TableColumn>وضعیت</TableColumn>
+                <TableColumn>عملیات</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {parks.map((park) => (
+                  <TableRow key={park.id}>
+                    <TableCell>{park.code}</TableCell>
+                    <TableCell>{park.name}</TableCell>
+                    <TableCell>{park.province} - {park.city}</TableCell>
+                    <TableCell>
+                      <Chip color={park.status === 'ACTIVE' ? 'success' : 'default'} size="sm" variant="flat">
+                        {park.status === 'ACTIVE' ? 'فعال' : 'غیرفعال'}
+                      </Chip>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button variant="flat" size="sm" isIconOnly onClick={() => startEdit(park)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button color="danger" variant="flat" size="sm" isIconOnly onClick={() => setDeleteTarget(park.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardBody>
+      </Card>
 
-      <Dialog open={formOpen} onClose={closeForm} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? 'ویرایش شهرک صنعتی' : 'افزودن شهرک صنعتی'}</DialogTitle>
-        <Box component="form" onSubmit={handleSubmit}>
-          <DialogContent>
-            <Grid container spacing={2}>
-              {!editing && (
-                <Grid item xs={12} sm={6}>
-                  <TextField fullWidth required label="کد شهرک" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
-                </Grid>
-              )}
-              <Grid item xs={12} sm={editing ? 12 : 6}>
-                <TextField fullWidth required label="نام شهرک" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth required label="استان" value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth required label="شهر" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField fullWidth required label="آدرس" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth required label="تلفن شهرک" value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth required label="تلفن نگهبانی" value={form.guardPhone} onChange={(e) => setForm({ ...form, guardPhone: e.target.value })} />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField fullWidth label="ایمیل (اختیاری)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </Grid>
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeForm} disabled={saving}>انصراف</Button>
-            <Button type="submit" variant="contained" disabled={saving}>
-              {saving ? <CircularProgress size={22} /> : editing ? 'ذخیره تغییرات' : 'ثبت شهرک'}
+      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} size="2xl">
+        <ModalContent>
+          <ModalHeader>{editTarget ? 'ویرایش شهرک صنعتی' : 'افزودن شهرک صنعتی جدید'}</ModalHeader>
+          <ModalBody>
+            <div className="flex flex-col gap-4">
+              <Input label="کد شهرک" value={formData.code} onValueChange={(v) => setFormData({ ...formData, code: v })} variant="bordered" />
+              <Input label="نام شهرک" value={formData.name} onValueChange={(v) => setFormData({ ...formData, name: v })} variant="bordered" isRequired />
+              <Input label="استان" value={formData.province} onValueChange={(v) => setFormData({ ...formData, province: v })} variant="bordered" />
+              <Input label="شهر" value={formData.city} onValueChange={(v) => setFormData({ ...formData, city: v })} variant="bordered" />
+              <Input label="آدرس" value={formData.address} onValueChange={(v) => setFormData({ ...formData, address: v })} variant="bordered" />
+              <Input label="شماره تماس" value={formData.phoneNumber} onValueChange={(v) => setFormData({ ...formData, phoneNumber: v })} variant="bordered" dir="ltr" />
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onClick={() => setFormOpen(false)}>انصراف</Button>
+            <Button color="primary" onClick={handleSubmit} isLoading={createMutation.isPending || updateMutation.isPending}>
+              {editTarget ? 'ذخیره تغییرات' : 'افزودن'}
             </Button>
-          </DialogActions>
-        </Box>
-      </Dialog>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="حذف شهرک صنعتی"
-        description="این عملیات فقط زمانی موفق است که شهرک واحد صنعتی، نگهبان یا اطلاعیه وابسته نداشته باشد."
+        description="آیا از حذف این شهرک صنعتی اطمینان دارید؟ این عمل قابل بازگشت نیست."
         confirmLabel="حذف"
-        confirmColor="error"
+        confirmColor="danger"
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
       />
-    </Box>
+    </div>
   );
 };
 

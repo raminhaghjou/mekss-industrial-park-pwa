@@ -1,33 +1,17 @@
-import React from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import {
-  Box,
-  Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Tooltip,
-  Tabs,
-  Tab,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
-import { CheckCircle as ApproveIcon, Cancel as RejectIcon, ConfirmationNumberOutlined as GatePassOutlineIcon } from '@mui/icons-material';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Tabs, Tab, Skeleton, Alert } from '@heroui/react';
+import { Check, X, Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
+import { getErrorMessage } from '../../utils/apiError';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
-import { getErrorMessage } from '../../utils/apiError';
 
-const ApproveGatePassesPage = () => {
-  const [tab, setTab] = React.useState(0);
-  const [approveTarget, setApproveTarget] = React.useState(null);
-  const [rejectTarget, setRejectTarget] = React.useState(null);
+export const ApproveGatePassesPage = () => {
+  const [tab, setTab] = useState('pending');
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
 
@@ -36,94 +20,107 @@ const ApproveGatePassesPage = () => {
     queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['gate-passes', 'managed'] });
+  const passes = data || [];
+  const filteredPasses = passes.filter((p) => (tab === 'pending' ? p.status === 'PENDING' : p.status !== 'PENDING'));
 
   const approveMutation = useMutation({
-    mutationFn: (/** @type {string} */ id) => gatePassApi.approveGatePass(id),
-    onSuccess: () => { showNotification('برگ خروج با موفقیت تایید شد.', 'success'); setApproveTarget(null); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'تایید برگ خروج ناموفق بود.'), 'error'),
+    mutationFn: (id) => gatePassApi.approveGatePass(id),
+    onSuccess: () => {
+      showNotification('برگ خروج با موفقیت تایید شد', 'success');
+      setApproveTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['gate-passes', 'managed'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'تایید برگ خروج ناموفق بود'), 'error'),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (/** @type {{id: string, reason: string}} */ { id, reason }) => gatePassApi.rejectGatePass(id, { reason }),
-    onSuccess: () => { showNotification('برگ خروج رد شد.', 'success'); setRejectTarget(null); invalidate(); },
-    onError: (err) => showNotification(getErrorMessage(err, 'رد برگ خروج ناموفق بود.'), 'error'),
+    mutationFn: ({ id, reason }) => gatePassApi.rejectGatePass(id, { reason }),
+    onSuccess: () => {
+      showNotification('برگ خروج رد شد', 'success');
+      setRejectTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['gate-passes', 'managed'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'رد برگ خروج ناموفق بود'), 'error'),
   });
 
-  const passes = data || [];
-  const filteredPasses = passes.filter((p) => (tab === 0 ? p.status === 'PENDING' : p.status !== 'PENDING'));
-
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        تایید برگ‌های خروج
-      </Typography>
-      <Paper>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tab} onChange={(_, value) => setTab(value)}>
-            <Tab label="در انتظار تایید" />
-            <Tab label="تاریخچه" />
-          </Tabs>
-        </Box>
-        {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-        {isError && <Alert severity="error" sx={{ m: 2 }}>{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</Alert>}
-        {!isLoading && !isError && (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>واحد صنعتی</TableCell>
-                  <TableCell>نام راننده</TableCell>
-                  <TableCell>شماره پلاک</TableCell>
-                  <TableCell>تاریخ خروج</TableCell>
-                  <TableCell align="center">عملیات</TableCell>
-                </TableRow>
-              </TableHead>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <h1 className="text-2xl font-bold text-foreground">تایید برگ‌های خروج</h1>
+
+      <Card>
+        <CardBody className="p-0">
+          <div className="border-b border-default-200 p-2">
+            <Tabs selectedKey={tab} onSelectionChange={setTab} variant="underlined">
+              <Tab key="pending" title="در انتظار تایید" />
+              <Tab key="history" title="تاریخچه" />
+            </Tabs>
+          </div>
+
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 rounded-lg" />
+              ))}
+            </div>
+          ) : isError ? (
+            <Alert color="danger" title="خطا در دریافت اطلاعات">
+              {getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}
+            </Alert>
+          ) : filteredPasses.length === 0 ? (
+            <EmptyState
+              icon={<Ticket className="h-6 w-6" />}
+              title={tab === 'pending' ? 'برگ خروجی در انتظار تایید نیست' : 'تاریخچه‌ای برای نمایش وجود ندارد'}
+              description={tab === 'pending' ? 'به محض ثبت برگ خروج جدید توسط واحدهای صنعتی، برای بررسی اینجا نمایش داده می‌شود.' : undefined}
+            />
+          ) : (
+            <Table removeWrapper aria-label="برگ‌های خروج">
+              <TableHeader>
+                <TableColumn>واحد صنعتی</TableColumn>
+                <TableColumn>نام راننده</TableColumn>
+                <TableColumn>شماره پلاک</TableColumn>
+                <TableColumn>تاریخ خروج</TableColumn>
+                <TableColumn>عملیات</TableColumn>
+              </TableHeader>
               <TableBody>
-                {filteredPasses.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5}>
-                      <EmptyState
-                        icon={<GatePassOutlineIcon fontSize="medium" />}
-                        title={tab === 0 ? 'برگ خروجی در انتظار تایید نیست' : 'تاریخچه‌ای برای نمایش وجود ندارد'}
-                        description={tab === 0 ? 'به محض ثبت برگ خروج جدید توسط واحدهای صنعتی، برای بررسی اینجا نمایش داده می‌شود.' : undefined}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )}
                 {filteredPasses.map((pass) => (
                   <TableRow key={pass.id}>
                     <TableCell>{pass.factory?.name || '—'}</TableCell>
                     <TableCell>{pass.driverName}</TableCell>
-                    <TableCell>{pass.licensePlate}</TableCell>
+                    <TableCell dir="ltr">{pass.licensePlate}</TableCell>
                     <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
-                    <TableCell align="center">
+                    <TableCell>
                       {pass.status === 'PENDING' && (
-                        <>
-                          <Tooltip title="تایید">
-                            <span>
-                              <IconButton color="success" onClick={() => setApproveTarget(pass.id)} disabled={approveMutation.isPending}>
-                                <ApproveIcon />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                          <Tooltip title="رد کردن">
-                            <span>
-                              <IconButton color="error" onClick={() => setRejectTarget(pass.id)}>
-                                <RejectIcon />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        </>
+                        <div className="flex gap-2">
+                          <Button
+                            color="success"
+                            variant="flat"
+                            size="sm"
+                            isIconOnly
+                            onClick={() => setApproveTarget(pass.id)}
+                            isLoading={approveMutation.isPending}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            color="danger"
+                            variant="flat"
+                            size="sm"
+                            isIconOnly
+                            onClick={() => setRejectTarget(pass.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </TableContainer>
-        )}
-      </Paper>
+          )}
+        </CardBody>
+      </Card>
+
       <ConfirmDialog
         open={Boolean(approveTarget)}
         title="تایید برگ خروج"
@@ -134,6 +131,7 @@ const ApproveGatePassesPage = () => {
         onConfirm={() => approveMutation.mutate(approveTarget)}
         onClose={() => setApproveTarget(null)}
       />
+
       <ConfirmDialog
         open={Boolean(rejectTarget)}
         title="رد برگ خروج"
@@ -141,12 +139,12 @@ const ApproveGatePassesPage = () => {
         requireReason
         reasonLabel="دلیل رد"
         confirmLabel="رد کردن"
-        confirmColor="error"
+        confirmColor="danger"
         loading={rejectMutation.isPending}
         onConfirm={(reason) => rejectMutation.mutate({ id: rejectTarget, reason })}
         onClose={() => setRejectTarget(null)}
       />
-    </Box>
+    </div>
   );
 };
 

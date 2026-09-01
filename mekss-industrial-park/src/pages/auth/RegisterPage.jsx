@@ -1,33 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Input, Button, Card, CardBody, CardHeader, Divider, Select, SelectItem } from '@heroui/react';
+import { Eye, EyeOff, Phone, Lock, User, Building2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
-import {
-  TextField,
-  Button,
-  Typography,
-  Box,
-  IconButton,
-  InputAdornment,
-  CircularProgress,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-} from '@mui/material';
-import {
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  Person as PersonIcon,
-  Phone as PhoneIcon,
-  Lock as LockIcon,
-  Business as BusinessIcon,
-} from '@mui/icons-material';
-import {
-  AuthCard as RegisterPaper,
-  AuthSurface as RegisterContainer,
-} from '../../components/auth/AuthSurface';
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
@@ -37,39 +13,23 @@ export const RegisterPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     phoneNumber: '',
-    email: '',
     password: '',
     confirmPassword: '',
     role: 'FACTORY_OWNER',
-    factoryName: '',
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
     if (!formData.name || !formData.phoneNumber || !formData.password) {
-      showNotification('لطفاً تمام فیلدهای الزامی را پر کنید', 'error');
+      showNotification('لطفاً تمام فیلدها را پر کنید', 'error');
       return;
     }
-    
+
     if (formData.password !== formData.confirmPassword) {
-      showNotification('رمز عبور و تکرار آن مطابقت ندارند', 'error');
-      return;
-    }
-    
-    if (formData.password.length < 8) {
-      showNotification('رمز عبور باید حداقل ۸ کاراکتر باشد', 'error');
+      showNotification('رمز عبور و تکرار آن یکسان نیستند', 'error');
       return;
     }
 
@@ -78,204 +38,114 @@ export const RegisterPage = () => {
     setLoading(false);
 
     if (result.success) {
-      showNotification('ثبت نام با موفقیت انجام شد', 'success');
-      navigate('/dashboard');
+      showNotification('ثبت‌نام با موفقیت انجام شد', 'success');
+      navigate('/login');
     } else {
-      showNotification(result.error || 'ثبت نام ناموفق بود', 'error');
+      showNotification(result.error || 'ثبت‌نام ناموفق بود', 'error');
     }
   };
 
-  const handleTogglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const handleToggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
-
   return (
-    <RegisterContainer>
-      <RegisterPaper elevation={0} sx={{ maxWidth: 540 }}>
-        <Box sx={{ mb: 3.5 }}>
-          <Typography variant="h4" component="h1" fontWeight={850} gutterBottom>
-            ایجاد حساب کاربری
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            اطلاعات خود را وارد کنید؛ حساب‌های سازمانی پس از بررسی مدیر سامانه فعال می‌شوند.
-          </Typography>
-        </Box>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 p-4">
+      <div className="w-full max-w-md animate-scale-in">
+        <Card className="border border-white/20 bg-white/95 backdrop-blur-xl shadow-2xl dark:bg-default-100/95">
+          <CardHeader className="flex flex-col gap-2 px-6 pt-8 pb-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-2xl font-bold text-white shadow-lg">
+              M
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">ثبت‌نام در سامانه</h1>
+            <p className="text-sm text-foreground-500">مدیریت یکپارچه شهرک صنعتی</p>
+          </CardHeader>
+          
+          <Divider />
+          
+          <CardBody className="p-6">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <Input
+                type="text"
+                label="نام و نام خانوادگی"
+                placeholder="نام خود را وارد کنید"
+                value={formData.name}
+                onValueChange={(value) => setFormData({ ...formData, name: value })}
+                startContent={<User className="h-4 w-4 text-default-400" />}
+                variant="bordered"
+                isRequired
+              />
 
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="name"
-            label="نام و نام خانوادگی"
-            name="name"
-            autoComplete="name"
-            autoFocus
-            value={formData.name}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <PersonIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="phoneNumber"
-            label="شماره تلفن"
-            name="phoneNumber"
-            autoComplete="tel"
-            value={formData.phoneNumber}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <PhoneIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <TextField
-            margin="normal"
-            fullWidth
-            id="email"
-            label="ایمیل (اختیاری)"
-            name="email"
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-          />
-          
-          <FormControl fullWidth margin="normal">
-            <InputLabel id="role-label">نقش</InputLabel>
-            <Select
-              labelId="role-label"
-              id="role"
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              label="نقش"
-            >
-              <MenuItem value="FACTORY_OWNER">مالک کارخانه</MenuItem>
-              <MenuItem value="PARK_MANAGER">مدیر پارک</MenuItem>
-              <MenuItem value="SECURITY_GUARD">نگهبان</MenuItem>
-              <MenuItem value="GOVERNMENT_OFFICIAL">نماینده دولت</MenuItem>
-            </Select>
-          </FormControl>
-          
-          {formData.role === 'FACTORY_OWNER' && (
-            <TextField
-              margin="normal"
-              fullWidth
-              id="factoryName"
-              label="نام کارخانه"
-              name="factoryName"
-              value={formData.factoryName}
-              onChange={handleChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <BusinessIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          )}
-          
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="رمز عبور"
-            type={showPassword ? 'text' : 'password'}
-            id="password"
-            autoComplete="new-password"
-            value={formData.password}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={handleTogglePasswordVisibility}
-                    edge="end"
+              <Input
+                type="tel"
+                label="شماره تلفن"
+                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                value={formData.phoneNumber}
+                onValueChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+                startContent={<Phone className="h-4 w-4 text-default-400" />}
+                variant="bordered"
+                dir="ltr"
+                isRequired
+              />
+
+              <Select
+                label="نوع کاربر"
+                selectedKeys={[formData.role]}
+                onSelectionChange={(keys) => setFormData({ ...formData, role: Array.from(keys)[0] })}
+                variant="bordered"
+              >
+                <SelectItem key="FACTORY_OWNER">مالک واحد صنعتی</SelectItem>
+                <SelectItem key="EMPLOYEE">کارمند</SelectItem>
+              </Select>
+
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                label="رمز عبور"
+                placeholder="رمز عبور خود را وارد کنید"
+                value={formData.password}
+                onValueChange={(value) => setFormData({ ...formData, password: value })}
+                startContent={<Lock className="h-4 w-4 text-default-400" />}
+                endContent={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-default-400 hover:text-foreground"
                   >
-                    {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="confirmPassword"
-            label="تکرار رمز عبور"
-            type={showConfirmPassword ? 'text' : 'password'}
-            id="confirmPassword"
-            autoComplete="new-password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle confirm password visibility"
-                    onClick={handleToggleConfirmPasswordVisibility}
-                    edge="end"
-                  >
-                    {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={24} /> : 'ثبت نام'}
-          </Button>
-          
-          <Grid container justifyContent="flex-end">
-            <Grid item>
-              <Link to="/login" style={{ textDecoration: 'none' }}>
-                <Typography variant="body2" color="primary">
-                  حساب کاربری دارید؟ وارد شوید
-                </Typography>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
+                variant="bordered"
+                isRequired
+              />
+
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                label="تکرار رمز عبور"
+                placeholder="رمز عبور را تکرار کنید"
+                value={formData.confirmPassword}
+                onValueChange={(value) => setFormData({ ...formData, confirmPassword: value })}
+                startContent={<Lock className="h-4 w-4 text-default-400" />}
+                variant="bordered"
+                isRequired
+              />
+
+              <Button
+                type="submit"
+                color="primary"
+                size="lg"
+                className="mt-2 font-semibold"
+                isLoading={loading}
+              >
+                ثبت‌نام
+              </Button>
+            </form>
+
+            <div className="mt-6 flex items-center justify-center text-sm">
+              <Link to="/login" className="text-primary-500 hover:text-primary-600 flex items-center gap-1">
+                <ArrowLeft className="h-4 w-4" />
+                بازگشت به صفحه ورود
               </Link>
-            </Grid>
-          </Grid>
-        </Box>
-      </RegisterPaper>
-    </RegisterContainer>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+    </div>
   );
 };
 

@@ -1,61 +1,114 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@import "tailwindcss";
+@import "@heroui/theme/dist/style.css";
+
+@theme {
+  --font-family-sans: "Vazirmatn", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  --color-primary-50: oklch(0.97 0.02 250);
+  --color-primary-100: oklch(0.93 0.04 250);
+  --color-primary-200: oklch(0.87 0.08 250);
+  --color-primary-300: oklch(0.78 0.12 250);
+  --color-primary-400: oklch(0.68 0.16 250);
+  --color-primary-500: oklch(0.55 0.22 250);
+  --color-primary-600: oklch(0.48 0.22 250);
+  --color-primary-700: oklch(0.40 0.20 250);
+  --color-primary-800: oklch(0.33 0.16 250);
+  --color-primary-900: oklch(0.28 0.12 250);
+  --color-primary-950: oklch(0.22 0.08 250);
+  
+  --color-success-50: oklch(0.97 0.02 145);
+  --color-success-100: oklch(0.93 0.04 145);
+  --color-success-200: oklch(0.87 0.08 145);
+  --color-success-300: oklch(0.78 0.12 145);
+  --color-success-400: oklch(0.68 0.16 145);
+  --color-success-500: oklch(0.55 0.18 145);
+  --color-success-600: oklch(0.48 0.16 145);
+  --color-success-700: oklch(0.40 0.14 145);
+  --color-success-800: oklch(0.33 0.10 145);
+  --color-success-900: oklch(0.28 0.08 145);
+  
+  --color-warning-50: oklch(0.97 0.02 85);
+  --color-warning-100: oklch(0.93 0.06 85);
+  --color-warning-200: oklch(0.87 0.12 85);
+  --color-warning-300: oklch(0.78 0.16 85);
+  --color-warning-400: oklch(0.68 0.18 85);
+  --color-warning-500: oklch(0.58 0.18 85);
+  --color-warning-600: oklch(0.50 0.16 85);
+  --color-warning-700: oklch(0.42 0.14 85);
+  --color-warning-800: oklch(0.35 0.10 85);
+  --color-warning-900: oklch(0.28 0.08 85);
+  
+  --color-danger-50: oklch(0.97 0.02 25);
+  --color-danger-100: oklch(0.93 0.06 25);
+  --color-danger-200: oklch(0.87 0.12 25);
+  --color-danger-300: oklch(0.78 0.16 25);
+  --color-danger-400: oklch(0.68 0.20 25);
+  --color-danger-500: oklch(0.55 0.22 25);
+  --color-danger-600: oklch(0.48 0.20 25);
+  --color-danger-700: oklch(0.40 0.18 25);
+  --color-danger-800: oklch(0.33 0.14 25);
+  --color-danger-900: oklch(0.28 0.10 25);
+  
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
 }
 
-html {
-  direction: rtl;
-  min-width: 320px;
-  min-height: 100%;
-  background: #f4f6f8;
-  scroll-behavior: smooth;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100%;
-  font-family: "Vazirmatn", "SF Pro Text", "Segoe UI", Tahoma, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.75;
-  text-align: right;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior-y: none;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-button,
-a {
-  -webkit-tap-highlight-color: transparent;
-}
-
-a {
-  color: inherit;
-  text-underline-offset: 0.2em;
-}
-
-img,
-svg {
-  display: block;
-  max-width: 100%;
-}
-
-#root {
-  min-height: 100dvh;
-  isolation: isolate;
-}
-
-@media (prefers-reduced-motion: reduce) {
+@layer base {
+  :root {
+    direction: rtl;
+  }
+  
   html {
-    scroll-behavior: auto;
+    font-family: var(--font-family-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01" on, "cv01" on;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
   }
 }

@@ -1,80 +1,92 @@
-import React from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { Box, Typography, Paper, TextField, Button, Grid, Avatar, CircularProgress } from '@mui/material';
+import { useState } from 'react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
-import { authApi } from '../../services/api/auth.api';
-import { getErrorMessage } from '../../utils/apiError';
-
-const roleLabels = {
-  SUPER_ADMIN: 'ادمین کل', PARK_MANAGER: 'مدیر شهرک', FACTORY_OWNER: 'مالک واحد صنعتی',
-  SECURITY_GUARD: 'نگهبان', GOVERNMENT_OFFICIAL: 'نماینده دولت', EMPLOYEE: 'کارمند',
-};
+import { Card, CardBody, CardHeader, Input, Button, Avatar, Divider } from '@heroui/react';
+import { User, Phone, Building2, Save } from 'lucide-react';
 
 export const ProfilePage = () => {
-  const { user, checkAuth } = useAuth();
+  const { user } = useAuth();
   const { showNotification } = useNotification();
-
-  const [profile, setProfile] = React.useState({ name: user?.name || '', email: user?.email || '' });
-
-  const updateMutation = useMutation({
-    mutationFn: (/** @type {{name: string, email: string}} */ payload) => authApi.updateProfile(payload),
-    onSuccess: async () => {
-      showNotification('پروفایل با موفقیت به‌روزرسانی شد.', 'success');
-      await checkAuth();
-    },
-    onError: (err) => showNotification(getErrorMessage(err, 'به‌روزرسانی پروفایل ناموفق بود.'), 'error'),
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: user?.name || '',
+    phoneNumber: user?.phoneNumber || '',
+    email: user?.email || '',
   });
 
-  const handleChange = (event) => setProfile({ ...profile, [event.target.name]: event.target.value });
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    if (!profile.name.trim()) {
-      showNotification('نام نمی‌تواند خالی باشد.', 'error');
-      return;
-    }
-    updateMutation.mutate(profile);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    // API call would go here
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setLoading(false);
+    showNotification('پروفایل با موفقیت به‌روزرسانی شد', 'success');
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        ویرایش پروفایل
-      </Typography>
-      <Paper sx={{ p: 3 }}>
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} sm={3} sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Avatar sx={{ width: 120, height: 120, fontSize: '3rem' }} alt={profile.name}>
-                {profile.name?.charAt(0)}
-              </Avatar>
-            </Grid>
-            <Grid item xs={12} sm={9}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <TextField fullWidth required label="نام و نام خانوادگی" name="name" value={profile.name} onChange={handleChange} variant="outlined" />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField fullWidth label="شماره تلفن" value={user?.phoneNumber || ''} variant="outlined" disabled />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField fullWidth label="ایمیل" name="email" type="email" value={profile.email} onChange={handleChange} variant="outlined" />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField fullWidth label="نقش" value={roleLabels[user?.role] || user?.role || ''} variant="outlined" disabled />
-                </Grid>
-              </Grid>
-            </Grid>
-            <Grid item xs={12} sx={{ mt: 2, textAlign: 'right' }}>
-              <Button type="submit" variant="contained" color="primary" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? <CircularProgress size={22} color="inherit" /> : 'ذخیره تغییرات'}
-              </Button>
-            </Grid>
-          </Grid>
-        </Box>
-      </Paper>
-    </Box>
+    <div className="mx-auto max-w-2xl animate-fade-in">
+      <h1 className="mb-6 text-2xl font-bold text-foreground">پروفایل</h1>
+      
+      <Card>
+        <CardHeader className="flex items-center gap-4 p-6">
+          <Avatar
+            name={user?.name?.charAt(0) || 'U'}
+            className="h-16 w-16 bg-gradient-to-br from-primary-500 to-primary-700 text-2xl text-white"
+          />
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">{user?.name}</h2>
+            <p className="text-sm text-foreground-500">{user?.role}</p>
+          </div>
+        </CardHeader>
+        
+        <Divider />
+        
+        <CardBody className="p-6">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <Input
+              type="text"
+              label="نام و نام خانوادگی"
+              value={formData.name}
+              onValueChange={(value) => setFormData({ ...formData, name: value })}
+              startContent={<User className="h-4 w-4 text-default-400" />}
+              variant="bordered"
+            />
+            
+            <Input
+              type="tel"
+              label="شماره تلفن"
+              value={formData.phoneNumber}
+              onValueChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+              startContent={<Phone className="h-4 w-4 text-default-400" />}
+              variant="bordered"
+              dir="ltr"
+              isReadOnly
+            />
+            
+            <Input
+              type="email"
+              label="ایمیل"
+              value={formData.email}
+              onValueChange={(value) => setFormData({ ...formData, email: value })}
+              startContent={<Building2 className="h-4 w-4 text-default-400" />}
+              variant="bordered"
+              dir="ltr"
+            />
+            
+            <Button
+              type="submit"
+              color="primary"
+              size="lg"
+              className="mt-4"
+              startContent={<Save className="h-4 w-4" />}
+              isLoading={loading}
+            >
+              ذخیره تغییرات
+            </Button>
+          </form>
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 

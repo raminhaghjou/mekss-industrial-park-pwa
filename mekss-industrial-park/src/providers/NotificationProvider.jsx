@@ -1,11 +1,22 @@
-import { createContext, useContext, useState } from 'react';
-import { Snackbar, Alert } from '@mui/material';
+import { createContext, useContext, useState, useCallback } from 'react';
+import { addToast } from '@heroui/toast';
 
-/** @typedef {'error' | 'info' | 'success' | 'warning'} NotificationSeverity */
+const NotificationContext = createContext(null);
 
-const NotificationContext = createContext(
-  /** @type {{ showNotification: (message: string, severity?: NotificationSeverity, autoHideDuration?: number) => void, hideNotification: () => void } | null} */ (null),
-);
+export const NotificationProvider = ({ children }) => {
+  const showNotification = useCallback((message, severity = 'info') => {
+    addToast({
+      title: message,
+      color: severity === 'error' ? 'danger' : severity === 'success' ? 'success' : severity === 'warning' ? 'warning' : 'primary',
+    });
+  }, []);
+
+  return (
+    <NotificationContext.Provider value={{ showNotification }}>
+      {children}
+    </NotificationContext.Provider>
+  );
+};
 
 export const useNotification = () => {
   const context = useContext(NotificationContext);
@@ -15,64 +26,4 @@ export const useNotification = () => {
   return context;
 };
 
-export const NotificationProvider = ({ children }) => {
-  const [notification, setNotification] = useState(
-    /** @type {{ open: boolean, message: string, severity: NotificationSeverity, autoHideDuration: number }} */ ({
-      open: false,
-      message: '',
-      severity: 'info',
-      autoHideDuration: 6000,
-    }),
-  );
-
-  /**
-   * @param {string} message
-   * @param {NotificationSeverity} [severity]
-   * @param {number} [autoHideDuration]
-   */
-  const showNotification = (message, severity = 'info', autoHideDuration = 6000) => {
-    setNotification({
-      open: true,
-      message,
-      severity,
-      autoHideDuration,
-    });
-  };
-
-  const hideNotification = () => {
-    setNotification(prev => ({ ...prev, open: false }));
-  };
-
-  const handleClose = (event, reason) => {
-    if (reason === 'clickaway') {
-      return;
-    }
-    hideNotification();
-  };
-
-  const value = {
-    showNotification,
-    hideNotification,
-  };
-
-  return (
-    <NotificationContext.Provider value={value}>
-      {children}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={notification.autoHideDuration}
-        onClose={handleClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        dir="rtl"
-      >
-        <Alert
-          onClose={handleClose}
-          severity={notification.severity}
-          sx={{ width: '100%' }}
-        >
-          {notification.message}
-        </Alert>
-      </Snackbar>
-    </NotificationContext.Provider>
-  );
-};
+export default NotificationProvider;

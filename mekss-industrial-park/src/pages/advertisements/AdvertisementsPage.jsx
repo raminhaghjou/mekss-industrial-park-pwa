@@ -1,62 +1,74 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Card, CardBody, CardHeader, Button, Skeleton, Alert, Chip } from '@heroui/react';
+import { Plus, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Grid, Card, CardContent, CircularProgress, Alert } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
 import { advertisementApi } from '../../services/api/advertisement.api';
-import { useAuth } from '../../providers/AuthProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { advertisementStatusLabels as statusLabels } from '../../constants/persianLabels';
+import { EmptyState } from '../../components/common/EmptyState';
 
-const categoryLabels = {
-  EQUIPMENT: 'تجهیزات', SERVICES: 'خدمات', RAW_MATERIALS: 'مواد اولیه', JOB_LISTINGS: 'فرصت شغلی', REAL_ESTATE: 'املاک', OTHER: 'سایر',
-};
+const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', EXPIRED: 'default' };
 
-const advertisementCategoryKey = (advertisement) => advertisement.category?.key || advertisement.category;
-
-const AdvertisementsPage = () => {
+export const AdvertisementsPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const canCreate = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role);
-
+  
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['advertisements', 'public'],
-    queryFn: () => advertisementApi.getPublicAdvertisements().then((res) => res.data),
+    queryKey: ['advertisements'],
+    queryFn: () => advertisementApi.getAdvertisements().then((res) => res.data),
   });
 
-  const ads = data || [];
+  const advertisements = data || [];
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">تابلو آگهی‌ها</Typography>
-        {canCreate && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/advertisements/new')}>
-            ثبت آگهی جدید
-          </Button>
-        )}
-      </Box>
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت آگهی‌ها ناموفق بود.')}</Alert>}
-      {!isLoading && !isError && ads.length === 0 && <Typography color="text.secondary">هیچ آگهی تایید‌شده‌ای برای نمایش وجود ندارد.</Typography>}
-      {!isLoading && !isError && ads.length > 0 && (
-        <Grid container spacing={3}>
-          {ads.map((ad) => (
-            <Grid item xs={12} sm={6} md={4} key={ad.id}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h5" component="div">{ad.title}</Typography>
-                  <Typography sx={{ mt: 1.5 }} color="text.secondary">{categoryLabels[advertisementCategoryKey(ad)] || advertisementCategoryKey(ad)} — {ad.city}</Typography>
-                  <Typography sx={{ mt: 1.5 }}>{ad.content}</Typography>
-                  {(ad.contactInfo?.phone || ad.contactInfo?.phoneNumber) && (
-                    <Typography sx={{ mt: 2 }} variant="body2" dir="ltr">اطلاعات تماس: {ad.contactInfo.phone || ad.contactInfo.phoneNumber}</Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">آگهی‌ها</h1>
+        <Button color="primary" startContent={<Plus className="h-4 w-4" />} onClick={() => navigate('/advertisements/new')}>
+          ثبت آگهی جدید
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
           ))}
-        </Grid>
+        </div>
+      ) : isError ? (
+        <Alert color="danger" title="خطا در دریافت اطلاعات">
+          {getErrorMessage(error, 'دریافت آگهی‌ها ناموفق بود.')}
+        </Alert>
+      ) : advertisements.length === 0 ? (
+        <Card>
+          <CardBody>
+            <EmptyState
+              icon={<Megaphone className="h-6 w-6" />}
+              title="هیچ آگهی‌ای وجود ندارد"
+              description="آگهی‌های شما پس از تایید مدیریت در اینجا نمایش داده می‌شوند."
+            />
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {advertisements.map((ad) => (
+            <Card key={ad.id}>
+              <CardHeader className="flex items-center justify-between p-4">
+                <h3 className="font-semibold text-foreground">{ad.title}</h3>
+                <Chip color={statusColors[ad.status] || 'default'} size="sm" variant="flat">
+                  {statusLabels[ad.status] || ad.status}
+                </Chip>
+              </CardHeader>
+              <CardBody className="p-4 pt-0">
+                <p className="line-clamp-3 text-sm text-foreground-600">{ad.description}</p>
+                <p className="mt-2 text-xs text-foreground-400">
+                  انقضا: {new Date(ad.expiresAt).toLocaleDateString('fa-IR')}
+                </p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
       )}
-    </Box>
+    </div>
   );
 };
 

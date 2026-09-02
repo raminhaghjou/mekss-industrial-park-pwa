@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Input,
-  Select,
-  SelectItem,
   Textarea,
   Button,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Spinner,
 } from '@heroui/react';
 import { ArrowRight, ReceiptPlus } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
@@ -61,13 +63,14 @@ const CreateInvoicePage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/admin/invoices')} variant="light" className="rounded-xl font-medium">
+        <Button variant="ghost" onPress={() => navigate('/admin/invoices')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت
         </Button>
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
-        <CardBody className="p-6 gap-6">
+        <CardContent className="p-6 gap-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
             <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
               <ReceiptPlus className="h-6 w-6" />
@@ -79,83 +82,95 @@ const CreateInvoicePage = () => {
           </div>
 
           {factoriesError && (
-            <Alert color="danger" title="خطا">
-              دریافت لیست واحدهای صنعتی ناموفق بود.
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا</AlertTitle>
+                <AlertDescription>دریافت لیست واحدهای صنعتی ناموفق بود.</AlertDescription>
+              </AlertContent>
             </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <Select
-              label="انتخاب واحد صنعتی"
-              placeholder="واحد صنعتی مورد نظر را انتخاب کنید"
-              selectedKeys={factoryId ? [factoryId] : []}
-              onSelectionChange={(keys) => setFactoryId(Array.from(keys)[0] || '')}
-              variant="bordered"
-              isDisabled={loadingFactories}
-              isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {(factories || []).map((factory) => (
-                <SelectItem key={factory.id}>{factory.name}</SelectItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-foreground-600">انتخاب واحد صنعتی</label>
+              <select
+                value={factoryId}
+                onChange={(e) => setFactoryId(e.target.value)}
+                disabled={loadingFactories}
+                required
+                className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+              >
+                <option value="">واحد صنعتی مورد نظر را انتخاب کنید...</option>
+                {(factories || []).map((factory) => (
+                  <option key={factory.id} value={factory.id}>{factory.name}</option>
+                ))}
+              </select>
+            </div>
 
-            <Textarea
-              label="شرح قبض"
-              placeholder="توضیحات و بابت پرداختی..."
-              value={description}
-              onValueChange={setDescription}
-              variant="bordered"
-              minRows={2}
-              isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                type="number"
-                label="مبلغ (ریال)"
-                placeholder="مثلا: ۱۰۰۰۰۰۰"
-                value={amount}
-                onValueChange={setAmount}
-                variant="bordered"
-                dir="ltr"
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-foreground-600">شرح قبض</label>
+              <Textarea
+                placeholder="توضیحات و بابت پرداختی..."
+                value={description}
+                onValueChange={setDescription}
+                variant="primary"
+                minRows={2}
                 isRequired
-                classNames={{ inputWrapper: 'rounded-xl' }}
-              />
-
-              <Input
-                type="number"
-                label="مبلغ مالیات (ریال)"
-                placeholder="اختیاری"
-                value={taxAmount}
-                onValueChange={setTaxAmount}
-                variant="bordered"
-                dir="ltr"
-                classNames={{ inputWrapper: 'rounded-xl' }}
+                className="rounded-xl"
               />
             </div>
 
-            <Input
-              type="date"
-              label="مهلت پرداخت"
-              value={dueDate}
-              onValueChange={setDueDate}
-              variant="bordered"
-              isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-foreground-600">مبلغ (ریال)</label>
+                <Input
+                  type="number"
+                  placeholder="مثلا: ۱۰۰۰۰۰۰"
+                  value={amount}
+                  onValueChange={setAmount}
+                  variant="primary"
+                  dir="ltr"
+                  isRequired
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-foreground-600">مبلغ مالیات (ریال)</label>
+                <Input
+                  type="number"
+                  placeholder="اختیاری"
+                  value={taxAmount}
+                  onValueChange={setTaxAmount}
+                  variant="primary"
+                  dir="ltr"
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-foreground-600">مهلت پرداخت</label>
+              <Input
+                type="date"
+                value={dueDate}
+                onValueChange={setDueDate}
+                variant="primary"
+                isRequired
+                className="rounded-xl"
+              />
+            </div>
 
             <div className="flex items-center justify-end gap-3 mt-2">
-              <Button variant="flat" color="default" onPress={() => navigate('/admin/invoices')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
+              <Button variant="tertiary" onPress={() => navigate('/admin/invoices')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
                 انصراف
               </Button>
-              <Button type="submit" color="primary" isLoading={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
-                صدور قبض
+              <Button type="submit" variant="primary" isDisabled={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
+                {createMutation.isPending ? <Spinner size="sm" /> : 'صدور قبض'}
               </Button>
             </div>
           </form>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

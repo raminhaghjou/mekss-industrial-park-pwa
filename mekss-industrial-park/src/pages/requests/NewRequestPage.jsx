@@ -6,10 +6,19 @@ import {
   CardContent,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
   ListBoxItem,
   TextArea,
   Button,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Label,
 } from '@heroui/react';
 import { ArrowRight, FilePlus } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
@@ -85,7 +94,8 @@ const NewRequestPage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/requests')} variant="ghost" className="rounded-xl font-medium">
+        <Button variant="ghost" onPress={() => navigate('/requests')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت به لیست
         </Button>
       </div>
@@ -103,66 +113,100 @@ const NewRequestPage = () => {
           </div>
 
           {factoriesError && (
-            <Alert color="danger" title="خطا">
-              دریافت لیست واحدهای صنعتی ناموفق بود.
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا</AlertTitle>
+                <AlertDescription>دریافت لیست واحدهای صنعتی ناموفق بود.</AlertDescription>
+              </AlertContent>
             </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <Select
-              label="واحد صنعتی"
-              placeholder="واحد صنعتی مربوطه را انتخاب کنید"
-              selectedKeys={factoryId ? [factoryId] : []}
-              onSelectionChange={(keys) => setFactoryId(Array.from(keys)[0] || '')}
-              variant="primary"
-              disabled={loadingFactories}
-              isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {(factories || []).map((factory) => (
-                <ListBoxItem key={factory.id}>{factory.name}</ListBoxItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">واحد صنعتی</Label>
+              <Select
+                value={factoryId}
+                onChange={(val) => setFactoryId(val || '')}
+                variant="primary"
+                isDisabled={loadingFactories}
+                isRequired
+                className="rounded-xl"
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="واحد صنعتی مربوطه را انتخاب کنید" />
+                  <SelectIndicator />
+                </SelectTrigger>
+                <SelectPopover>
+                  <ListBox>
+                    {(factories || []).map((factory) => (
+                      <ListBoxItem key={factory.id} id={factory.id}>{factory.name}</ListBoxItem>
+                    ))}
+                  </ListBox>
+                </SelectPopover>
+              </Select>
+            </div>
 
-            <Select
-              label="نوع درخواست"
-              selectedKeys={[requestType]}
-              onSelectionChange={(keys) => setRequestType(Array.from(keys)[0] || '')}
-              variant="primary"
-              isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {requestTypes.map((option) => (
-                <ListBoxItem key={option.value}>{option.label}</ListBoxItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">نوع درخواست</Label>
+              <Select
+                value={requestType}
+                onChange={(val) => setRequestType(val || 'OTHER')}
+                variant="primary"
+                isRequired
+                className="rounded-xl"
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                  <SelectIndicator />
+                </SelectTrigger>
+                <SelectPopover>
+                  <ListBox>
+                    {requestTypes.map((option) => (
+                      <ListBoxItem key={option.value} id={option.value}>{option.label}</ListBoxItem>
+                    ))}
+                  </ListBox>
+                </SelectPopover>
+              </Select>
+            </div>
 
-            <Input
-              label="موضوع درخواست"
-              placeholder="عنوان کوتاه درخواست..."
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              variant="primary"
-              isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">موضوع درخواست</Label>
+              <Input
+                placeholder="عنوان کوتاه درخواست..."
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                variant="primary"
+                isRequired
+                className="rounded-xl"
+              />
+            </div>
 
-            <TextArea
-              label="شرح درخواست"
-              placeholder="جزئیات کامل درخواست خود را وارد نمایید..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              variant="primary"
-              minRows={4}
-              isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">شرح درخواست</Label>
+              <TextArea
+                placeholder="جزئیات کامل درخواست خود را وارد نمایید..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                variant="primary"
+                minRows={4}
+                isRequired
+                className="rounded-xl"
+              />
+            </div>
 
             <div className="flex items-center justify-end gap-3 mt-2">
-              <Button variant="tertiary" onPress={() => navigate('/requests')} disabled={createMutation.isPending} className="rounded-xl font-medium">
+              <Button variant="tertiary" onPress={() => navigate('/requests')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
                 انصراف
               </Button>
-              <Button type="submit"  className="rounded-xl font-bold px-6 shadow-md shadow-primary/20" variant="primary" isDisabled={createMutation.isPending}>{createMutation.isPending ? <Spinner size="sm" /> : 'ثبت درخواست'}</Button>
+              <Button
+                type="submit"
+                className="rounded-xl font-bold px-6 shadow-md shadow-primary/20"
+                variant="primary"
+                isLoading={createMutation.isPending}
+                isDisabled={createMutation.isPending}
+              >
+                ثبت درخواست
+              </Button>
             </div>
           </form>
         </CardContent>
@@ -172,4 +216,3 @@ const NewRequestPage = () => {
 };
 
 export default NewRequestPage;
-

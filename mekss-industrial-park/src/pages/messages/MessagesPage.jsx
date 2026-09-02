@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Listbox, ListboxItem, Avatar, Chip, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Listbox, ListboxItem, Avatar, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { MessageSquare } from 'lucide-react';
 import { messageApi } from '../../services/api/message.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -26,8 +26,11 @@ export const MessagesPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت پیام‌ها ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت پیام‌ها ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : messages.length === 0 ? (
             <EmptyState
@@ -40,20 +43,25 @@ export const MessagesPage = () => {
               {messages.map((msg) => (
                 <ListboxItem
                   key={msg.id}
-                  startContent={
+                  textValue={msg.subject}
+                >
+                  <div className="flex items-start gap-3 w-full">
                     <Avatar
                       name={msg.sender?.name?.charAt(0) || 'M'}
-                      className="bg-primary-100 text-primary-700"
+                      className="bg-primary-100 text-primary-700 shrink-0"
                       size="sm"
                     />
-                  }
-                  description={msg.content?.substring(0, 100) + '...'}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{msg.subject}</span>
-                    <span className="text-xs text-foreground-500">
-                      {new Date(msg.createdAt).toLocaleDateString('fa-IR')}
-                    </span>
+                    <div className="flex flex-1 flex-col min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium truncate">{msg.subject}</span>
+                        <span className="text-xs text-foreground-500 shrink-0">
+                          {new Date(msg.createdAt).toLocaleDateString('fa-IR')}
+                        </span>
+                      </div>
+                      <span className="text-sm text-foreground-500 truncate">
+                        {msg.content?.substring(0, 100)}...
+                      </span>
+                    </div>
                   </div>
                 </ListboxItem>
               ))}

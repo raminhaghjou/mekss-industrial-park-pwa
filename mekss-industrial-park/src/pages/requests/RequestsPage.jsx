@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Plus, FileText } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -23,7 +23,8 @@ export const RequestsPage = () => {
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">درخواست‌های من</h1>
-        <Button variant="primary" startContent={<Plus className="h-4 w-4" />} onPress={() => navigate('/requests/new/general')}>
+        <Button variant="primary" onPress={() => navigate('/requests/new/general')} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
           ثبت درخواست جدید
         </Button>
       </div>
@@ -37,8 +38,11 @@ export const RequestsPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت درخواست‌ها ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : requests.length === 0 ? (
             <EmptyState

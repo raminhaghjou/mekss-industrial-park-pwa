@@ -186,9 +186,9 @@ export const ManageParksPage = () => {
                 </div>
               </ModalBody>
               <ModalFooter className="mt-4">
-                <Button variant="tertiary" onPress={() => setFormOpen(false)} disabled={saving}>انصراف</Button>
-                <Button variant="primary" onPress={handleSubmit} disabled={saving}>
-                  {saving ? <Spinner size="sm" /> : (editTarget ? 'ذخیره تغییرات' : 'افزودن')}
+                <Button variant="tertiary" onPress={() => setFormOpen(false)} isDisabled={saving}>انصراف</Button>
+                <Button variant="primary" onPress={handleSubmit} isLoading={saving} isDisabled={saving}>
+                  {editTarget ? 'ذخیره تغییرات' : 'افزودن'}
                 </Button>
               </ModalFooter>
             </ModalDialog>

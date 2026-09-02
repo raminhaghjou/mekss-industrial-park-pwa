@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, Tabs, Tab } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -29,8 +29,11 @@ export const InvoicesPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : invoices.length === 0 ? (
             <EmptyState

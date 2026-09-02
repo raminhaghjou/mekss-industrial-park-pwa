@@ -31,19 +31,27 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
+/** @returns {Storage} */
+const createLocalStorageMock = () => {
+  /** @type {Record<string, string>} */
+  const store = {};
+  return {
+    get length() { return Object.keys(store).length; },
+    clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+    getItem: (key) => (key in store ? store[key] : null),
+    key: (index) => Object.keys(store)[index] ?? null,
+    removeItem: (key) => { delete store[key]; },
+    setItem: (key, value) => { store[key] = String(value); },
+  };
+};
+
 describe('API refresh interceptor', () => {
   beforeEach(() => {
-    if (typeof localStorage !== 'undefined' && typeof localStorage.clear === 'function') {
-      localStorage.clear();
-    } else {
-      const store = {};
-      globalThis.localStorage = /** @type {any} */ ({
-        getItem: (k) => store[k] || null,
-        setItem: (k, v) => { store[k] = String(v); },
-        removeItem: (k) => { delete store[k]; },
-        clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
-      });
-    }
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: createLocalStorageMock(),
+      writable: true,
+      configurable: true,
+    });
     mocks.client.mockClear();
     mocks.post.mockReset();
   });

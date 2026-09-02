@@ -14,8 +14,12 @@ import {
   Input,
   Spinner,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Label,
 } from '@heroui/react';
-import { Search, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Search, ShieldCheck } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 
@@ -43,16 +47,20 @@ const GuardGatePassesPage = () => {
 
       <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
         <CardContent className="p-4">
-          <Input
-            size="md"
-            label="جست‌وجوی برگ خروج"
-            placeholder="بر اساس شماره پلاک یا شناسه برگ خروج..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            variant="primary"
-            startContent={<Search className="h-4 w-4 text-default-400" />}
-            classNames={{ inputWrapper: 'rounded-xl' }}
-          />
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs font-medium text-foreground-600">جست‌وجوی برگ خروج</Label>
+            <div className="relative flex items-center">
+              <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+              <Input
+                size="md"
+                placeholder="بر اساس شماره پلاک یا شناسه برگ خروج..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                variant="primary"
+                className="pr-9 rounded-xl"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -63,8 +71,11 @@ const GuardGatePassesPage = () => {
       )}
 
       {isError && (
-        <Alert color="danger" title="خطا">
-          {getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</AlertDescription>
+          </AlertContent>
         </Alert>
       )}
 
@@ -86,12 +97,11 @@ const GuardGatePassesPage = () => {
                   <TableCell className="text-center">
                     <Button
                       size="sm"
-                     
                       variant="secondary"
-                      startContent={<ShieldCheck className="h-4 w-4" />}
                       onPress={() => navigate(`/guard/gate-passes/${pass.id}/verify`)}
-                      className="rounded-xl font-bold"
+                      className="rounded-xl font-bold flex items-center gap-2"
                     >
+                      <ShieldCheck className="h-4 w-4" />
                       بررسی و تایید خروج
                     </Button>
                   </TableCell>
@@ -106,4 +116,3 @@ const GuardGatePassesPage = () => {
 };
 
 export default GuardGatePassesPage;
-

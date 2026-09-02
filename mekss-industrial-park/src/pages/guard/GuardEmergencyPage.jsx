@@ -5,6 +5,10 @@ import {
   CardContent,
   Chip,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  AlertIndicator,
   Spinner,
 } from '@heroui/react';
 import { AlertTriangle, Flame, ShieldAlert } from 'lucide-react';
@@ -44,8 +48,14 @@ const GuardEmergencyPage = () => {
         </div>
       </div>
 
-      <Alert color="danger" title="هشدار مهم نگهبانی" startContent={<AlertTriangle className="h-5 w-5" />}>
-        در صورت مشاهده هرگونه هشدار جدید، بلافاصله اقدامات اولیه را طبق پروتکل انجام داده و با مرکز مدیریت تماس بگیرید.
+      <Alert status="danger">
+        <AlertIndicator><AlertTriangle className="h-5 w-5" /></AlertIndicator>
+        <AlertContent>
+          <AlertTitle>هشدار مهم نگهبانی</AlertTitle>
+          <AlertDescription>
+            در صورت مشاهده هرگونه هشدار جدید، بلافاصله اقدامات اولیه را طبق پروتکل انجام داده و با مرکز مدیریت تماس بگیرید.
+          </AlertDescription>
+        </AlertContent>
       </Alert>
 
       {isLoading && (
@@ -55,8 +65,11 @@ const GuardEmergencyPage = () => {
       )}
 
       {isError && (
-        <Alert color="danger" title="خطا">
-          {getErrorMessage(error, 'دریافت هشدارها ناموفق بود.')}
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{getErrorMessage(error, 'دریافت هشدارها ناموفق بود.')}</AlertDescription>
+          </AlertContent>
         </Alert>
       )}
 
@@ -101,4 +114,3 @@ const GuardEmergencyPage = () => {
 };
 
 export default GuardEmergencyPage;
-

@@ -1,7 +1,17 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Card, CardContent, Button, Alert, Spinner, Separator } from '@heroui/react';
+import {
+  Card,
+  CardContent,
+  Button,
+  Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Spinner,
+  Separator,
+} from '@heroui/react';
 import { ArrowRight, CreditCard } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -44,10 +54,14 @@ const InvoicePaymentPage = () => {
   if (isError || !invoice) {
     return (
       <div className="flex flex-col gap-4 max-w-lg mx-auto">
-        <Alert color="danger" title="خطا">
-          قبض مورد نظر یافت نشد.
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>قبض مورد نظر یافت نشد.</AlertDescription>
+          </AlertContent>
         </Alert>
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/invoices')} variant="flat" className="rounded-xl font-medium">
+        <Button variant="secondary" onPress={() => navigate('/invoices')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت به لیست قبض‌ها
         </Button>
       </div>
@@ -57,7 +71,8 @@ const InvoicePaymentPage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/invoices')} variant="ghost" className="rounded-xl font-medium">
+        <Button variant="ghost" onPress={() => navigate('/invoices')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت
         </Button>
       </div>
@@ -67,7 +82,7 @@ const InvoicePaymentPage = () => {
             <h1 className="text-2xl font-bold text-foreground">پرداخت قبض</h1>
             <p className="text-sm text-foreground-500 mt-1">مشخصات و جزئیات صورت‌حساب جهت پرداخت آنلاین</p>
           </div>
-          
+
           <Separator />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -97,19 +112,23 @@ const InvoicePaymentPage = () => {
           </div>
 
           {invoice.status === 'PAID' ? (
-            <Alert color="success" title="پرداخت شده">
-              این قبض قبلاً پرداخت شده است.
+            <Alert status="success">
+              <AlertContent>
+                <AlertTitle>پرداخت شده</AlertTitle>
+                <AlertDescription>این قبض قبلاً پرداخت شده است.</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : (
             <div className="flex justify-center mt-2">
               <Button
                 variant="primary"
                 size="lg"
-                startContent={payMutation.isPending ? <Spinner size="sm" /> : <CreditCard className="h-5 w-5" />}
                 onPress={() => payMutation.mutate()}
+                isLoading={payMutation.isPending}
                 isDisabled={payMutation.isPending}
-                className="w-full sm:w-auto px-8 rounded-2xl font-bold text-base shadow-md shadow-primary/20"
+                className="w-full sm:w-auto px-8 rounded-2xl font-bold text-base shadow-md shadow-primary/20 flex items-center gap-2"
               >
+                <CreditCard className="h-5 w-5" />
                 پرداخت آنلاین
               </Button>
             </div>
@@ -121,4 +140,3 @@ const InvoicePaymentPage = () => {
 };
 
 export default InvoicePaymentPage;
-

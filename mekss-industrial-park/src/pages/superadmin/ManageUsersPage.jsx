@@ -23,6 +23,14 @@ import {
   AlertContent,
   AlertTitle,
   AlertDescription,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
 } from '@heroui/react';
 import {
   Plus,
@@ -233,7 +241,7 @@ const ManageUsersPage = () => {
                       <label className="text-xs font-medium text-foreground-600">شماره تلفن</label>
                       <Input
                         required
-                        disabled={Boolean(editing)}
+                        isDisabled={Boolean(editing)}
                         placeholder="۰۹۱۲۳۴۵۶۷۸۹"
                         value={form.phoneNumber}
                         onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
@@ -254,17 +262,26 @@ const ManageUsersPage = () => {
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-foreground-600">نقش کاربر</label>
-                      <select
+                      <Label className="text-xs font-medium text-foreground-600">نقش کاربر</Label>
+                      <Select
                         value={form.role}
-                        onChange={(e) => setForm({ ...form, role: e.target.value })}
-                        className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
-                        required
+                        onChange={(val) => setForm({ ...form, role: val || 'EMPLOYEE' })}
+                        variant="primary"
+                        isRequired
+                        className="rounded-xl"
                       >
-                        {roles.map((role) => (
-                          <option key={role} value={role}>{roleLabels[role]}</option>
-                        ))}
-                      </select>
+                        <SelectTrigger>
+                          <SelectValue />
+                          <SelectIndicator />
+                        </SelectTrigger>
+                        <SelectPopover>
+                          <ListBox>
+                            {roles.map((role) => (
+                              <ListBoxItem key={role} id={role}>{roleLabels[role]}</ListBoxItem>
+                            ))}
+                          </ListBox>
+                        </SelectPopover>
+                      </Select>
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-foreground-600">ایمیل (اختیاری)</label>
@@ -297,11 +314,11 @@ const ManageUsersPage = () => {
                   )}
                 </ModalBody>
                 <ModalFooter className="mt-4">
-                  <Button variant="tertiary" onPress={closeForm} disabled={saving} className="rounded-xl font-medium">
+                  <Button variant="tertiary" onPress={closeForm} isDisabled={saving} className="rounded-xl font-medium">
                     انصراف
                   </Button>
-                  <Button type="submit" variant="primary" disabled={saving} className="rounded-xl font-bold px-6">
-                    {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ایجاد کاربر')}
+                  <Button type="submit" variant="primary" isLoading={saving} isDisabled={saving} className="rounded-xl font-bold px-6">
+                    {editing ? 'ذخیره تغییرات' : 'ایجاد کاربر'}
                   </Button>
                 </ModalFooter>
               </form>

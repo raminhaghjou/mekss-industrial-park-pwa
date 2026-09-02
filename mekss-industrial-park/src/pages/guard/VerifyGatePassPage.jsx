@@ -6,6 +6,10 @@ import {
   CardContent,
   Button,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  AlertIndicator,
   Spinner,
   Separator,
 } from '@heroui/react';
@@ -57,10 +61,14 @@ const VerifyGatePassPage = () => {
   if (isError || !pass) {
     return (
       <div className="flex flex-col gap-4 max-w-lg mx-auto">
-        <Alert color="danger" title="خطا">
-          برگ خروج مورد نظر یافت نشد.
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>برگ خروج مورد نظر یافت نشد.</AlertDescription>
+          </AlertContent>
         </Alert>
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/guard/gate-passes')} variant="flat" className="rounded-xl font-medium">
+        <Button variant="secondary" onPress={() => navigate('/guard/gate-passes')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت به لیست
         </Button>
       </div>
@@ -70,7 +78,8 @@ const VerifyGatePassPage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/guard/gate-passes')} variant="ghost" className="rounded-xl font-medium">
+        <Button variant="ghost" onPress={() => navigate('/guard/gate-passes')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت به لیست
         </Button>
       </div>
@@ -116,37 +125,46 @@ const VerifyGatePassPage = () => {
 
           <Separator />
 
-          <Alert color="info" title="راهنمایی بررسی">
-            لطفاً اطلاعات فوق را دقیقاً با مشخصات راننده، خودرو و بار حاضر در گیت نگهبانی تطبیق دهید.
+          <Alert status="accent">
+            <AlertIndicator><ShieldCheck className="h-5 w-5" /></AlertIndicator>
+            <AlertContent>
+              <AlertTitle>راهنمایی بررسی</AlertTitle>
+              <AlertDescription>
+                لطفاً اطلاعات فوق را دقیقاً با مشخصات راننده، خودرو و بار حاضر در گیت نگهبانی تطبیق دهید.
+              </AlertDescription>
+            </AlertContent>
           </Alert>
 
           <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
             <Button
               variant="primary"
               size="lg"
-              startContent={verifyMutation.isPending ? <Spinner size="sm" /> : <CheckCircle2 className="h-5 w-5" />}
               onPress={() => setVerifyOpen(true)}
+              isLoading={verifyMutation.isPending}
               isDisabled={verifyMutation.isPending || pass.status !== 'APPROVED'}
-              className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20"
+              className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20 flex items-center gap-2"
             >
+              <CheckCircle2 className="h-5 w-5" />
               ثبت خروج
             </Button>
             <Button
-             
               variant="secondary"
               size="lg"
-              startContent={<AlertTriangle className="h-5 w-5" />}
               onPress={() => setDenyOpen(true)}
-              disabled={pass.status !== 'APPROVED'}
-              className="rounded-2xl font-bold px-8"
+              isDisabled={pass.status !== 'APPROVED'}
+              className="rounded-2xl font-bold px-8 flex items-center gap-2"
             >
+              <AlertTriangle className="h-5 w-5" />
               اعلام مغایرت
             </Button>
           </div>
 
           {pass.status !== 'APPROVED' && (
-            <Alert color="warning" title="هشدار عدم امکان خروج" className="mt-2">
-              این برگ خروج در وضعیت قابل خروج نیست.
+            <Alert status="warning" className="mt-2">
+              <AlertContent>
+                <AlertTitle>هشدار عدم امکان خروج</AlertTitle>
+                <AlertDescription>این برگ خروج در وضعیت قابل خروج نیست.</AlertDescription>
+              </AlertContent>
             </Alert>
           )}
         </CardContent>
@@ -179,4 +197,3 @@ const VerifyGatePassPage = () => {
 };
 
 export default VerifyGatePassPage;
-

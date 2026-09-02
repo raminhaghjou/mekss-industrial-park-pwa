@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -29,8 +29,11 @@ export const GatePassesPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : passes.length === 0 ? (
             <EmptyState

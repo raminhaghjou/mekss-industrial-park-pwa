@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Chip,
   Alert,
   Spinner,
@@ -50,7 +50,7 @@ const GuardEmergencyPage = () => {
 
       {isLoading && (
         <div className="flex min-h-[220px] items-center justify-center">
-          <Spinner size="lg" color="danger" label="در حال استعلام هشدارها..." />
+          <Spinner size="lg" />
         </div>
       )}
 
@@ -75,14 +75,14 @@ const GuardEmergencyPage = () => {
             const statMeta = statusLabels[alarm.status] || { label: alarm.status, color: 'default' };
             return (
               <Card key={alarm.id} className="border border-danger-200 dark:border-danger-900/40 shadow-sm rounded-2xl overflow-hidden">
-                <CardBody className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-bold text-danger">{alarm.title}</h3>
-                      <Chip size="sm" color={sevMeta.color} variant="flat" className="font-semibold">
+                      <Chip size="sm" color={sevMeta.color} variant="soft" className="font-semibold">
                         شدت: {sevMeta.label}
                       </Chip>
-                      <Chip size="sm" color={statMeta.color} variant="flat" className="font-semibold">
+                      <Chip size="sm" color={statMeta.color} variant="soft" className="font-semibold">
                         {statMeta.label}
                       </Chip>
                     </div>
@@ -90,7 +90,7 @@ const GuardEmergencyPage = () => {
                       زمان اعلام: {new Date(alarm.createdAt).toLocaleString('fa-IR')}
                     </span>
                   </div>
-                </CardBody>
+                </CardContent>
               </Card>
             );
           })}

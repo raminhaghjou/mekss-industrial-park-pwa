@@ -2,11 +2,11 @@ import React from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Input,
   Select,
-  SelectItem,
-  Textarea,
+  ListBoxItem,
+  TextArea,
   Button,
   Alert,
 } from '@heroui/react';
@@ -76,7 +76,7 @@ const SendMessagePage = () => {
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
-        <CardBody className="p-6">
+        <CardContent className="p-6">
           {isError && (
             <Alert color="danger" title="خطا" className="mb-4">
               دریافت لیست گیرندگان ناموفق بود.
@@ -90,13 +90,13 @@ const SendMessagePage = () => {
               selectionMode="multiple"
               selectedKeys={new Set(selectedManagerIds)}
               onSelectionChange={(keys) => setSelectedManagerIds(Array.from(keys))}
-              variant="bordered"
-              isDisabled={isLoading}
+              variant="primary"
+              disabled={isLoading}
               isRequired
               classNames={{ trigger: 'rounded-xl' }}
             >
               {recipients.map((recipient) => (
-                <SelectItem key={recipient.id}>{recipient.label}</SelectItem>
+                <ListBoxItem key={recipient.id}>{recipient.label}</ListBoxItem>
               ))}
             </Select>
 
@@ -104,18 +104,18 @@ const SendMessagePage = () => {
               label="موضوع پیام"
               placeholder="عنوان پیام اطلاع‌رسانی..."
               value={subject}
-              onValueChange={setSubject}
-              variant="bordered"
+              onChange={(e) => setSubject(e.target.value)}
+              variant="primary"
               isRequired
               classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
-            <Textarea
+            <TextArea
               label="متن پیام"
               placeholder="متن کامل پیام را وارد کنید..."
               value={body}
-              onValueChange={setBody}
-              variant="bordered"
+              onChange={(e) => setBody(e.target.value)}
+              variant="primary"
               minRows={6}
               isRequired
               classNames={{ inputWrapper: 'rounded-xl' }}
@@ -124,17 +124,17 @@ const SendMessagePage = () => {
             <div className="flex items-center justify-end mt-2">
               <Button
                 type="submit"
-                color="primary"
+                variant="primary"
                 size="lg"
-                startContent={<Send className="h-4 w-4" />}
-                isLoading={sendMutation.isPending}
+                startContent={sendMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
+                isDisabled={sendMutation.isPending}
                 className="rounded-xl font-bold px-8 shadow-md"
               >
                 ارسال پیام
               </Button>
             </div>
           </form>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

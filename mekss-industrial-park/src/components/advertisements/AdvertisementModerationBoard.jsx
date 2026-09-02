@@ -2,37 +2,43 @@ import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   CardFooter,
   CardHeader,
   Chip,
   Button,
   Spinner,
-  Modal,
-  ModalContent,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
   ModalHeader,
   ModalBody,
   ModalFooter,
   Input,
   Select,
-  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
   Tabs,
+  TabList,
   Tab,
+  TabPanel,
   Pagination,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
 } from '@heroui/react';
 import {
-  CheckCircle,
   RotateCw,
   Eye,
   Check,
   X,
   Search,
-  Building2,
-  Calendar,
-  MapPin,
-  Phone,
-  Mail,
 } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -79,6 +85,83 @@ const DetailRow = ({ label, children, ltr = false }) => (
       {children || '—'}
     </span>
   </div>
+);
+
+const FilterSelect = ({ label, value, onChange, children, placeholder }) => (
+  <div className="flex flex-col gap-1">
+    <Label className="text-xs font-medium text-foreground-600">{label}</Label>
+    <Select value={value} onChange={onChange} variant="primary" className="rounded-xl">
+      <SelectTrigger>
+        <SelectValue placeholder={placeholder} />
+        <SelectIndicator />
+      </SelectTrigger>
+      <SelectPopover>
+        <ListBox>{children}</ListBox>
+      </SelectPopover>
+    </Select>
+  </div>
+);
+
+const SearchFilters = ({
+  view,
+  draftSearch,
+  setDraftSearch,
+  status,
+  setStatus,
+  setPage,
+  parkId,
+  setParkId,
+  showParkFilter,
+  availableParks,
+  onSubmit,
+}) => (
+  <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+    <div className="flex flex-col gap-1">
+      <Label className="text-xs font-medium text-foreground-600">جست‌وجو</Label>
+      <div className="relative flex items-center">
+        <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+        <Input
+          size="md"
+          placeholder="در عنوان، متن یا شهر..."
+          value={draftSearch}
+          onChange={(e) => setDraftSearch(e.target.value)}
+          maxLength={200}
+          variant="primary"
+          className="pr-9 rounded-xl"
+        />
+      </div>
+    </div>
+
+    {view === 'HISTORY' && (
+      <FilterSelect
+        label="وضعیت"
+        value={status}
+        onChange={(val) => { setStatus(val || ''); setPage(1); }}
+        placeholder="همه وضعیت‌ها"
+      >
+        <ListBoxItem id="APPROVED">تایید شده</ListBoxItem>
+        <ListBoxItem id="REJECTED">رد شده</ListBoxItem>
+        <ListBoxItem id="EXPIRED">منقضی شده</ListBoxItem>
+      </FilterSelect>
+    )}
+
+    {showParkFilter && (
+      <FilterSelect
+        label="شهرک صنعتی"
+        value={parkId}
+        onChange={(val) => { setParkId(val || ''); setPage(1); }}
+        placeholder="همه شهرک‌ها"
+      >
+        {(availableParks || []).map((park) => (
+          <ListBoxItem key={park.id} id={park.id}>{park.name}</ListBoxItem>
+        ))}
+      </FilterSelect>
+    )}
+
+    <Button type="submit" className="rounded-xl font-bold" variant="primary">
+      اعمال جست‌وجو
+    </Button>
+  </form>
 );
 
 export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
@@ -155,7 +238,7 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
   const pageCount = Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || 12)));
 
   const changeTab = (key) => {
-    setTab(key);
+    setTab(String(key));
     setPage(1);
     setStatus('');
   };
@@ -166,95 +249,63 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
     setSearch(draftSearch.trim());
   };
 
+  const filterProps = {
+    draftSearch,
+    setDraftSearch,
+    status,
+    setStatus,
+    setPage,
+    parkId,
+    setParkId,
+    showParkFilter,
+    availableParks: data.availableParks,
+    onSubmit: submitSearch,
+  };
+
   return (
     <div className="flex flex-col gap-6">
       {!online && (
-        <Alert color="warning" title="حالت آفلاین">
-          برای ثبت تصمیم باید دوباره به اینترنت متصل شوید. اطلاعات فعلی فقط برای مشاهده است.
+        <Alert status="warning">
+          <AlertContent>
+            <AlertTitle>حالت آفلاین</AlertTitle>
+            <AlertDescription>برای ثبت تصمیم باید دوباره به اینترنت متصل شوید. اطلاعات فعلی فقط برای مشاهده است.</AlertDescription>
+          </AlertContent>
         </Alert>
       )}
 
       <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
-        <CardBody className="p-4">
-          <Tabs
-            selectedKey={tab}
-            onSelectionChange={changeTab}
-            variant="solid"
-            color="primary"
-            classNames={{
-              tabList: 'w-full mb-4 rounded-xl',
-              tab: 'rounded-lg font-medium text-sm',
-            }}
-          >
-            <Tab key="PENDING" title="در انتظار تایید" />
-            <Tab key="HISTORY" title="تاریخچه تصمیم‌ها" />
+        <CardContent className="p-4">
+          <Tabs selectedKey={tab} onSelectionChange={changeTab} variant="primary">
+            <TabList className="w-full mb-4 rounded-xl">
+              <Tab id="PENDING">در انتظار تایید</Tab>
+              <Tab id="HISTORY">تاریخچه تصمیم‌ها</Tab>
+            </TabList>
+            <TabPanel id="PENDING">
+              <SearchFilters view="PENDING" {...filterProps} />
+            </TabPanel>
+            <TabPanel id="HISTORY">
+              <SearchFilters view="HISTORY" {...filterProps} />
+            </TabPanel>
           </Tabs>
-
-          <form onSubmit={submitSearch} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
-            <Input
-              size="md"
-              label="جست‌وجو"
-              placeholder="در عنوان، متن یا شهر..."
-              value={draftSearch}
-              onValueChange={setDraftSearch}
-              maxLength={200}
-              variant="bordered"
-              startContent={<Search className="h-4 w-4 text-default-400" />}
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
-
-            {view === 'HISTORY' && (
-              <Select
-                label="وضعیت"
-                selectedKeys={status ? [status] : []}
-                onSelectionChange={(keys) => { setStatus(Array.from(keys)[0] || ''); setPage(1); }}
-                variant="bordered"
-                classNames={{ trigger: 'rounded-xl' }}
-              >
-                <SelectItem key="APPROVED">تایید شده</SelectItem>
-                <SelectItem key="REJECTED">رد شده</SelectItem>
-                <SelectItem key="EXPIRED">منقضی شده</SelectItem>
-              </Select>
-            )}
-
-            {showParkFilter && (
-              <Select
-                label="شهرک صنعتی"
-                selectedKeys={parkId ? [parkId] : []}
-                onSelectionChange={(keys) => { setParkId(Array.from(keys)[0] || ''); setPage(1); }}
-                variant="bordered"
-                classNames={{ trigger: 'rounded-xl' }}
-              >
-                {(data.availableParks || []).map((park) => (
-                  <SelectItem key={park.id}>{park.name}</SelectItem>
-                ))}
-              </Select>
-            )}
-
-            <Button type="submit" color="primary" className="rounded-xl font-bold">
-              اعمال جست‌وجو
-            </Button>
-          </form>
-        </CardBody>
+        </CardContent>
       </Card>
 
       {advertisementsQuery.isLoading && (
         <div className="flex min-h-[220px] items-center justify-center">
-          <Spinner size="lg" label="در حال دریافت آگهی‌ها..." />
+          <Spinner size="lg" />
         </div>
       )}
 
       {advertisementsQuery.isError && (
-        <Alert
-          color="danger"
-          title="خطا در دریافت اطلاعات"
-          endContent={
-            <Button size="sm" variant="flat" color="danger" startContent={<RotateCw className="h-4 w-4" />} onClick={() => advertisementsQuery.refetch()}>
-              تلاش دوباره
-            </Button>
-          }
-        >
-          {moderationError(advertisementsQuery.error, 'دریافت آگهی‌ها ناموفق بود.')}
+        <Alert status="danger" className="flex flex-wrap items-center justify-between gap-3">
+          <AlertContent>
+            <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+            <AlertDescription>{moderationError(advertisementsQuery.error, 'دریافت آگهی‌ها ناموفق بود.')}</AlertDescription>
+          </AlertContent>
+          <Button size="sm" variant="secondary" onPress={() => advertisementsQuery.refetch()} className="rounded-xl flex items-center gap-2">
+            <RotateCw className="h-4 w-4" />
+            تلاش دوباره
+          </Button>
         </Alert>
       )}
 
@@ -278,16 +329,16 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
                       {ad.createdBy?.name} · {ad.park?.name || 'بدون شهرک مشخص'}
                     </span>
                   </div>
-                  <Chip size="sm" color={meta.color} variant="flat" className="font-semibold">
+                  <Chip size="sm" color={meta.color} variant="soft" className="font-semibold">
                     {meta.label}
                   </Chip>
                 </CardHeader>
-                <CardBody className="px-4 py-2 flex-1">
+                <CardContent className="px-4 py-2 flex-1">
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    <Chip size="sm" variant="bordered" className="text-xs">
+                    <Chip size="sm" variant="primary" className="text-xs">
                       {categoryLabels[advertisementCategoryKey(ad)] || advertisementCategoryKey(ad)}
                     </Chip>
-                    <Chip size="sm" variant="bordered" className="text-xs">
+                    <Chip size="sm" variant="primary" className="text-xs">
                       {`${ad.province}، ${ad.city}`}
                     </Chip>
                   </div>
@@ -302,32 +353,32 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
                   <span className="block mt-3 text-[11px] text-foreground-400">
                     ثبت: {formatDate(ad.createdAt)}
                   </span>
-                </CardBody>
+                </CardContent>
                 <CardFooter className="p-4 pt-2 flex items-center justify-between border-t border-default-100 dark:border-white/5">
-                  <Button size="sm" variant="light" startContent={<Eye className="h-4 w-4" />} onPress={() => setDetailId(ad.id)} className="rounded-xl font-medium">
+                  <Button size="sm" variant="ghost" onPress={() => setDetailId(ad.id)} className="rounded-xl font-medium flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
                     جزئیات
                   </Button>
                   {ad.status === 'PENDING' && (
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
-                        color="success"
-                        startContent={<Check className="h-4 w-4" />}
+                        variant="primary"
                         onPress={() => setApproveTarget(ad)}
                         isDisabled={decisionPending || !online}
-                        className="rounded-xl text-white font-bold"
+                        className="rounded-xl text-white font-bold flex items-center gap-2"
                       >
+                        <Check className="h-4 w-4" />
                         تایید
                       </Button>
                       <Button
                         size="sm"
-                        color="danger"
-                        variant="flat"
-                        startContent={<X className="h-4 w-4" />}
+                        variant="secondary"
                         onPress={() => setRejectTarget(ad)}
                         isDisabled={decisionPending || !online}
-                        className="rounded-xl font-bold"
+                        className="rounded-xl font-bold flex items-center gap-2"
                       >
+                        <X className="h-4 w-4" />
                         رد
                       </Button>
                     </div>
@@ -341,65 +392,72 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
 
       {!advertisementsQuery.isError && data.total > data.pageSize && (
         <div className="flex justify-center mt-4">
-          <Pagination page={page} total={pageCount} onChange={setPage} color="primary" className="rounded-2xl" />
+          <Pagination page={page} total={pageCount} onChange={setPage} className="rounded-2xl" />
         </div>
       )}
 
-      <Modal isOpen={Boolean(detailId)} onClose={() => setDetailId(null)} size="2xl" backdrop="blur" classNames={{ base: 'rounded-2xl border border-default-200 dark:border-white/10' }}>
-        <ModalContent>
-          <ModalHeader className="text-lg font-bold">جزئیات آگهی</ModalHeader>
-          <ModalBody className="gap-4 max-h-[75vh] overflow-y-auto">
-            {detailQuery.isLoading && (
-              <div className="flex min-h-[200px] items-center justify-center">
-                <Spinner size="lg" />
-              </div>
-            )}
-            {detailQuery.isError && (
-              <Alert color="danger" title="خطا">
-                {moderationError(detailQuery.error, 'دریافت جزئیات آگهی ناموفق بود.')}
-              </Alert>
-            )}
-            {detailQuery.data && (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">{detailQuery.data.title}</h2>
-                  <p className="mt-2 text-sm text-foreground-600 leading-relaxed whitespace-pre-line">{detailQuery.data.content}</p>
-                </div>
-                {detailQuery.data.images?.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {detailQuery.data.images.map((image, index) => (
-                      <img
-                        key={`${image}-${index}`}
-                        src={image}
-                        alt={`تصویر ${index + 1} آگهی ${detailQuery.data.title}`}
-                        loading="lazy"
-                        className="w-full h-48 object-cover rounded-xl border border-default-200"
-                      />
-                    ))}
+      {Boolean(detailId) && (
+        <ModalBackdrop isOpen={Boolean(detailId)} onOpenChange={(open) => !open && setDetailId(null)} variant="blur">
+          <ModalContainer size="2xl">
+            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+              <ModalHeader className="text-lg font-bold">جزئیات آگهی</ModalHeader>
+              <ModalBody className="gap-4 max-h-[75vh] overflow-y-auto">
+                {detailQuery.isLoading && (
+                  <div className="flex min-h-[200px] items-center justify-center">
+                    <Spinner size="lg" />
                   </div>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-default-50 dark:bg-default-100/30">
-                  <DetailRow label="شهرک صنعتی">{detailQuery.data.park?.name || 'بدون شهرک مشخص'}</DetailRow>
-                  <DetailRow label="ثبت‌کننده">{detailQuery.data.createdBy?.name}</DetailRow>
-                  <DetailRow label="موقعیت">{`${detailQuery.data.province}، ${detailQuery.data.city}`}</DetailRow>
-                  <DetailRow label="نشانی">{detailQuery.data.address}</DetailRow>
-                  <DetailRow label="قیمت">{formatPrice(detailQuery.data.price)}</DetailRow>
-                  <DetailRow label="تاریخ ثبت">{formatDate(detailQuery.data.createdAt)}</DetailRow>
-                  <DetailRow label="تلفن تماس" ltr>{detailQuery.data.contactInfo?.phone || detailQuery.data.contactInfo?.phoneNumber}</DetailRow>
-                  <DetailRow label="ایمیل تماس" ltr>{detailQuery.data.contactInfo?.email}</DetailRow>
-                  <DetailRow label="بررسی‌کننده">{detailQuery.data.moderatedBy?.name}</DetailRow>
-                  <DetailRow label="زمان بررسی">{formatDate(detailQuery.data.moderatedAt)}</DetailRow>
-                </div>
-              </div>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button color="default" variant="flat" onPress={() => setDetailId(null)} className="rounded-xl font-medium">
-              بستن
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+                {detailQuery.isError && (
+                  <Alert status="danger">
+                    <AlertContent>
+                      <AlertTitle>خطا</AlertTitle>
+                      <AlertDescription>{moderationError(detailQuery.error, 'دریافت جزئیات آگهی ناموفق بود.')}</AlertDescription>
+                    </AlertContent>
+                  </Alert>
+                )}
+                {detailQuery.data && (
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground">{detailQuery.data.title}</h2>
+                      <p className="mt-2 text-sm text-foreground-600 leading-relaxed whitespace-pre-line">{detailQuery.data.content}</p>
+                    </div>
+                    {detailQuery.data.images?.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {detailQuery.data.images.map((image, index) => (
+                          <img
+                            key={`${image}-${index}`}
+                            src={image}
+                            alt={`تصویر ${index + 1} آگهی ${detailQuery.data.title}`}
+                            loading="lazy"
+                            className="w-full h-48 object-cover rounded-xl border border-default-200"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-default-50 dark:bg-default-100/30">
+                      <DetailRow label="شهرک صنعتی">{detailQuery.data.park?.name || 'بدون شهرک مشخص'}</DetailRow>
+                      <DetailRow label="ثبت‌کننده">{detailQuery.data.createdBy?.name}</DetailRow>
+                      <DetailRow label="موقعیت">{`${detailQuery.data.province}، ${detailQuery.data.city}`}</DetailRow>
+                      <DetailRow label="نشانی">{detailQuery.data.address}</DetailRow>
+                      <DetailRow label="قیمت">{formatPrice(detailQuery.data.price)}</DetailRow>
+                      <DetailRow label="تاریخ ثبت">{formatDate(detailQuery.data.createdAt)}</DetailRow>
+                      <DetailRow label="تلفن تماس" ltr>{detailQuery.data.contactInfo?.phone || detailQuery.data.contactInfo?.phoneNumber}</DetailRow>
+                      <DetailRow label="ایمیل تماس" ltr>{detailQuery.data.contactInfo?.email}</DetailRow>
+                      <DetailRow label="بررسی‌کننده">{detailQuery.data.moderatedBy?.name}</DetailRow>
+                      <DetailRow label="زمان بررسی">{formatDate(detailQuery.data.moderatedAt)}</DetailRow>
+                    </div>
+                  </div>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="secondary" onPress={() => setDetailId(null)} className="rounded-xl font-medium">
+                  بستن
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      )}
 
       <ConfirmDialog
         open={Boolean(approveTarget)}
@@ -433,4 +491,3 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
 };
 
 export default AdvertisementModerationBoard;
-

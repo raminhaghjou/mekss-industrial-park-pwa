@@ -161,33 +161,33 @@ export const ManageParksPage = () => {
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">کد شهرک</label>
-                    <Input value={formData.code} onValueChange={(v) => setFormData({ ...formData, code: v })} variant="primary" />
+                    <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} variant="primary" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">نام شهرک</label>
-                    <Input value={formData.name} onValueChange={(v) => setFormData({ ...formData, name: v })} variant="primary" isRequired />
+                    <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="primary" isRequired />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">استان</label>
-                    <Input value={formData.province} onValueChange={(v) => setFormData({ ...formData, province: v })} variant="primary" />
+                    <Input value={formData.province} onChange={(e) => setFormData({ ...formData, province: e.target.value })} variant="primary" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">شهر</label>
-                    <Input value={formData.city} onValueChange={(v) => setFormData({ ...formData, city: v })} variant="primary" />
+                    <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} variant="primary" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">آدرس</label>
-                    <Input value={formData.address} onValueChange={(v) => setFormData({ ...formData, address: v })} variant="primary" />
+                    <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} variant="primary" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">شماره تماس</label>
-                    <Input value={formData.phoneNumber} onValueChange={(v) => setFormData({ ...formData, phoneNumber: v })} variant="primary" dir="ltr" />
+                    <Input value={formData.phoneNumber} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} variant="primary" dir="ltr" />
                   </div>
                 </div>
               </ModalBody>
               <ModalFooter className="mt-4">
-                <Button variant="tertiary" onPress={() => setFormOpen(false)} isDisabled={saving}>انصراف</Button>
-                <Button variant="primary" onPress={handleSubmit} isDisabled={saving}>
+                <Button variant="tertiary" onPress={() => setFormOpen(false)} disabled={saving}>انصراف</Button>
+                <Button variant="primary" onPress={handleSubmit} disabled={saving}>
                   {saving ? <Spinner size="sm" /> : (editTarget ? 'ذخیره تغییرات' : 'افزودن')}
                 </Button>
               </ModalFooter>

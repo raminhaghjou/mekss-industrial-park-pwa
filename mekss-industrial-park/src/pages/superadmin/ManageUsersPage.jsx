@@ -141,7 +141,7 @@ const ManageUsersPage = () => {
               size="md"
               placeholder="جست‌وجوی کاربر بر اساس نام، تلفن یا ایمیل..."
               value={search}
-              onValueChange={setSearch}
+              onChange={(e) => setSearch(e.target.value)}
               variant="primary"
               className="pr-9 rounded-xl"
             />
@@ -233,10 +233,10 @@ const ManageUsersPage = () => {
                       <label className="text-xs font-medium text-foreground-600">شماره تلفن</label>
                       <Input
                         required
-                        isDisabled={Boolean(editing)}
+                        disabled={Boolean(editing)}
                         placeholder="۰۹۱۲۳۴۵۶۷۸۹"
                         value={form.phoneNumber}
-                        onValueChange={(val) => setForm({ ...form, phoneNumber: val })}
+                        onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
                         variant="primary"
                         dir="ltr"
                         className="rounded-xl"
@@ -248,7 +248,7 @@ const ManageUsersPage = () => {
                         required
                         placeholder="نام کامل"
                         value={form.name}
-                        onValueChange={(val) => setForm({ ...form, name: val })}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
                         variant="primary"
                         className="rounded-xl"
                       />
@@ -272,7 +272,7 @@ const ManageUsersPage = () => {
                         type="email"
                         placeholder="email@example.com"
                         value={form.email}
-                        onValueChange={(val) => setForm({ ...form, email: val })}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
                         variant="primary"
                         dir="ltr"
                         className="rounded-xl"
@@ -288,7 +288,7 @@ const ManageUsersPage = () => {
                         required
                         placeholder="رمز عبور کاربر"
                         value={form.password}
-                        onValueChange={(val) => setForm({ ...form, password: val })}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
                         variant="primary"
                         dir="ltr"
                         className="rounded-xl"
@@ -297,10 +297,10 @@ const ManageUsersPage = () => {
                   )}
                 </ModalBody>
                 <ModalFooter className="mt-4">
-                  <Button variant="tertiary" onPress={closeForm} isDisabled={saving} className="rounded-xl font-medium">
+                  <Button variant="tertiary" onPress={closeForm} disabled={saving} className="rounded-xl font-medium">
                     انصراف
                   </Button>
-                  <Button type="submit" variant="primary" isDisabled={saving} className="rounded-xl font-bold px-6">
+                  <Button type="submit" variant="primary" disabled={saving} className="rounded-xl font-bold px-6">
                     {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ایجاد کاربر')}
                   </Button>
                 </ModalFooter>

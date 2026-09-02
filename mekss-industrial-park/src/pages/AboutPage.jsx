@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader } from '@heroui/react';
+import { Card, CardContent, CardHeader } from '@heroui/react';
 
 export const AboutPage = () => {
   return (
@@ -17,7 +17,7 @@ export const AboutPage = () => {
             </div>
           </div>
         </CardHeader>
-        <CardBody className="p-6">
+        <CardContent className="p-6">
           <div className="flex flex-col gap-4 text-foreground-600">
             <p>
               سامانه مدیریت یکپارچه شهرک‌های صنعتی (MEKSS) یک پلتفرم جامع برای مدیریت 
@@ -33,7 +33,7 @@ export const AboutPage = () => {
               </p>
             </div>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

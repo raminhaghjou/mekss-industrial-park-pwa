@@ -1,4 +1,4 @@
-import { Switch, Card, CardBody, CardHeader, Divider } from '@heroui/react';
+import { Switch, Card, CardContent, CardHeader, Separator } from '@heroui/react';
 import { Moon, Bell } from 'lucide-react';
 
 export const SettingsPage = () => {
@@ -10,8 +10,8 @@ export const SettingsPage = () => {
         <CardHeader className="p-6">
           <h2 className="text-lg font-semibold">تنظیمات عمومی</h2>
         </CardHeader>
-        <Divider />
-        <CardBody className="p-6">
+        <Separator />
+        <CardContent className="p-6">
           <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -24,7 +24,7 @@ export const SettingsPage = () => {
               <Switch defaultSelected={false} />
             </div>
             
-            <Divider />
+            <Separator />
             
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -37,7 +37,7 @@ export const SettingsPage = () => {
               <Switch defaultSelected />
             </div>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

@@ -78,7 +78,7 @@ const ReportsPage = () => {
               <Input
                 type="date"
                 value={from}
-                onValueChange={setFrom}
+                onChange={(e) => setFrom(e.target.value)}
                 variant="primary"
                 className="rounded-xl"
               />
@@ -89,7 +89,7 @@ const ReportsPage = () => {
               <Input
                 type="date"
                 value={to}
-                onValueChange={setTo}
+                onChange={(e) => setTo(e.target.value)}
                 variant="primary"
                 className="rounded-xl"
               />

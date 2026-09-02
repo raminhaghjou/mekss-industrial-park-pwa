@@ -4,7 +4,7 @@ import {
   Card,
   CardContent,
   Input,
-  Textarea,
+  TextArea,
   Checkbox,
   Button,
   Chip,
@@ -144,7 +144,7 @@ const ManageAnnouncementsPage = () => {
                 <Input
                   placeholder="عنوان اطلاع‌رسانی را وارد کنید..."
                   value={form.title}
-                  onValueChange={(val) => setForm((f) => ({ ...f, title: val }))}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                   variant="primary"
                   isRequired
                   className="rounded-xl"
@@ -153,10 +153,10 @@ const ManageAnnouncementsPage = () => {
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-foreground-600">متن اطلاعیه</label>
-                <Textarea
+                <TextArea
                   placeholder="متن کامل اطلاعیه..."
                   value={form.content}
-                  onValueChange={(val) => setForm((f) => ({ ...f, content: val }))}
+                  onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                   variant="primary"
                   minRows={4}
                   isRequired
@@ -191,7 +191,7 @@ const ManageAnnouncementsPage = () => {
                   <Input
                     type="number"
                     value={form.priority}
-                    onValueChange={(val) => setForm((f) => ({ ...f, priority: val }))}
+                    onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
                     variant="primary"
                     className="rounded-xl"
                   />
@@ -202,7 +202,7 @@ const ManageAnnouncementsPage = () => {
                   <Input
                     type="date"
                     value={form.expiresAt}
-                    onValueChange={(val) => setForm((f) => ({ ...f, expiresAt: val }))}
+                    onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
                     variant="primary"
                     className="rounded-xl"
                   />
@@ -226,10 +226,10 @@ const ManageAnnouncementsPage = () => {
               </div>
 
               <div className="flex items-center gap-2 justify-end mt-2">
-                <Button variant="tertiary" onPress={resetForm} isDisabled={saving} className="rounded-xl font-medium">
+                <Button variant="tertiary" onPress={resetForm} disabled={saving} className="rounded-xl font-medium">
                   انصراف
                 </Button>
-                <Button type="submit" variant="primary" isDisabled={saving} className="rounded-xl font-bold">
+                <Button type="submit" variant="primary" disabled={saving} className="rounded-xl font-bold">
                   {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت اطلاعیه')}
                 </Button>
               </div>

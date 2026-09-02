@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Button,
   Alert,
   Spinner,
-  Divider,
+  Separator,
 } from '@heroui/react';
 import { ArrowRight, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
@@ -49,7 +49,7 @@ const VerifyGatePassPage = () => {
   if (isLoading) {
     return (
       <div className="flex min-h-[300px] items-center justify-center">
-        <Spinner size="lg" label="در حال استعلام اطلاعات برگ خروج..." />
+        <Spinner size="lg" />
       </div>
     );
   }
@@ -70,13 +70,13 @@ const VerifyGatePassPage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/guard/gate-passes')} variant="light" className="rounded-xl font-medium">
+        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/guard/gate-passes')} variant="ghost" className="rounded-xl font-medium">
           بازگشت به لیست
         </Button>
       </div>
 
       <Card className="border border-default-200 shadow-lg rounded-3xl p-2 dark:border-white/10 glass-card">
-        <CardBody className="p-6 gap-6">
+        <CardContent className="p-6 gap-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
             <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
               <ShieldCheck className="h-6 w-6" />
@@ -114,7 +114,7 @@ const VerifyGatePassPage = () => {
             </div>
           </div>
 
-          <Divider />
+          <Separator />
 
           <Alert color="info" title="راهنمایی بررسی">
             لطفاً اطلاعات فوق را دقیقاً با مشخصات راننده، خودرو و بار حاضر در گیت نگهبانی تطبیق دهید.
@@ -122,23 +122,22 @@ const VerifyGatePassPage = () => {
 
           <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
             <Button
-              color="success"
+              variant="primary"
               size="lg"
-              startContent={<CheckCircle2 className="h-5 w-5" />}
+              startContent={verifyMutation.isPending ? <Spinner size="sm" /> : <CheckCircle2 className="h-5 w-5" />}
               onPress={() => setVerifyOpen(true)}
-              isLoading={verifyMutation.isPending}
               isDisabled={verifyMutation.isPending || pass.status !== 'APPROVED'}
               className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20"
             >
               ثبت خروج
             </Button>
             <Button
-              color="danger"
-              variant="flat"
+             
+              variant="secondary"
               size="lg"
               startContent={<AlertTriangle className="h-5 w-5" />}
               onPress={() => setDenyOpen(true)}
-              isDisabled={pass.status !== 'APPROVED'}
+              disabled={pass.status !== 'APPROVED'}
               className="rounded-2xl font-bold px-8"
             >
               اعلام مغایرت
@@ -150,7 +149,7 @@ const VerifyGatePassPage = () => {
               این برگ خروج در وضعیت قابل خروج نیست.
             </Alert>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
       <ConfirmDialog

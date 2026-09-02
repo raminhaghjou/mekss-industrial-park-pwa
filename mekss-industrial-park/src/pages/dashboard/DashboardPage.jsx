@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Building2, Ticket, Receipt, FileText, AlertTriangle, Megaphone, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
@@ -30,21 +30,23 @@ const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge,
     isPressable={!!onClick}
     onPress={onClick}
   >
-    <div className="flex items-center gap-4">
-      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-white ${colorMap[color]}`}>
-        <Icon className="h-7 w-7" />
+    <CardContent className="p-0">
+      <div className="flex items-center gap-4">
+        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-white ${colorMap[color]}`}>
+          <Icon className="h-7 w-7" />
+        </div>
+        <div className="flex flex-1 flex-col gap-1">
+          <span className="text-2xl font-bold text-foreground">{value}</span>
+          <span className="text-sm text-foreground-500">{label}</span>
+        </div>
+        {badge && (
+          <span className="rounded-full bg-warning-100 px-2 py-1 text-xs font-medium text-warning-700">{badge}</span>
+        )}
+        {onClick && !badge && (
+          <ChevronLeft className="h-5 w-5 text-default-400" />
+        )}
       </div>
-      <div className="flex flex-1 flex-col gap-1">
-        <span className="text-2xl font-bold text-foreground">{value}</span>
-        <span className="text-sm text-foreground-500">{label}</span>
-      </div>
-      {badge && (
-        <span className="rounded-full bg-warning-100 px-2 py-1 text-xs font-medium text-warning-700">{badge}</span>
-      )}
-      {onClick && !badge && (
-        <ChevronLeft className="h-5 w-5 text-default-400" />
-      )}
-    </div>
+    </CardContent>
   </Card>
 );
 
@@ -72,21 +74,20 @@ export const DashboardPage = () => {
 
   if (isError) {
     return (
-      <Alert
-        color="danger"
-        title="خطا در دریافت اطلاعات"
-      >
-        <p>{getErrorMessage(error, 'دریافت اطلاعات داشبورد ناموفق بود.')}</p>
-        <Button
-          color="danger"
-          variant="solid"
-          size="sm"
-          className="mt-2"
-          onClick={() => refetch()}
-          isLoading={isFetching}
-        >
-          تلاش دوباره
-        </Button>
+      <Alert status="danger">
+        <AlertContent>
+          <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+          <AlertDescription>{getErrorMessage(error, 'دریافت اطلاعات داشبورد ناموفق بود.')}</AlertDescription>
+          <Button
+            variant="primary"
+            size="sm"
+            className="mt-2"
+            onPress={() => refetch()}
+            isLoading={isFetching}
+          >
+            تلاش دوباره
+          </Button>
+        </AlertContent>
       </Alert>
     );
   }
@@ -115,7 +116,7 @@ export const DashboardPage = () => {
           color="primary"
           onClick={canManageFactories ? () => navigate('/admin/factories') : undefined}
         />
-        
+
         <StatCard
           index={1}
           icon={Ticket}
@@ -125,7 +126,7 @@ export const DashboardPage = () => {
           badge={data?.pendingWork?.gatePasses ? `${data.pendingWork.gatePasses} در انتظار` : undefined}
           onClick={canApproveGatePasses ? () => navigate('/admin/gate-passes') : () => navigate('/gate-passes')}
         />
-        
+
         <StatCard
           index={2}
           icon={Receipt}
@@ -134,7 +135,7 @@ export const DashboardPage = () => {
           color="secondary"
           onClick={() => navigate('/invoices')}
         />
-        
+
         <StatCard
           index={3}
           icon={FileText}
@@ -144,7 +145,7 @@ export const DashboardPage = () => {
           badge={data?.pendingWork?.requests ? `${data.pendingWork.requests} در انتظار` : undefined}
           onClick={canApproveRequests ? () => navigate('/admin/requests') : () => navigate('/requests')}
         />
-        
+
         <StatCard
           index={4}
           icon={AlertTriangle}
@@ -153,7 +154,7 @@ export const DashboardPage = () => {
           color="danger"
           onClick={() => navigate('/emergency')}
         />
-        
+
         {canModerateAds && (
           <StatCard
             index={5}

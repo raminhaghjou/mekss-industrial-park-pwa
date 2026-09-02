@@ -2,13 +2,23 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Input,
   Select,
-  SelectItem,
-  Textarea,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
+  TextArea,
   Button,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Spinner,
 } from '@heroui/react';
 import { ArrowRight } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
@@ -37,6 +47,39 @@ const emptyForm = {
   factoryId: '', cargoType: 'RAW_MATERIALS', cargoDescription: '', driverName: '', driverNationalId: '',
   driverPhone: '', vehicleType: 'TRUCK', licensePlate: '', exitDate: '',
 };
+
+const FormSelect = ({ label, value, onChange, options, isDisabled, isRequired, placeholder }) => (
+  <div className="flex flex-col gap-1">
+    <Label className="text-xs font-medium text-foreground-600">{label}</Label>
+    <Select
+      value={value}
+      onChange={onChange}
+      variant="primary"
+      isDisabled={isDisabled}
+      isRequired={isRequired}
+      className="rounded-xl"
+    >
+      <SelectTrigger>
+        <SelectValue placeholder={placeholder} />
+        <SelectIndicator />
+      </SelectTrigger>
+      <SelectPopover>
+        <ListBox>
+          {options.map((option) => (
+            <ListBoxItem key={option.value} id={option.value}>{option.label}</ListBoxItem>
+          ))}
+        </ListBox>
+      </SelectPopover>
+    </Select>
+  </div>
+);
+
+const FormInput = ({ label, ...props }) => (
+  <div className="flex flex-col gap-1">
+    <Label className="text-xs font-medium text-foreground-600">{label}</Label>
+    <Input variant="primary" className="rounded-xl" {...props} />
+  </div>
+);
 
 const CreateGatePassForm = ({ handleBack }) => {
   const { showNotification } = useNotification();
@@ -70,11 +113,13 @@ const CreateGatePassForm = ({ handleBack }) => {
     createMutation.mutate(form);
   };
 
+  const factoryOptions = (factories || []).map((factory) => ({ value: factory.id, label: factory.name }));
+
   return (
     <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
-      <CardBody className="p-6">
+      <CardContent className="p-6">
         <div className="flex items-center gap-3 mb-6 border-b border-default-100 pb-4 dark:border-white/5">
-          <Button isIconOnly variant="light" onPress={handleBack} aria-label="بازگشت به لیست" className="rounded-xl">
+          <Button isIconOnly variant="ghost" onPress={handleBack} aria-label="بازگشت به لیست" className="rounded-xl">
             <ArrowRight className="h-5 w-5" />
           </Button>
           <h2 className="text-xl font-bold text-foreground">
@@ -83,129 +128,109 @@ const CreateGatePassForm = ({ handleBack }) => {
         </div>
 
         {factoriesError && (
-          <Alert color="danger" title="خطا" className="mb-4">
-            دریافت لیست واحدهای صنعتی ناموفق بود.
+          <Alert status="danger" className="mb-4">
+            <AlertContent>
+              <AlertTitle>خطا</AlertTitle>
+              <AlertDescription>دریافت لیست واحدهای صنعتی ناموفق بود.</AlertDescription>
+            </AlertContent>
           </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
+            <FormSelect
               label="واحد صنعتی"
-              selectedKeys={form.factoryId ? [form.factoryId] : []}
-              onSelectionChange={(keys) => handleChange('factoryId', Array.from(keys)[0] || '')}
-              variant="bordered"
+              value={form.factoryId}
+              onChange={(value) => handleChange('factoryId', value)}
+              options={factoryOptions}
               isDisabled={loadingFactories}
               isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {(factories || []).map((factory) => (
-                <SelectItem key={factory.id}>{factory.name}</SelectItem>
-              ))}
-            </Select>
+              placeholder="واحد صنعتی را انتخاب کنید..."
+            />
 
-            <Select
+            <FormSelect
               label="نوع بار"
-              selectedKeys={[form.cargoType]}
-              onSelectionChange={(keys) => handleChange('cargoType', Array.from(keys)[0] || '')}
-              variant="bordered"
+              value={form.cargoType}
+              onChange={(value) => handleChange('cargoType', value)}
+              options={cargoTypes}
               isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {cargoTypes.map((option) => (
-                <SelectItem key={option.value}>{option.label}</SelectItem>
-              ))}
-            </Select>
+            />
 
-            <Input
+            <FormInput
               label="نام راننده"
               placeholder="نام و نام خانوادگی راننده"
               value={form.driverName}
-              onValueChange={(val) => handleChange('driverName', val)}
-              variant="bordered"
+              onChange={(e) => handleChange('driverName', e.target.value)}
               isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
-            <Input
+            <FormInput
               label="کد ملی راننده"
               placeholder="کد ملی ۱۰ رقمی"
               value={form.driverNationalId}
-              onValueChange={(val) => handleChange('driverNationalId', val)}
-              variant="bordered"
+              onChange={(e) => handleChange('driverNationalId', e.target.value)}
               dir="ltr"
               isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
-            <Input
+            <FormInput
               label="تلفن راننده"
               placeholder="۰۹۱۲۳۴۵۶۷۸۹"
               value={form.driverPhone}
-              onValueChange={(val) => handleChange('driverPhone', val)}
-              variant="bordered"
+              onChange={(e) => handleChange('driverPhone', e.target.value)}
               dir="ltr"
               isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
-            <Select
+            <FormSelect
               label="نوع خودرو"
-              selectedKeys={[form.vehicleType]}
-              onSelectionChange={(keys) => handleChange('vehicleType', Array.from(keys)[0] || '')}
-              variant="bordered"
+              value={form.vehicleType}
+              onChange={(value) => handleChange('vehicleType', value)}
+              options={vehicleTypes}
               isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {vehicleTypes.map((option) => (
-                <SelectItem key={option.value}>{option.label}</SelectItem>
-              ))}
-            </Select>
+            />
 
-            <Input
+            <FormInput
               label="شماره پلاک"
               placeholder="مثلا: ۱۲ ب ۳۴۵ ایران ۷۸"
               value={form.licensePlate}
-              onValueChange={(val) => handleChange('licensePlate', val)}
-              variant="bordered"
+              onChange={(e) => handleChange('licensePlate', e.target.value)}
               isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
-            <Input
+            <FormInput
               type="datetime-local"
               label="تاریخ و ساعت خروج"
               value={form.exitDate}
-              onValueChange={(val) => handleChange('exitDate', val)}
-              variant="bordered"
+              onChange={(e) => handleChange('exitDate', e.target.value)}
               isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
             />
           </div>
 
-          <Textarea
-            label="توضیحات بار (اختیاری)"
-            placeholder="شرح جزئیات محموله..."
-            value={form.cargoDescription}
-            onValueChange={(val) => handleChange('cargoDescription', val)}
-            variant="bordered"
-            minRows={3}
-            classNames={{ inputWrapper: 'rounded-xl' }}
-          />
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs font-medium text-foreground-600">توضیحات بار (اختیاری)</Label>
+            <TextArea
+              placeholder="شرح جزئیات محموله..."
+              value={form.cargoDescription}
+              onChange={(e) => handleChange('cargoDescription', e.target.value)}
+              variant="primary"
+              minRows={3}
+              className="rounded-xl"
+            />
+          </div>
 
           <div className="flex items-center justify-end gap-3 mt-4">
-            <Button variant="flat" color="default" onPress={handleBack} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
+            <Button variant="tertiary" onPress={handleBack} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
               انصراف
             </Button>
-            <Button type="submit" color="primary" isLoading={createMutation.isPending} className="rounded-xl font-bold">
-              ثبت و ارسال برای تایید
+            <Button type="submit" className="rounded-xl font-bold" variant="primary" isDisabled={createMutation.isPending}>
+              {createMutation.isPending ? <Spinner size="sm" /> : 'ثبت و ارسال برای تایید'}
             </Button>
           </div>
         </form>
-      </CardBody>
+      </CardContent>
     </Card>
   );
 };
 
 export default CreateGatePassForm;
-

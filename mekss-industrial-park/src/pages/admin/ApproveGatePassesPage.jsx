@@ -107,7 +107,7 @@ export const ApproveGatePassesPage = () => {
                             size="sm"
                             isIconOnly
                             onPress={() => setApproveTarget(pass.id)}
-                            isDisabled={approveMutation.isPending}
+                            disabled={approveMutation.isPending}
                             aria-label="تایید"
                           >
                             {approveMutation.isPending && approveTarget === pass.id ? <Spinner size="sm" /> : <Check className="h-4 w-4 text-success" />}

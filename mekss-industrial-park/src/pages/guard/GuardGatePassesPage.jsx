@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
-  CardBody,
+  CardContent,
   Table,
   TableHeader,
   TableColumn,
@@ -42,23 +42,23 @@ const GuardGatePassesPage = () => {
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
-        <CardBody className="p-4">
+        <CardContent className="p-4">
           <Input
             size="md"
             label="جست‌وجوی برگ خروج"
             placeholder="بر اساس شماره پلاک یا شناسه برگ خروج..."
             value={search}
-            onValueChange={setSearch}
-            variant="bordered"
+            onChange={(e) => setSearch(e.target.value)}
+            variant="primary"
             startContent={<Search className="h-4 w-4 text-default-400" />}
             classNames={{ inputWrapper: 'rounded-xl' }}
           />
-        </CardBody>
+        </CardContent>
       </Card>
 
       {isLoading && (
         <div className="flex min-h-[220px] items-center justify-center">
-          <Spinner size="lg" label="در حال دریافت لیست برگ‌های خروج..." />
+          <Spinner size="lg" />
         </div>
       )}
 
@@ -86,8 +86,8 @@ const GuardGatePassesPage = () => {
                   <TableCell className="text-center">
                     <Button
                       size="sm"
-                      color="primary"
-                      variant="flat"
+                     
+                      variant="secondary"
                       startContent={<ShieldCheck className="h-4 w-4" />}
                       onPress={() => navigate(`/guard/gate-passes/${pass.id}/verify`)}
                       className="rounded-xl font-bold"

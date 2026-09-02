@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardBody, Listbox, ListboxItem, Avatar, Chip, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Listbox, ListboxItem, Avatar, Chip, Skeleton, Alert } from '@heroui/react';
 import { MessageSquare } from 'lucide-react';
 import { messageApi } from '../../services/api/message.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -18,7 +18,7 @@ export const MessagesPage = () => {
       <h1 className="text-2xl font-bold text-foreground">پیام‌ها</h1>
 
       <Card>
-        <CardBody className="p-0">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex flex-col gap-2 p-4">
               {[...Array(5)].map((_, i) => (
@@ -59,7 +59,7 @@ export const MessagesPage = () => {
               ))}
             </Listbox>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

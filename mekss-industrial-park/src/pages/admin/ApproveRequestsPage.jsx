@@ -116,7 +116,7 @@ export const ApproveRequestsPage = () => {
                             size="sm"
                             isIconOnly
                             onPress={() => setApproveTarget(req.id)}
-                            isDisabled={approveMutation.isPending}
+                            disabled={approveMutation.isPending}
                             aria-label="تایید"
                           >
                             {approveMutation.isPending && approveTarget === req.id ? <Spinner size="sm" /> : <Check className="h-4 w-4 text-success" />}

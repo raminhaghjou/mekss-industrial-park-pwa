@@ -5,7 +5,7 @@ import {
   Card,
   CardContent,
   Input,
-  Textarea,
+  TextArea,
   Button,
   Alert,
   AlertContent,
@@ -109,10 +109,10 @@ const CreateInvoicePage = () => {
 
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-foreground-600">شرح قبض</label>
-              <Textarea
+              <TextArea
                 placeholder="توضیحات و بابت پرداختی..."
                 value={description}
-                onValueChange={setDescription}
+                onChange={(e) => setDescription(e.target.value)}
                 variant="primary"
                 minRows={2}
                 isRequired
@@ -127,7 +127,7 @@ const CreateInvoicePage = () => {
                   type="number"
                   placeholder="مثلا: ۱۰۰۰۰۰۰"
                   value={amount}
-                  onValueChange={setAmount}
+                  onChange={(e) => setAmount(e.target.value)}
                   variant="primary"
                   dir="ltr"
                   isRequired
@@ -141,7 +141,7 @@ const CreateInvoicePage = () => {
                   type="number"
                   placeholder="اختیاری"
                   value={taxAmount}
-                  onValueChange={setTaxAmount}
+                  onChange={(e) => setTaxAmount(e.target.value)}
                   variant="primary"
                   dir="ltr"
                   className="rounded-xl"
@@ -154,7 +154,7 @@ const CreateInvoicePage = () => {
               <Input
                 type="date"
                 value={dueDate}
-                onValueChange={setDueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 variant="primary"
                 isRequired
                 className="rounded-xl"
@@ -162,10 +162,10 @@ const CreateInvoicePage = () => {
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-2">
-              <Button variant="tertiary" onPress={() => navigate('/admin/invoices')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
+              <Button variant="tertiary" onPress={() => navigate('/admin/invoices')} disabled={createMutation.isPending} className="rounded-xl font-medium">
                 انصراف
               </Button>
-              <Button type="submit" variant="primary" isDisabled={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
+              <Button type="submit" variant="primary" disabled={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
                 {createMutation.isPending ? <Spinner size="sm" /> : 'صدور قبض'}
               </Button>
             </div>

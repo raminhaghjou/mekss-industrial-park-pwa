@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Input,
   Select,
-  SelectItem,
-  Textarea,
+  ListBoxItem,
+  TextArea,
   Button,
   Alert,
 } from '@heroui/react';
@@ -85,13 +85,13 @@ const NewRequestPage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/requests')} variant="light" className="rounded-xl font-medium">
+        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/requests')} variant="ghost" className="rounded-xl font-medium">
           بازگشت به لیست
         </Button>
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
-        <CardBody className="p-6 gap-6">
+        <CardContent className="p-6 gap-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
             <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
               <FilePlus className="h-6 w-6" />
@@ -114,13 +114,13 @@ const NewRequestPage = () => {
               placeholder="واحد صنعتی مربوطه را انتخاب کنید"
               selectedKeys={factoryId ? [factoryId] : []}
               onSelectionChange={(keys) => setFactoryId(Array.from(keys)[0] || '')}
-              variant="bordered"
-              isDisabled={loadingFactories}
+              variant="primary"
+              disabled={loadingFactories}
               isRequired
               classNames={{ trigger: 'rounded-xl' }}
             >
               {(factories || []).map((factory) => (
-                <SelectItem key={factory.id}>{factory.name}</SelectItem>
+                <ListBoxItem key={factory.id}>{factory.name}</ListBoxItem>
               ))}
             </Select>
 
@@ -128,12 +128,12 @@ const NewRequestPage = () => {
               label="نوع درخواست"
               selectedKeys={[requestType]}
               onSelectionChange={(keys) => setRequestType(Array.from(keys)[0] || '')}
-              variant="bordered"
+              variant="primary"
               isRequired
               classNames={{ trigger: 'rounded-xl' }}
             >
               {requestTypes.map((option) => (
-                <SelectItem key={option.value}>{option.label}</SelectItem>
+                <ListBoxItem key={option.value}>{option.label}</ListBoxItem>
               ))}
             </Select>
 
@@ -141,33 +141,31 @@ const NewRequestPage = () => {
               label="موضوع درخواست"
               placeholder="عنوان کوتاه درخواست..."
               value={subject}
-              onValueChange={setSubject}
-              variant="bordered"
+              onChange={(e) => setSubject(e.target.value)}
+              variant="primary"
               isRequired
               classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
-            <Textarea
+            <TextArea
               label="شرح درخواست"
               placeholder="جزئیات کامل درخواست خود را وارد نمایید..."
               value={description}
-              onValueChange={setDescription}
-              variant="bordered"
+              onChange={(e) => setDescription(e.target.value)}
+              variant="primary"
               minRows={4}
               isRequired
               classNames={{ inputWrapper: 'rounded-xl' }}
             />
 
             <div className="flex items-center justify-end gap-3 mt-2">
-              <Button variant="flat" color="default" onPress={() => navigate('/requests')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
+              <Button variant="tertiary" onPress={() => navigate('/requests')} disabled={createMutation.isPending} className="rounded-xl font-medium">
                 انصراف
               </Button>
-              <Button type="submit" color="primary" isLoading={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
-                ثبت درخواست
-              </Button>
+              <Button type="submit"  className="rounded-xl font-bold px-6 shadow-md shadow-primary/20" variant="primary" isDisabled={createMutation.isPending}>{createMutation.isPending ? <Spinner size="sm" /> : 'ثبت درخواست'}</Button>
             </div>
           </form>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

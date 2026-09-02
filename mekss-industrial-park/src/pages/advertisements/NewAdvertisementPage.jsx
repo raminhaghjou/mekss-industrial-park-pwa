@@ -3,14 +3,23 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Input,
   Select,
-  SelectItem,
-  Textarea,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  TextArea,
   Button,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
   Spinner,
+  Label,
 } from '@heroui/react';
 import { ArrowRight, MegaPhone, RotateCw } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
@@ -84,13 +93,14 @@ const NewAdvertisementPage = () => {
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
-        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/advertisements')} variant="light" className="rounded-xl font-medium">
+        <Button variant="ghost" onPress={() => navigate('/advertisements')} className="rounded-xl font-medium flex items-center gap-2">
+          <ArrowRight className="h-4 w-4" />
           بازگشت به آگهی‌ها
         </Button>
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
-        <CardBody className="p-6 gap-6">
+        <CardContent className="p-6 gap-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
             <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
               <MegaPhone className="h-6 w-6" />
@@ -103,112 +113,153 @@ const NewAdvertisementPage = () => {
 
           {scopeQuery.isLoading && (
             <div className="flex min-h-[180px] items-center justify-center">
-              <Spinner size="lg" label="در حال دریافت محدوده مجاز..." />
+              <Spinner size="lg" />
             </div>
           )}
 
           {scopeQuery.isError && (
-            <Alert color="danger" title="خطا" endContent={<Button size="sm" variant="flat" color="danger" startContent={<RotateCw className="h-4 w-4" />} onPress={() => scopeQuery.refetch()}>تلاش دوباره</Button>}>
-              {getErrorMessage(scopeQuery.error, 'دریافت محدوده مجاز ثبت آگهی ناموفق بود.')}
+            <Alert status="danger" className="flex flex-wrap items-center justify-between gap-3">
+              <AlertContent>
+                <AlertTitle>خطا</AlertTitle>
+                <AlertDescription>{getErrorMessage(scopeQuery.error, 'دریافت محدوده مجاز ثبت آگهی ناموفق بود.')}</AlertDescription>
+              </AlertContent>
+              <Button size="sm" variant="secondary" onPress={() => scopeQuery.refetch()} className="rounded-xl flex items-center gap-2">
+                <RotateCw className="h-4 w-4" />
+                تلاش دوباره
+              </Button>
             </Alert>
           )}
 
           {unavailable && (
-            <Alert color="warning" title="هشدار عدم دسترسی">
-              هیچ شهرک صنعتی فعال و مرتبطی برای حساب شما وجود ندارد؛ ثبت آگهی فعلاً ممکن نیست.
+            <Alert status="warning">
+              <AlertContent>
+                <AlertTitle>هشدار عدم دسترسی</AlertTitle>
+                <AlertDescription>
+                  هیچ شهرک صنعتی فعال و مرتبطی برای حساب شما وجود ندارد؛ ثبت آگهی فعلاً ممکن نیست.
+                </AlertDescription>
+              </AlertContent>
             </Alert>
           )}
 
           {!scopeQuery.isLoading && !scopeQuery.isError && !unavailable && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-              <Input
-                required
-                label="عنوان آگهی"
-                placeholder="عنوان مناسب آگهی..."
-                value={form.title}
-                onValueChange={(val) => update('title', val)}
-                maxLength={200}
-                variant="bordered"
-                classNames={{ inputWrapper: 'rounded-xl' }}
-              />
-
-              <Select
-                label="دسته‌بندی"
-                selectedKeys={[form.category]}
-                onSelectionChange={(keys) => update('category', Array.from(keys)[0] || '')}
-                variant="bordered"
-                isRequired
-                classNames={{ trigger: 'rounded-xl' }}
-              >
-                {categories.map((option) => (
-                  <SelectItem key={option.value}>{option.label}</SelectItem>
-                ))}
-              </Select>
-
-              <Select
-                label="شهرک صنعتی"
-                selectedKeys={form.parkId ? [form.parkId] : []}
-                onSelectionChange={(keys) => update('parkId', Array.from(keys)[0] || '')}
-                variant="bordered"
-                isDisabled={!scope?.requiresSelection}
-                isRequired
-                classNames={{ trigger: 'rounded-xl' }}
-                description={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'}
-              >
-                {(scope?.parks || []).map((park) => (
-                  <SelectItem key={park.id}>{`${park.name} (${park.code})`}</SelectItem>
-                ))}
-              </Select>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">عنوان آگهی</Label>
                 <Input
                   required
-                  label="استان"
-                  placeholder="استان..."
-                  value={form.province}
-                  onValueChange={(val) => update('province', val)}
-                  variant="bordered"
-                  classNames={{ inputWrapper: 'rounded-xl' }}
-                />
-                <Input
-                  required
-                  label="شهر"
-                  placeholder="شهر..."
-                  value={form.city}
-                  onValueChange={(val) => update('city', val)}
-                  variant="bordered"
-                  classNames={{ inputWrapper: 'rounded-xl' }}
+                  placeholder="عنوان مناسب آگهی..."
+                  value={form.title}
+                  onChange={(e) => update('title', e.target.value)}
+                  maxLength={200}
+                  variant="primary"
+                  className="rounded-xl"
                 />
               </div>
 
-              <Textarea
-                required
-                label="شرح آگهی"
-                placeholder="متن کامل و جزئیات آگهی..."
-                value={form.content}
-                onValueChange={(val) => update('content', val)}
-                minRows={5}
-                maxLength={8000}
-                variant="bordered"
-                classNames={{ inputWrapper: 'rounded-xl' }}
-              />
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">دسته‌بندی</Label>
+                <Select
+                  value={form.category}
+                  onChange={(val) => update('category', val || 'OTHER')}
+                  variant="primary"
+                  isRequired
+                  className="rounded-xl"
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                    <SelectIndicator />
+                  </SelectTrigger>
+                  <SelectPopover>
+                    <ListBox>
+                      {categories.map((option) => (
+                        <ListBoxItem key={option.value} id={option.value}>{option.label}</ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </SelectPopover>
+                </Select>
+              </div>
 
-              <Input
-                required
-                label="شماره تماس"
-                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                value={form.contact}
-                onValueChange={(val) => update('contact', val)}
-                maxLength={20}
-                variant="bordered"
-                dir="ltr"
-                classNames={{ inputWrapper: 'rounded-xl' }}
-              />
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی</Label>
+                <Select
+                  value={form.parkId}
+                  onChange={(val) => update('parkId', val || '')}
+                  variant="primary"
+                  isDisabled={!scope?.requiresSelection}
+                  isRequired
+                  className="rounded-xl"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'} />
+                    <SelectIndicator />
+                  </SelectTrigger>
+                  <SelectPopover>
+                    <ListBox>
+                      {(scope?.parks || []).map((park) => (
+                        <ListBoxItem key={park.id} id={park.id}>{`${park.name} (${park.code})`}</ListBoxItem>
+                      ))}
+                    </ListBox>
+                  </SelectPopover>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs font-medium text-foreground-600">استان</Label>
+                  <Input
+                    required
+                    placeholder="استان..."
+                    value={form.province}
+                    onChange={(e) => update('province', e.target.value)}
+                    variant="primary"
+                    className="rounded-xl"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs font-medium text-foreground-600">شهر</Label>
+                  <Input
+                    required
+                    placeholder="شهر..."
+                    value={form.city}
+                    onChange={(e) => update('city', e.target.value)}
+                    variant="primary"
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">شرح آگهی</Label>
+                <TextArea
+                  required
+                  placeholder="متن کامل و جزئیات آگهی..."
+                  value={form.content}
+                  onChange={(e) => update('content', e.target.value)}
+                  minRows={5}
+                  maxLength={8000}
+                  variant="primary"
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">شماره تماس</Label>
+                <Input
+                  required
+                  placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                  value={form.contact}
+                  onChange={(e) => update('contact', e.target.value)}
+                  maxLength={20}
+                  variant="primary"
+                  dir="ltr"
+                  className="rounded-xl"
+                />
+              </div>
 
               <div className="flex justify-end mt-2">
                 <Button
                   type="submit"
-                  color="primary"
+                  variant="primary"
                   isLoading={createMutation.isPending}
                   isDisabled={createMutation.isPending || !form.parkId}
                   className="rounded-xl font-bold px-8 shadow-md shadow-primary/20"
@@ -218,11 +269,10 @@ const NewAdvertisementPage = () => {
               </div>
             </form>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );
 };
 
 export default NewAdvertisementPage;
-

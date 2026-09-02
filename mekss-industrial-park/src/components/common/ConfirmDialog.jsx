@@ -1,5 +1,16 @@
 import { useState } from 'react';
-import { ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Button, Textarea, Spinner } from '@heroui/react';
+import {
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Label,
+  TextArea,
+  Spinner,
+} from '@heroui/react';
 
 export const ConfirmDialog = ({
   open,
@@ -11,6 +22,7 @@ export const ConfirmDialog = ({
   requireReason = false,
   reasonLabel = 'دلیل',
   loading = false,
+  disabled = false,
   onConfirm,
   onClose,
 }) => {
@@ -39,16 +51,18 @@ export const ConfirmDialog = ({
           <ModalBody className="gap-3">
             {description && <p className="text-sm text-foreground-500">{description}</p>}
             {requireReason && (
-              <Textarea
-                label={reasonLabel}
-                placeholder={`${reasonLabel} را وارد کنید...`}
-                value={reason}
-                onValueChange={setReason}
-                variant="primary"
-                minRows={3}
-                isRequired
-                className="rounded-xl"
-              />
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">{reasonLabel}</Label>
+                <TextArea
+                  placeholder={`${reasonLabel} را وارد کنید...`}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  variant="primary"
+                  minRows={3}
+                  isRequired
+                  className="rounded-xl"
+                />
+              </div>
             )}
           </ModalBody>
           <ModalFooter>
@@ -58,7 +72,7 @@ export const ConfirmDialog = ({
             <Button
               variant={confirmColor === 'danger' ? 'danger' : 'primary'}
               onPress={handleConfirm}
-              isDisabled={loading || (requireReason && !reason.trim())}
+              isDisabled={loading || disabled || (requireReason && !reason.trim())}
               className="rounded-xl font-bold"
             >
               {loading ? <Spinner size="sm" /> : confirmLabel}
@@ -71,4 +85,3 @@ export const ConfirmDialog = ({
 };
 
 export default ConfirmDialog;
-

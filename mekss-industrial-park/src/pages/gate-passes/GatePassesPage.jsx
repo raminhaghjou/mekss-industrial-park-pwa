@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert } from '@heroui/react';
 import { Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -21,7 +21,7 @@ export const GatePassesPage = () => {
       <h1 className="text-2xl font-bold text-foreground">برگ‌های خروج</h1>
 
       <Card>
-        <CardBody className="p-0">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex flex-col gap-2 p-4">
               {[...Array(5)].map((_, i) => (
@@ -53,7 +53,7 @@ export const GatePassesPage = () => {
                     <TableCell dir="ltr">{pass.licensePlate}</TableCell>
                     <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
                     <TableCell>
-                      <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="flat">
+                      <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">
                         {statusLabels[pass.status] || pass.status}
                       </Chip>
                     </TableCell>
@@ -62,7 +62,7 @@ export const GatePassesPage = () => {
               </TableBody>
             </Table>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

@@ -8,7 +8,7 @@ import {
   TableCell,
   Chip,
   Card,
-  CardBody,
+  CardContent,
 } from '@heroui/react';
 
 const statusColors = {
@@ -38,8 +38,8 @@ const GatePassList = ({ passes }) => {
 
   return (
     <Card className="border border-default-200 shadow-sm rounded-2xl overflow-hidden dark:border-white/10">
-      <CardBody className="p-0">
-        <Table aria-label="جدول برگ خروج" classNames={{ table: 'min-w-[650px]' }}>
+      <CardContent className="p-0">
+        <Table aria-label="جدول برگ خروج" className="min-w-[650px]">
           <TableHeader>
             <TableColumn className="font-bold text-right">نام راننده</TableColumn>
             <TableColumn className="font-bold text-right">شماره پلاک</TableColumn>
@@ -55,7 +55,7 @@ const GatePassList = ({ passes }) => {
                 <TableCell>{pass.cargoDescription || pass.cargoType}</TableCell>
                 <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
                 <TableCell className="text-center">
-                  <Chip label={statusLabels[pass.status] || pass.status} color={statusColors[pass.status] || 'default'} size="sm" variant="flat" className="font-semibold">
+                  <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft" className="font-semibold">
                     {statusLabels[pass.status] || pass.status}
                   </Chip>
                 </TableCell>
@@ -63,10 +63,9 @@ const GatePassList = ({ passes }) => {
             ))}
           </TableBody>
         </Table>
-      </CardBody>
+      </CardContent>
     </Card>
   );
 };
 
 export default GatePassList;
-

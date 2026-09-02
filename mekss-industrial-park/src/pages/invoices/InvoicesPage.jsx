@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, Tabs, Tab } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, Tabs, Tab } from '@heroui/react';
 import { Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -21,7 +21,7 @@ export const InvoicesPage = () => {
       <h1 className="text-2xl font-bold text-foreground">قبض‌ها</h1>
 
       <Card>
-        <CardBody className="p-0">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex flex-col gap-2 p-4">
               {[...Array(5)].map((_, i) => (
@@ -53,7 +53,7 @@ export const InvoicesPage = () => {
                     <TableCell>{invoice.description}</TableCell>
                     <TableCell dir="ltr">{Number(invoice.totalAmount).toLocaleString('fa-IR')}</TableCell>
                     <TableCell>
-                      <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="flat">
+                      <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="soft">
                         {statusLabels[invoice.status] || invoice.status}
                       </Chip>
                     </TableCell>
@@ -62,7 +62,7 @@ export const InvoicesPage = () => {
               </TableBody>
             </Table>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

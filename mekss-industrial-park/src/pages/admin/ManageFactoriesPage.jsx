@@ -13,7 +13,7 @@ import {
   ModalBody,
   ModalFooter,
   Input,
-  Textarea,
+  TextArea,
   Table,
   TableHeader,
   TableColumn,
@@ -124,47 +124,47 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نام واحد صنعتی</label>
-        <Input required value={form.name} onValueChange={(v) => setField('name', v)} isDisabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
+        <Input required value={form.name} onChange={(e) => setField('name', e.target.value)} disabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">شماره مجوز</label>
-        <Input required value={form.licenseNumber} onValueChange={(v) => setField('licenseNumber', v)} isDisabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
+        <Input required value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} disabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">شناسه ملی</label>
-        <Input required value={form.nationalId} onValueChange={(v) => setField('nationalId', v)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input required value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نوع فعالیت</label>
-        <Input required value={form.activityType} onValueChange={(v) => setField('activityType', v)} isDisabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
+        <Input required value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} disabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن همراه</label>
-        <Input required value={form.phoneNumber} onValueChange={(v) => setField('phoneNumber', v)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input required value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن همراه دوم</label>
-        <Input value={form.phoneNumber2} onValueChange={(v) => setField('phoneNumber2', v)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن ثابت</label>
-        <Input value={form.landline} onValueChange={(v) => setField('landline', v)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.landline} onChange={(e) => setField('landline', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نمابر</label>
-        <Input value={form.fax} onValueChange={(v) => setField('fax', v)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.fax} onChange={(e) => setField('fax', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">ایمیل</label>
-        <Input type="email" value={form.email} onValueChange={(v) => setField('email', v)} isDisabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} disabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">وب‌سایت</label>
-        <Input type="url" value={form.website} onValueChange={(v) => setField('website', v)} isDisabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} disabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
-        <Input type="number" value={form.employees} onValueChange={(v) => setField('employees', v)} isDisabled={disabled} variant="primary" className="rounded-xl" />
+        <Input type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} disabled={disabled} variant="primary" className="rounded-xl" />
       </div>
       {!editing && (
         <div className="flex flex-col gap-1">
@@ -198,12 +198,12 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
       )}
       <div className="sm:col-span-2 flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نشانی</label>
-        <Textarea
+        <TextArea
           required
           minRows={2}
           value={form.address}
-          onValueChange={(v) => setField('address', v)}
-          isDisabled={disabled}
+          onChange={(e) => setField('address', e.target.value)}
+          disabled={disabled}
           maxLength={240}
           variant="primary"
           className="rounded-xl"
@@ -211,11 +211,11 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
       </div>
       <div className="sm:col-span-2 flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">توضیحات</label>
-        <Textarea
+        <TextArea
           minRows={3}
           value={form.description}
-          onValueChange={(v) => setField('description', v)}
-          isDisabled={disabled}
+          onChange={(e) => setField('description', e.target.value)}
+          disabled={disabled}
           maxLength={2000}
           variant="primary"
           className="rounded-xl"
@@ -409,7 +409,7 @@ const ManageFactoriesPage = () => {
         <Button
           variant="primary"
           onPress={startCreate}
-          isDisabled={!online || mutationPending || scopeQuery.isLoading}
+          disabled={!online || mutationPending || scopeQuery.isLoading}
           className="rounded-xl font-bold shadow-md shadow-primary/20 flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -444,7 +444,7 @@ const ManageFactoriesPage = () => {
                 size="md"
                 placeholder="نام، مجوز یا شناسه ملی..."
                 value={draftSearch}
-                onValueChange={setDraftSearch}
+                onChange={(e) => setDraftSearch(e.target.value)}
                 maxLength={200}
                 variant="primary"
                 className="pr-9 rounded-xl"
@@ -539,7 +539,7 @@ const ManageFactoriesPage = () => {
                           size="sm"
                           variant="tertiary"
                           onPress={() => startEdit(factory)}
-                          isDisabled={!online || mutationPending || Boolean(editLoadingId)}
+                          disabled={!online || mutationPending || Boolean(editLoadingId)}
                           className="rounded-xl font-medium flex items-center gap-1"
                         >
                           {editLoadingId === factory.id ? <Spinner size="sm" /> : <Edit2 className="h-4 w-4" />}
@@ -551,7 +551,7 @@ const ManageFactoriesPage = () => {
                               size="sm"
                               variant="primary"
                               onPress={() => setApproveTarget(factory)}
-                              isDisabled={!online || mutationPending}
+                              disabled={!online || mutationPending}
                               className="rounded-xl font-bold flex items-center gap-1"
                             >
                               <Check className="h-4 w-4" />
@@ -561,7 +561,7 @@ const ManageFactoriesPage = () => {
                               size="sm"
                               variant="danger-soft"
                               onPress={() => setRejectTarget(factory)}
-                              isDisabled={!online || mutationPending}
+                              disabled={!online || mutationPending}
                               className="rounded-xl font-bold flex items-center gap-1"
                             >
                               <X className="h-4 w-4" />
@@ -687,10 +687,10 @@ const ManageFactoriesPage = () => {
                   <FactoryFormFields form={form} setForm={setForm} editing={Boolean(editing)} parks={parks} owners={owners} disabled={mutationPending} />
                 </ModalBody>
                 <ModalFooter className="mt-4">
-                  <Button variant="tertiary" onPress={closeForm} isDisabled={mutationPending} className="rounded-xl font-medium">
+                  <Button variant="tertiary" onPress={closeForm} disabled={mutationPending} className="rounded-xl font-medium">
                     انصراف
                   </Button>
-                  <Button type="submit" variant="primary" isDisabled={!online || (!editing && scopeQuery.isLoading) || mutationPending} className="rounded-xl font-bold px-6">
+                  <Button type="submit" variant="primary" disabled={!online || (!editing && scopeQuery.isLoading) || mutationPending} className="rounded-xl font-bold px-6">
                     {mutationPending ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت واحد صنعتی')}
                   </Button>
                 </ModalFooter>

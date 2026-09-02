@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Input, Button, Card, CardBody, CardHeader, Divider, Tabs, Tab } from '@heroui/react';
+import { Input, Button, Card, CardContent, CardHeader, Separator, Tabs, TabList, Tab, Label } from '@heroui/react';
 import { Eye, EyeOff, Phone, Lock, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -9,7 +9,7 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const { login, sendOtp, verifyOtp } = useAuth();
   const { showNotification } = useNotification();
-  
+
   const [formData, setFormData] = useState({
     phoneNumber: '',
     password: '',
@@ -56,9 +56,7 @@ export const LoginPage = () => {
     }
   };
 
-  const handlePasswordLogin = async (e) => {
-    e.preventDefault();
-    
+  const handlePasswordLogin = async () => {
     if (!formData.phoneNumber || !formData.password) {
       showNotification('لطفاً تمام فیلدها را پر کنید', 'error');
       return;
@@ -76,9 +74,19 @@ export const LoginPage = () => {
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (loginMethod === 'otp') {
+      await handleOtpLogin();
+    } else {
+      await handlePasswordLogin();
+    }
+  };
+
+  const inputWrapperClass = 'border-white/15 bg-slate-950/50 backdrop-blur-md rounded-xl text-white';
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-4 font-sans text-slate-100 antialiased selection:bg-cyan-500 selection:text-white">
-      {/* Animated Futuristic Ambient Mesh & Particles Background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="animate-pulse-slow absolute -top-40 -left-40 h-[550px] w-[550px] rounded-full bg-gradient-to-br from-indigo-600/40 via-purple-600/30 to-cyan-500/20 blur-3xl" />
         <div className="animate-pulse-slow absolute -bottom-40 -right-40 h-[600px] w-[600px] rounded-full bg-gradient-to-tr from-cyan-600/35 via-blue-600/30 to-indigo-600/20 blur-3xl" style={{ animationDelay: '3s' }} />
@@ -95,7 +103,7 @@ export const LoginPage = () => {
                 </span>
               </div>
             </div>
-            
+
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300 backdrop-blur-md">
                 <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
@@ -105,76 +113,70 @@ export const LoginPage = () => {
               <p className="text-xs text-slate-400">مدیریت دیجیتال و یکپارچه شهرک صنعتی</p>
             </div>
           </CardHeader>
-          
-          <Divider className="my-2 bg-white/10" />
-          
-          <CardBody className="px-6 py-4">
+
+          <Separator className="my-2 bg-white/10" />
+
+          <CardContent className="px-6 py-4">
             <Tabs
               selectedKey={loginMethod}
-              onSelectionChange={setLoginMethod}
-              variant="bordered"
-              color="primary"
-              size="lg"
-              classNames={{
-                tabList: 'w-full bg-slate-950/60 p-1 border border-white/10 rounded-2xl',
-                tab: 'text-xs md:text-sm font-medium rounded-xl text-slate-300 data-[selected=true]:bg-indigo-600 data-[selected=true]:text-white shadow-sm transition-all',
-              }}
+              onSelectionChange={(key) => setLoginMethod(String(key))}
+              variant="primary"
+              className="w-full"
             >
-              <Tab key="password" title="ورود با رمز عبور" />
-              <Tab key="otp" title="ورود با رمز یک‌بار مصرف" />
+              <TabList className="w-full bg-slate-950/60 p-1 border border-white/10 rounded-2xl">
+                <Tab id="password" className="text-xs md:text-sm font-medium rounded-xl">ورود با رمز عبور</Tab>
+                <Tab id="otp" className="text-xs md:text-sm font-medium rounded-xl">ورود با رمز یک‌بار مصرف</Tab>
+              </TabList>
             </Tabs>
 
-            <form onSubmit={handlePasswordLogin} className="mt-6 flex flex-col gap-4">
-              <Input
-                type="tel"
-                label="شماره تلفن همراه"
-                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                value={formData.phoneNumber}
-                onValueChange={(value) => setFormData({ ...formData, phoneNumber: value })}
-                startContent={<Phone className="h-4 w-4 text-cyan-400" />}
-                variant="bordered"
-                dir="ltr"
-                isRequired
-                classNames={{
-                  inputWrapper: 'border-white/15 bg-slate-950/50 backdrop-blur-md hover:border-cyan-500/50 focus-within:!border-cyan-500 rounded-xl text-white',
-                  label: 'text-slate-300 text-xs font-medium',
-                  input: 'text-white font-medium text-left placeholder:text-slate-500',
-                }}
-              />
+            <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <Label className="text-slate-300 text-xs font-medium">شماره تلفن همراه</Label>
+                <div className="relative flex items-center">
+                  <Phone className="absolute right-3 h-4 w-4 text-cyan-400 pointer-events-none" />
+                  <Input
+                    type="tel"
+                    placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                    variant="primary"
+                    dir="ltr"
+                    isRequired
+                    className={`pr-9 ${inputWrapperClass} hover:border-cyan-500/50 focus-within:border-cyan-500 text-left placeholder:text-slate-500`}
+                  />
+                </div>
+              </div>
 
               {loginMethod === 'password' && (
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  label="رمز عبور"
-                  placeholder="رمز عبور خود را وارد کنید"
-                  value={formData.password}
-                  onValueChange={(value) => setFormData({ ...formData, password: value })}
-                  startContent={<Lock className="h-4 w-4 text-indigo-400" />}
-                  endContent={
+                <div className="flex flex-col gap-1">
+                  <Label className="text-slate-300 text-xs font-medium">رمز عبور</Label>
+                  <div className="relative flex items-center">
+                    <Lock className="absolute right-3 h-4 w-4 text-indigo-400 pointer-events-none" />
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="رمز عبور خود را وارد کنید"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      variant="primary"
+                      isRequired
+                      className={`pr-9 pl-9 ${inputWrapperClass} hover:border-indigo-500/50 focus-within:border-indigo-500 placeholder:text-slate-500`}
+                    />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="text-slate-400 transition-colors hover:text-white"
+                      className="absolute left-3 text-slate-400 transition-colors hover:text-white"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
-                  }
-                  variant="bordered"
-                  isRequired
-                  classNames={{
-                    inputWrapper: 'border-white/15 bg-slate-950/50 backdrop-blur-md hover:border-indigo-500/50 focus-within:!border-indigo-500 rounded-xl text-white',
-                    label: 'text-slate-300 text-xs font-medium',
-                    input: 'text-white font-medium placeholder:text-slate-500',
-                  }}
-                />
+                  </div>
+                </div>
               )}
 
               {loginMethod === 'otp' && (
                 <>
                   <Button
                     type="button"
-                    color="secondary"
-                    variant="flat"
+                    variant="secondary"
                     onPress={handleSendOtp}
                     isLoading={loading && !otpSent}
                     isDisabled={!formData.phoneNumber || otpSent}
@@ -184,29 +186,27 @@ export const LoginPage = () => {
                   </Button>
 
                   {otpSent && (
-                    <Input
-                      type="text"
-                      label="کد تایید پیامک شده"
-                      placeholder="۶ رقمی"
-                      value={otpCode}
-                      onValueChange={setOtpCode}
-                      maxLength={6}
-                      variant="bordered"
-                      dir="ltr"
-                      isRequired
-                      classNames={{
-                        inputWrapper: 'border-purple-500/40 bg-slate-950/60 backdrop-blur-md focus-within:!border-purple-400 rounded-xl text-white',
-                        label: 'text-purple-300 text-xs font-medium',
-                        input: 'text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600',
-                      }}
-                    />
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-purple-300 text-xs font-medium">کد تایید پیامک شده</Label>
+                      <Input
+                        type="text"
+                        placeholder="۶ رقمی"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        maxLength={6}
+                        variant="primary"
+                        dir="ltr"
+                        isRequired
+                        className="border-purple-500/40 bg-slate-950/60 backdrop-blur-md focus-within:border-purple-400 rounded-xl text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600"
+                      />
+                    </div>
                   )}
                 </>
               )}
 
               <Button
                 type="submit"
-                color="primary"
+                variant="primary"
                 size="lg"
                 className="mt-2 w-full rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-bold shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.01] hover:shadow-indigo-600/50 active:scale-[0.99]"
                 isLoading={loading}
@@ -225,7 +225,7 @@ export const LoginPage = () => {
                 بازیابی رمز عبور
               </Link>
             </div>
-          </CardBody>
+          </CardContent>
         </Card>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-slate-400">
@@ -238,4 +238,3 @@ export const LoginPage = () => {
 };
 
 export default LoginPage;
-

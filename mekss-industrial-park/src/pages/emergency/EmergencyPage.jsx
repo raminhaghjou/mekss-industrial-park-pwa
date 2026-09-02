@@ -1,6 +1,17 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Card, CardBody, CardHeader, Button, Textarea, Skeleton, Alert } from '@heroui/react';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  Button,
+  TextArea,
+  Skeleton,
+  Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+} from '@heroui/react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { emergencyApi } from '../../services/api/emergency.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -45,31 +56,31 @@ export const EmergencyPage = () => {
             <h2 className="font-semibold">ثبت هشدار جدید</h2>
           </div>
         </CardHeader>
-        <CardBody className="p-4 pt-0">
-          <Textarea
+        <CardContent className="p-4 pt-0">
+          <TextArea
             placeholder="توضیحات هشدار را وارد کنید..."
             value={description}
-            onValueChange={setDescription}
+            onChange={(e) => setDescription(e.target.value)}
             minRows={3}
           />
           <Button
-            color="danger"
-            className="mt-4"
-            startContent={<AlertTriangle className="h-4 w-4" />}
-            onClick={() => createMutation.mutate({ description })}
+            variant="danger"
+            className="mt-4 flex items-center gap-2"
+            onPress={() => createMutation.mutate({ description })}
             isLoading={createMutation.isPending}
-            isDisabled={!description.trim()}
+            isDisabled={createMutation.isPending || !description.trim()}
           >
+            <AlertTriangle className="h-4 w-4" />
             ارسال هشدار
           </Button>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="p-4">
           <h2 className="font-semibold text-foreground">هشدارهای فعال</h2>
         </CardHeader>
-        <CardBody className="p-0">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex flex-col gap-2 p-4">
               {[...Array(3)].map((_, i) => (
@@ -77,8 +88,11 @@ export const EmergencyPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت هشدارها ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت هشدارها ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : !alerts || alerts.length === 0 ? (
             <div className="p-8 text-center text-foreground-500">
@@ -96,20 +110,20 @@ export const EmergencyPage = () => {
                     </p>
                   </div>
                   <Button
-                    color="success"
-                    variant="flat"
+                    variant="secondary"
                     size="sm"
-                    startContent={<CheckCircle className="h-4 w-4" />}
-                    onClick={() => resolveMutation.mutate(alert.id)}
+                    className="flex items-center gap-2"
+                    onPress={() => resolveMutation.mutate(alert.id)}
                     isLoading={resolveMutation.isPending}
                   >
+                    <CheckCircle className="h-4 w-4" />
                     رفع شد
                   </Button>
                 </div>
               ))}
             </div>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

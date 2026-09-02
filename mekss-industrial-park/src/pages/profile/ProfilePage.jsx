@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
-import { Card, CardBody, CardHeader, Input, Button, Avatar, Divider } from '@heroui/react';
+import { Card, CardContent, CardHeader, Input, Button, Avatar, Separator, Label } from '@heroui/react';
 import { User, Phone, Building2, Save } from 'lucide-react';
 
 export const ProfilePage = () => {
@@ -17,8 +17,7 @@ export const ProfilePage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    // API call would go here
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     setLoading(false);
     showNotification('پروفایل با موفقیت به‌روزرسانی شد', 'success');
   };
@@ -26,7 +25,7 @@ export const ProfilePage = () => {
   return (
     <div className="mx-auto max-w-2xl animate-fade-in">
       <h1 className="mb-6 text-2xl font-bold text-foreground">پروفایل</h1>
-      
+
       <Card>
         <CardHeader className="flex items-center gap-4 p-6">
           <Avatar
@@ -38,53 +37,69 @@ export const ProfilePage = () => {
             <p className="text-sm text-foreground-500">{user?.role}</p>
           </div>
         </CardHeader>
-        
-        <Divider />
-        
-        <CardBody className="p-6">
+
+        <Separator />
+
+        <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Input
-              type="text"
-              label="نام و نام خانوادگی"
-              value={formData.name}
-              onValueChange={(value) => setFormData({ ...formData, name: value })}
-              startContent={<User className="h-4 w-4 text-default-400" />}
-              variant="bordered"
-            />
-            
-            <Input
-              type="tel"
-              label="شماره تلفن"
-              value={formData.phoneNumber}
-              onValueChange={(value) => setFormData({ ...formData, phoneNumber: value })}
-              startContent={<Phone className="h-4 w-4 text-default-400" />}
-              variant="bordered"
-              dir="ltr"
-              isReadOnly
-            />
-            
-            <Input
-              type="email"
-              label="ایمیل"
-              value={formData.email}
-              onValueChange={(value) => setFormData({ ...formData, email: value })}
-              startContent={<Building2 className="h-4 w-4 text-default-400" />}
-              variant="bordered"
-              dir="ltr"
-            />
-            
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">نام و نام خانوادگی</Label>
+              <div className="relative flex items-center">
+                <User className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+                <Input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  variant="primary"
+                  className="pr-9 rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">شماره تلفن</Label>
+              <div className="relative flex items-center">
+                <Phone className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+                <Input
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                  variant="primary"
+                  dir="ltr"
+                  isReadOnly
+                  className="pr-9 rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">ایمیل</Label>
+              <div className="relative flex items-center">
+                <Building2 className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  variant="primary"
+                  dir="ltr"
+                  className="pr-9 rounded-xl"
+                />
+              </div>
+            </div>
+
             <Button
               type="submit"
-              color="primary"
+              variant="primary"
               size="lg"
-              className="mt-4"
-              startContent={<Save className="h-4 w-4" />}
+              className="mt-4 flex items-center gap-2"
               isLoading={loading}
+              isDisabled={loading}
             >
+              <Save className="h-4 w-4" />
               ذخیره تغییرات
             </Button>
           </form>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

@@ -5,10 +5,20 @@ import {
   CardContent,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
   ListBoxItem,
+  Label,
   TextArea,
   Button,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Spinner,
 } from '@heroui/react';
 import { Send, MessageSquare } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
@@ -63,6 +73,14 @@ const SendMessagePage = () => {
     sendMutation.mutate();
   };
 
+  const handleRecipientsChange = (keys) => {
+    if (keys === 'all') {
+      setSelectedManagerIds(recipients.map((recipient) => recipient.id));
+      return;
+    }
+    setSelectedManagerIds(Array.from(keys));
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
@@ -78,58 +96,72 @@ const SendMessagePage = () => {
       <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
         <CardContent className="p-6">
           {isError && (
-            <Alert color="danger" title="خطا" className="mb-4">
-              دریافت لیست گیرندگان ناموفق بود.
+            <Alert status="danger" className="mb-4">
+              <AlertContent>
+                <AlertTitle>خطا</AlertTitle>
+                <AlertDescription>دریافت لیست گیرندگان ناموفق بود.</AlertDescription>
+              </AlertContent>
             </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <Select
-              label="انتخاب گیرندگان"
-              placeholder="مدیران مورد نظر را انتخاب کنید..."
-              selectionMode="multiple"
-              selectedKeys={new Set(selectedManagerIds)}
-              onSelectionChange={(keys) => setSelectedManagerIds(Array.from(keys))}
-              variant="primary"
-              disabled={isLoading}
-              isRequired
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              {recipients.map((recipient) => (
-                <ListBoxItem key={recipient.id}>{recipient.label}</ListBoxItem>
-              ))}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">انتخاب گیرندگان</Label>
+              <Select
+                selectionMode="multiple"
+                value={selectedManagerIds}
+                onChange={handleRecipientsChange}
+                placeholder="مدیران مورد نظر را انتخاب کنید..."
+                variant="primary"
+                isDisabled={isLoading}
+                className="rounded-xl"
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                  <SelectIndicator />
+                </SelectTrigger>
+                <SelectPopover>
+                  <ListBox>
+                    {recipients.map((recipient) => (
+                      <ListBoxItem key={recipient.id} id={recipient.id}>{recipient.label}</ListBoxItem>
+                    ))}
+                  </ListBox>
+                </SelectPopover>
+              </Select>
+            </div>
 
-            <Input
-              label="موضوع پیام"
-              placeholder="عنوان پیام اطلاع‌رسانی..."
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              variant="primary"
-              isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">موضوع پیام</Label>
+              <Input
+                placeholder="عنوان پیام اطلاع‌رسانی..."
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                variant="primary"
+                className="rounded-xl"
+              />
+            </div>
 
-            <TextArea
-              label="متن پیام"
-              placeholder="متن کامل پیام را وارد کنید..."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              variant="primary"
-              minRows={6}
-              isRequired
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">متن پیام</Label>
+              <TextArea
+                placeholder="متن کامل پیام را وارد کنید..."
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                variant="primary"
+                rows={6}
+                className="rounded-xl"
+              />
+            </div>
 
             <div className="flex items-center justify-end mt-2">
               <Button
                 type="submit"
                 variant="primary"
                 size="lg"
-                startContent={sendMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
                 isDisabled={sendMutation.isPending}
-                className="rounded-xl font-bold px-8 shadow-md"
+                className="rounded-xl font-bold px-8 shadow-md flex items-center gap-2"
               >
+                {sendMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
                 ارسال پیام
               </Button>
             </div>
@@ -141,4 +173,3 @@ const SendMessagePage = () => {
 };
 
 export default SendMessagePage;
-

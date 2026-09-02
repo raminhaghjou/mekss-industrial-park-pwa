@@ -5,7 +5,14 @@ import {
   CardContent,
   Input,
   TextArea,
-  Checkbox,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
   Button,
   Chip,
   Spinner,
@@ -146,7 +153,6 @@ const ManageAnnouncementsPage = () => {
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                   variant="primary"
-                  isRequired
                   className="rounded-xl"
                 />
               </div>
@@ -158,8 +164,7 @@ const ManageAnnouncementsPage = () => {
                   value={form.content}
                   onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                   variant="primary"
-                  minRows={4}
-                  isRequired
+                  rows={4}
                   className="rounded-xl"
                 />
               </div>
@@ -210,26 +215,35 @@ const ManageAnnouncementsPage = () => {
 
                 {!editing && isSuperAdmin && !form.isGlobal && (
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">شهرک صنعتی هدف</label>
-                    <select
+                    <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی هدف</Label>
+                    <Select
                       value={form.parkId}
-                      onChange={(e) => setForm((f) => ({ ...f, parkId: e.target.value }))}
-                      className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+                      onChange={(value) => setForm((f) => ({ ...f, parkId: value || '' }))}
+                      placeholder="انتخاب شهرک..."
+                      variant="primary"
+                      className="rounded-xl"
                     >
-                      <option value="">انتخاب شهرک...</option>
-                      {parks.map((park) => (
-                        <option key={park.id} value={park.id}>{park.name}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger>
+                        <SelectValue />
+                        <SelectIndicator />
+                      </SelectTrigger>
+                      <SelectPopover>
+                        <ListBox>
+                          {parks.map((park) => (
+                            <ListBoxItem key={park.id} id={park.id}>{park.name}</ListBoxItem>
+                          ))}
+                        </ListBox>
+                      </SelectPopover>
+                    </Select>
                   </div>
                 )}
               </div>
 
               <div className="flex items-center gap-2 justify-end mt-2">
-                <Button variant="tertiary" onPress={resetForm} disabled={saving} className="rounded-xl font-medium">
+                <Button variant="tertiary" onPress={resetForm} isDisabled={saving} className="rounded-xl font-medium">
                   انصراف
                 </Button>
-                <Button type="submit" variant="primary" disabled={saving} className="rounded-xl font-bold">
+                <Button type="submit" variant="primary" isDisabled={saving} className="rounded-xl font-bold">
                   {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت اطلاعیه')}
                 </Button>
               </div>

@@ -14,6 +14,14 @@ import {
   ModalFooter,
   Input,
   TextArea,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
   Table,
   TableHeader,
   TableColumn,
@@ -118,53 +126,79 @@ const DetailRow = ({ label, children, ltr = false }) => (
   </div>
 );
 
+const FormSelect = ({ label, value, onChange, options, isDisabled, placeholder }) => (
+  <div className="flex flex-col gap-1">
+    <Label className="text-xs font-medium text-foreground-600">{label}</Label>
+    <Select
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      variant="primary"
+      isDisabled={isDisabled}
+      className="rounded-xl"
+    >
+      <SelectTrigger>
+        <SelectValue />
+        <SelectIndicator />
+      </SelectTrigger>
+      <SelectPopover>
+        <ListBox>
+          {options.map((option) => (
+            <ListBoxItem key={option.value} id={option.value}>{option.label}</ListBoxItem>
+          ))}
+        </ListBox>
+      </SelectPopover>
+    </Select>
+  </div>
+);
+
 const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) => {
   const setField = (field, val) => setForm((current) => ({ ...current, [field]: val }));
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نام واحد صنعتی</label>
-        <Input required value={form.name} onChange={(e) => setField('name', e.target.value)} disabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
+        <Input value={form.name} onChange={(e) => setField('name', e.target.value)} isDisabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">شماره مجوز</label>
-        <Input required value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} disabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
+        <Input value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} isDisabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">شناسه ملی</label>
-        <Input required value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نوع فعالیت</label>
-        <Input required value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} disabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
+        <Input value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} isDisabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن همراه</label>
-        <Input required value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن همراه دوم</label>
-        <Input value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن ثابت</label>
-        <Input value={form.landline} onChange={(e) => setField('landline', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.landline} onChange={(e) => setField('landline', e.target.value)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نمابر</label>
-        <Input value={form.fax} onChange={(e) => setField('fax', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.fax} onChange={(e) => setField('fax', e.target.value)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">ایمیل</label>
-        <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} disabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} isDisabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">وب‌سایت</label>
-        <Input type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} disabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} isDisabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
-        <Input type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} disabled={disabled} variant="primary" className="rounded-xl" />
+        <Input type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} isDisabled={disabled} variant="primary" className="rounded-xl" />
       </div>
       {!editing && (
         <div className="flex flex-col gap-1">
@@ -172,7 +206,7 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
           <select
             value={form.parkId}
             onChange={(e) => setField('parkId', e.target.value)}
-            disabled={disabled}
+            isDisabled={disabled}
             required
             className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
           >
@@ -187,7 +221,7 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
           <select
             value={form.managerId}
             onChange={(e) => setField('managerId', e.target.value)}
-            disabled={disabled}
+            isDisabled={disabled}
             required
             className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
           >
@@ -200,10 +234,10 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
         <label className="text-xs font-medium text-foreground-600">نشانی</label>
         <TextArea
           required
-          minRows={2}
+          rows={2}
           value={form.address}
           onChange={(e) => setField('address', e.target.value)}
-          disabled={disabled}
+          isDisabled={disabled}
           maxLength={240}
           variant="primary"
           className="rounded-xl"
@@ -212,10 +246,10 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
       <div className="sm:col-span-2 flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">توضیحات</label>
         <TextArea
-          minRows={3}
+          rows={3}
           value={form.description}
           onChange={(e) => setField('description', e.target.value)}
-          disabled={disabled}
+          isDisabled={disabled}
           maxLength={2000}
           variant="primary"
           className="rounded-xl"

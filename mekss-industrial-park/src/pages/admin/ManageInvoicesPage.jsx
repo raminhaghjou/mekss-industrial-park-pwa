@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Tabs, Tab, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Plus, Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -30,19 +31,33 @@ export const ManageInvoicesPage = () => {
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">مدیریت قبض‌ها</h1>
-        <Button color="primary" startContent={<Plus className="h-4 w-4" />} onClick={() => navigate('/admin/invoices/create')}>
+        <Button variant="primary" onPress={() => navigate('/admin/invoices/create')} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
           صدور قبض جدید
         </Button>
       </div>
 
       <Card>
-        <CardBody className="p-0">
-          <div className="border-b border-default-200 p-2">
-            <Tabs selectedKey={tab} onSelectionChange={setTab} variant="underlined">
-              <Tab key="all" title="همه" />
-              <Tab key="unpaid" title="پرداخت نشده" />
-              <Tab key="paid" title="پرداخت شده" />
-            </Tabs>
+        <CardContent className="p-0">
+          <div className="flex gap-2 border-b border-default-200 p-2">
+            <button
+              onClick={() => setTab('all')}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'all' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+            >
+              همه
+            </button>
+            <button
+              onClick={() => setTab('unpaid')}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'unpaid' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+            >
+              پرداخت نشده
+            </button>
+            <button
+              onClick={() => setTab('paid')}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'paid' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+            >
+              پرداخت شده
+            </button>
           </div>
 
           {isLoading ? (
@@ -52,8 +67,11 @@ export const ManageInvoicesPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت قبض‌ها ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : filteredInvoices.length === 0 ? (
             <EmptyState
@@ -62,7 +80,7 @@ export const ManageInvoicesPage = () => {
               description="قبض‌های صادرشده برای واحدهای صنعتی در این فهرست نمایش داده می‌شوند."
             />
           ) : (
-            <Table removeWrapper aria-label="قبض‌ها">
+            <Table aria-label="قبض‌ها">
               <TableHeader>
                 <TableColumn>شماره قبض</TableColumn>
                 <TableColumn>واحد صنعتی</TableColumn>
@@ -78,7 +96,7 @@ export const ManageInvoicesPage = () => {
                     <TableCell>{invoice.description}</TableCell>
                     <TableCell dir="ltr">{Number(invoice.totalAmount).toLocaleString('fa-IR')}</TableCell>
                     <TableCell>
-                      <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="flat">
+                      <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="soft">
                         {statusLabels[invoice.status] || invoice.status}
                       </Chip>
                     </TableCell>
@@ -87,7 +105,7 @@ export const ManageInvoicesPage = () => {
               </TableBody>
             </Table>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
       <p className="text-xs text-foreground-400">
@@ -97,5 +115,4 @@ export const ManageInvoicesPage = () => {
   );
 };
 
-import { useState } from 'react';
 export default ManageInvoicesPage;

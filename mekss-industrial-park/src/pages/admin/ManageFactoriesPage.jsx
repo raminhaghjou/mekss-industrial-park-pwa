@@ -126,7 +126,7 @@ const DetailRow = ({ label, children, ltr = false }) => (
   </div>
 );
 
-const FormSelect = ({ label, value, onChange, options, isDisabled, placeholder }) => (
+const FormSelect = ({ label, value, onChange, options, isDisabled = false, placeholder }) => (
   <div className="flex flex-col gap-1">
     <Label className="text-xs font-medium text-foreground-600">{label}</Label>
     <Select
@@ -142,10 +142,8 @@ const FormSelect = ({ label, value, onChange, options, isDisabled, placeholder }
         <SelectIndicator />
       </SelectTrigger>
       <SelectPopover>
-        <ListBox>
-          {options.map((option) => (
-            <ListBoxItem key={option.value} id={option.value}>{option.label}</ListBoxItem>
-          ))}
+        <ListBox items={options}>
+          {(item) => <ListBoxItem id={item.value}>{item.label}</ListBoxItem>}
         </ListBox>
       </SelectPopover>
     </Select>
@@ -158,86 +156,75 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نام واحد صنعتی</label>
-        <Input value={form.name} onChange={(e) => setField('name', e.target.value)} isDisabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
+        <Input value={form.name} onChange={(e) => setField('name', e.target.value)} disabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">شماره مجوز</label>
-        <Input value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} isDisabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
+        <Input value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} disabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">شناسه ملی</label>
-        <Input value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نوع فعالیت</label>
-        <Input value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} isDisabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
+        <Input value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} disabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن همراه</label>
-        <Input value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن همراه دوم</label>
-        <Input value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تلفن ثابت</label>
-        <Input value={form.landline} onChange={(e) => setField('landline', e.target.value)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.landline} onChange={(e) => setField('landline', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نمابر</label>
-        <Input value={form.fax} onChange={(e) => setField('fax', e.target.value)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input value={form.fax} onChange={(e) => setField('fax', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">ایمیل</label>
-        <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} isDisabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} disabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">وب‌سایت</label>
-        <Input type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} isDisabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} disabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
-        <Input type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} isDisabled={disabled} variant="primary" className="rounded-xl" />
+        <Input type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} disabled={disabled} variant="primary" className="rounded-xl" />
       </div>
       {!editing && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-foreground-600">شهرک صنعتی</label>
-          <select
-            value={form.parkId}
-            onChange={(e) => setField('parkId', e.target.value)}
-            isDisabled={disabled}
-            required
-            className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
-          >
-            <option value="">انتخاب شهرک...</option>
-            {parks.map((park) => <option key={park.id} value={park.id}>{park.name}</option>)}
-          </select>
-        </div>
+        <FormSelect
+          label="شهرک صنعتی"
+          value={form.parkId}
+          onChange={(value) => setField('parkId', String(value || ''))}
+          options={parks.map((park) => ({ value: park.id, label: park.name }))}
+          isDisabled={disabled}
+          placeholder="انتخاب شهرک..."
+        />
       )}
       {!editing && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-foreground-600">مالک / مدیر واحد</label>
-          <select
-            value={form.managerId}
-            onChange={(e) => setField('managerId', e.target.value)}
-            isDisabled={disabled}
-            required
-            className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
-          >
-            <option value="">انتخاب مالک / مدیر...</option>
-            {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name || owner.phoneNumber}</option>)}
-          </select>
-        </div>
+        <FormSelect
+          label="مالک / مدیر واحد"
+          value={form.managerId}
+          onChange={(value) => setField('managerId', String(value || ''))}
+          options={owners.map((owner) => ({ value: owner.id, label: owner.name || owner.phoneNumber }))}
+          isDisabled={disabled}
+          placeholder="انتخاب مالک / مدیر..."
+        />
       )}
       <div className="sm:col-span-2 flex flex-col gap-1">
         <label className="text-xs font-medium text-foreground-600">نشانی</label>
         <TextArea
-          required
           rows={2}
           value={form.address}
           onChange={(e) => setField('address', e.target.value)}
-          isDisabled={disabled}
+          disabled={disabled}
           maxLength={240}
           variant="primary"
           className="rounded-xl"
@@ -249,7 +236,7 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
           rows={3}
           value={form.description}
           onChange={(e) => setField('description', e.target.value)}
-          isDisabled={disabled}
+          disabled={disabled}
           maxLength={2000}
           variant="primary"
           className="rounded-xl"
@@ -443,7 +430,7 @@ const ManageFactoriesPage = () => {
         <Button
           variant="primary"
           onPress={startCreate}
-          disabled={!online || mutationPending || scopeQuery.isLoading}
+          isDisabled={!online || mutationPending || scopeQuery.isLoading}
           className="rounded-xl font-bold shadow-md shadow-primary/20 flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
@@ -475,7 +462,6 @@ const ManageFactoriesPage = () => {
             <div className="relative flex items-center">
               <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
               <Input
-                size="md"
                 placeholder="نام، مجوز یا شناسه ملی..."
                 value={draftSearch}
                 onChange={(e) => setDraftSearch(e.target.value)}
@@ -485,25 +471,21 @@ const ManageFactoriesPage = () => {
               />
             </div>
 
-            <select
+            <FormSelect
+              label="وضعیت"
               value={status}
-              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-              className="w-full rounded-xl border border-default-300 bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
-            >
-              <option value="">همه وضعیت‌ها</option>
-              {Object.entries(statusMeta).map(([val, meta]) => (
-                <option key={val} value={val}>{meta.label}</option>
-              ))}
-            </select>
+              onChange={(value) => { setStatus(String(value || '')); setPage(1); }}
+              options={Object.entries(statusMeta).map(([val, meta]) => ({ value: val, label: meta.label }))}
+              placeholder="همه وضعیت‌ها"
+            />
 
-            <select
+            <FormSelect
+              label="شهرک"
               value={parkId}
-              onChange={(e) => { setParkId(e.target.value); setPage(1); }}
-              className="w-full rounded-xl border border-default-300 bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
-            >
-              <option value="">همه شهرک‌ها</option>
-              {parks.map((park) => <option key={park.id} value={park.id}>{park.name}</option>)}
-            </select>
+              onChange={(value) => { setParkId(String(value || '')); setPage(1); }}
+              options={parks.map((park) => ({ value: park.id, label: park.name }))}
+              placeholder="همه شهرک‌ها"
+            />
 
             <Button type="submit" variant="primary" className="rounded-xl font-bold">
               اعمال جست‌وجو
@@ -573,7 +555,7 @@ const ManageFactoriesPage = () => {
                           size="sm"
                           variant="tertiary"
                           onPress={() => startEdit(factory)}
-                          disabled={!online || mutationPending || Boolean(editLoadingId)}
+                          isDisabled={!online || mutationPending || Boolean(editLoadingId)}
                           className="rounded-xl font-medium flex items-center gap-1"
                         >
                           {editLoadingId === factory.id ? <Spinner size="sm" /> : <Edit2 className="h-4 w-4" />}
@@ -585,7 +567,7 @@ const ManageFactoriesPage = () => {
                               size="sm"
                               variant="primary"
                               onPress={() => setApproveTarget(factory)}
-                              disabled={!online || mutationPending}
+                              isDisabled={!online || mutationPending}
                               className="rounded-xl font-bold flex items-center gap-1"
                             >
                               <Check className="h-4 w-4" />
@@ -595,7 +577,7 @@ const ManageFactoriesPage = () => {
                               size="sm"
                               variant="danger-soft"
                               onPress={() => setRejectTarget(factory)}
-                              disabled={!online || mutationPending}
+                              isDisabled={!online || mutationPending}
                               className="rounded-xl font-bold flex items-center gap-1"
                             >
                               <X className="h-4 w-4" />
@@ -615,7 +597,36 @@ const ManageFactoriesPage = () => {
 
       {!factoriesQuery.isError && total > pageSize && (
         <div className="flex justify-center mt-4">
-          <Pagination page={page} total={pageCount} onChange={setPage} className="rounded-2xl" />
+          <Pagination className="rounded-2xl">
+            <Pagination.Content>
+              <Pagination.Item>
+                <Pagination.Previous
+                  onPress={() => setPage((current) => Math.max(1, current - 1))}
+                  isDisabled={page <= 1}
+                >
+                  <Pagination.PreviousIcon />
+                </Pagination.Previous>
+              </Pagination.Item>
+              {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+                <Pagination.Item key={pageNumber}>
+                  <Pagination.Link
+                    isActive={pageNumber === page}
+                    onPress={() => setPage(pageNumber)}
+                  >
+                    {pageNumber}
+                  </Pagination.Link>
+                </Pagination.Item>
+              ))}
+              <Pagination.Item>
+                <Pagination.Next
+                  onPress={() => setPage((current) => Math.min(pageCount, current + 1))}
+                  isDisabled={page >= pageCount}
+                >
+                  <Pagination.NextIcon />
+                </Pagination.Next>
+              </Pagination.Item>
+            </Pagination.Content>
+          </Pagination>
         </div>
       )}
 
@@ -721,10 +732,10 @@ const ManageFactoriesPage = () => {
                   <FactoryFormFields form={form} setForm={setForm} editing={Boolean(editing)} parks={parks} owners={owners} disabled={mutationPending} />
                 </ModalBody>
                 <ModalFooter className="mt-4">
-                  <Button variant="tertiary" onPress={closeForm} disabled={mutationPending} className="rounded-xl font-medium">
+                  <Button variant="tertiary" onPress={closeForm} isDisabled={mutationPending} className="rounded-xl font-medium">
                     انصراف
                   </Button>
-                  <Button type="submit" variant="primary" disabled={!online || (!editing && scopeQuery.isLoading) || mutationPending} className="rounded-xl font-bold px-6">
+                  <Button type="submit" variant="primary" isDisabled={!online || (!editing && scopeQuery.isLoading) || mutationPending} className="rounded-xl font-bold px-6">
                     {mutationPending ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت واحد صنعتی')}
                   </Button>
                 </ModalFooter>

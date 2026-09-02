@@ -4,6 +4,14 @@ import {
   Card,
   CardContent,
   Input,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
   Button,
   Spinner,
   Alert,
@@ -21,7 +29,11 @@ import { Filter, BarChart3 } from 'lucide-react';
 import { reportApi } from '../../services/api/report.api';
 import { getErrorMessage } from '../../utils/apiError';
 
-const typeLabels = { financial: 'مالی', gatepass: 'تردد', requests: 'درخواست‌ها' };
+const typeOptions = [
+  { value: 'financial', label: 'مالی' },
+  { value: 'gatepass', label: 'تردد' },
+  { value: 'requests', label: 'درخواست‌ها' },
+];
 const statusLabels = {
   PENDING: 'در انتظار', PAID: 'پرداخت شده', OVERDUE: 'سررسید گذشته', CANCELLED: 'لغو شده',
   APPROVED: 'تایید شده', REJECTED: 'رد شده', COMPLETED: 'تکمیل شده', EXPIRED: 'منقضی شده',
@@ -61,16 +73,23 @@ const ReportsPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-foreground-600">نوع گزارش</label>
-              <select
+              <Label className="text-xs font-medium text-foreground-600">نوع گزارش</Label>
+              <Select
                 value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+                onChange={(value) => setType(String(value || 'financial'))}
+                variant="primary"
+                className="rounded-xl"
               >
-                <option value="financial">مالی</option>
-                <option value="gatepass">تردد</option>
-                <option value="requests">درخواست‌ها</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue />
+                  <SelectIndicator />
+                </SelectTrigger>
+                <SelectPopover>
+                  <ListBox items={typeOptions}>
+                    {(option) => <ListBoxItem id={option.value}>{option.label}</ListBoxItem>}
+                  </ListBox>
+                </SelectPopover>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -107,7 +126,7 @@ const ReportsPage = () => {
       <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
         <CardContent className="p-6">
           <h2 className="text-lg font-bold text-foreground mb-4">
-            نمایش گزارش: {typeLabels[submittedFilters.type]}
+            نمایش گزارش: {typeOptions.find((option) => option.value === submittedFilters.type)?.label || submittedFilters.type}
           </h2>
 
           {isLoading && (

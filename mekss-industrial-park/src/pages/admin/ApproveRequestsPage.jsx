@@ -37,7 +37,7 @@ export const ApproveRequestsPage = () => {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }) => requestApi.rejectRequest(id, { reason }),
+    mutationFn: (/** @type {{id: string, reason: string}} */ { id, reason }) => requestApi.rejectRequest(id, { reason }),
     onSuccess: () => {
       showNotification('درخواست رد شد', 'success');
       setRejectTarget(null);
@@ -116,7 +116,7 @@ export const ApproveRequestsPage = () => {
                             size="sm"
                             isIconOnly
                             onPress={() => setApproveTarget(req.id)}
-                            disabled={approveMutation.isPending}
+                            isDisabled={approveMutation.isPending}
                             aria-label="تایید"
                           >
                             {approveMutation.isPending && approveTarget === req.id ? <Spinner size="sm" /> : <Check className="h-4 w-4 text-success" />}

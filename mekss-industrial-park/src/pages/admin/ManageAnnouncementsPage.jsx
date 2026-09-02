@@ -218,7 +218,7 @@ const ManageAnnouncementsPage = () => {
                     <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی هدف</Label>
                     <Select
                       value={form.parkId}
-                      onChange={(value) => setForm((f) => ({ ...f, parkId: value || '' }))}
+                      onChange={(value) => setForm((f) => ({ ...f, parkId: String(value || '') }))}
                       placeholder="انتخاب شهرک..."
                       variant="primary"
                       className="rounded-xl"
@@ -228,10 +228,8 @@ const ManageAnnouncementsPage = () => {
                         <SelectIndicator />
                       </SelectTrigger>
                       <SelectPopover>
-                        <ListBox>
-                          {parks.map((park) => (
-                            <ListBoxItem key={park.id} id={park.id}>{park.name}</ListBoxItem>
-                          ))}
+                        <ListBox items={parks}>
+                          {(park) => <ListBoxItem id={park.id}>{park.name}</ListBoxItem>}
                         </ListBox>
                       </SelectPopover>
                     </Select>

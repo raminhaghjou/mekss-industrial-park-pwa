@@ -121,10 +121,8 @@ const SendMessagePage = () => {
                   <SelectIndicator />
                 </SelectTrigger>
                 <SelectPopover>
-                  <ListBox>
-                    {recipients.map((recipient) => (
-                      <ListBoxItem key={recipient.id} id={recipient.id}>{recipient.label}</ListBoxItem>
-                    ))}
+                  <ListBox items={recipients}>
+                    {(recipient) => <ListBoxItem id={recipient.id}>{recipient.label}</ListBoxItem>}
                   </ListBox>
                 </SelectPopover>
               </Select>

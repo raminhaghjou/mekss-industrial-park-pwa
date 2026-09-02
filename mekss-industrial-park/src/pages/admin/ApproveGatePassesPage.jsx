@@ -34,7 +34,7 @@ export const ApproveGatePassesPage = () => {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }) => gatePassApi.rejectGatePass(id, { reason }),
+    mutationFn: (/** @type {{id: string, reason: string}} */ { id, reason }) => gatePassApi.rejectGatePass(id, { reason }),
     onSuccess: () => {
       showNotification('برگ خروج رد شد', 'success');
       setRejectTarget(null);
@@ -107,7 +107,7 @@ export const ApproveGatePassesPage = () => {
                             size="sm"
                             isIconOnly
                             onPress={() => setApproveTarget(pass.id)}
-                            disabled={approveMutation.isPending}
+                            isDisabled={approveMutation.isPending}
                             aria-label="تایید"
                           >
                             {approveMutation.isPending && approveTarget === pass.id ? <Spinner size="sm" /> : <Check className="h-4 w-4 text-success" />}

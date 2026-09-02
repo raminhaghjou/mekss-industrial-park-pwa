@@ -6,6 +6,14 @@ import {
   CardContent,
   Input,
   TextArea,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectIndicator,
+  SelectPopover,
+  ListBox,
+  ListBoxItem,
+  Label,
   Button,
   Alert,
   AlertContent,
@@ -13,7 +21,7 @@ import {
   AlertDescription,
   Spinner,
 } from '@heroui/react';
-import { ArrowRight, ReceiptPlus } from 'lucide-react';
+import { ArrowRight, Receipt } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -73,7 +81,7 @@ const CreateInvoicePage = () => {
         <CardContent className="p-6 gap-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
             <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
-              <ReceiptPlus className="h-6 w-6" />
+              <Receipt className="h-6 w-6" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">فرم صدور قبض جدید</h1>
@@ -92,37 +100,42 @@ const CreateInvoicePage = () => {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-foreground-600">انتخاب واحد صنعتی</label>
-              <select
+              <Label className="text-xs font-medium text-foreground-600">انتخاب واحد صنعتی</Label>
+              <Select
                 value={factoryId}
-                onChange={(e) => setFactoryId(e.target.value)}
-                disabled={loadingFactories}
-                required
-                className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+                onChange={(value) => setFactoryId(String(value || ''))}
+                placeholder="واحد صنعتی مورد نظر را انتخاب کنید..."
+                variant="primary"
+                isDisabled={loadingFactories}
+                className="rounded-xl"
               >
-                <option value="">واحد صنعتی مورد نظر را انتخاب کنید...</option>
-                {(factories || []).map((factory) => (
-                  <option key={factory.id} value={factory.id}>{factory.name}</option>
-                ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue />
+                  <SelectIndicator />
+                </SelectTrigger>
+                <SelectPopover>
+                  <ListBox items={factories || []}>
+                    {(factory) => <ListBoxItem id={factory.id}>{factory.name}</ListBoxItem>}
+                  </ListBox>
+                </SelectPopover>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-foreground-600">شرح قبض</label>
+              <Label className="text-xs font-medium text-foreground-600">شرح قبض</Label>
               <TextArea
                 placeholder="توضیحات و بابت پرداختی..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 variant="primary"
-                minRows={2}
-                isRequired
+                rows={2}
                 className="rounded-xl"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-foreground-600">مبلغ (ریال)</label>
+                <Label className="text-xs font-medium text-foreground-600">مبلغ (ریال)</Label>
                 <Input
                   type="number"
                   placeholder="مثلا: ۱۰۰۰۰۰۰"
@@ -130,13 +143,12 @@ const CreateInvoicePage = () => {
                   onChange={(e) => setAmount(e.target.value)}
                   variant="primary"
                   dir="ltr"
-                  isRequired
                   className="rounded-xl"
                 />
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-foreground-600">مبلغ مالیات (ریال)</label>
+                <Label className="text-xs font-medium text-foreground-600">مبلغ مالیات (ریال)</Label>
                 <Input
                   type="number"
                   placeholder="اختیاری"
@@ -150,22 +162,21 @@ const CreateInvoicePage = () => {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-foreground-600">مهلت پرداخت</label>
+              <Label className="text-xs font-medium text-foreground-600">مهلت پرداخت</Label>
               <Input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 variant="primary"
-                isRequired
                 className="rounded-xl"
               />
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-2">
-              <Button variant="tertiary" onPress={() => navigate('/admin/invoices')} disabled={createMutation.isPending} className="rounded-xl font-medium">
+              <Button variant="tertiary" onPress={() => navigate('/admin/invoices')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
                 انصراف
               </Button>
-              <Button type="submit" variant="primary" disabled={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
+              <Button type="submit" variant="primary" isDisabled={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
                 {createMutation.isPending ? <Spinner size="sm" /> : 'صدور قبض'}
               </Button>
             </div>
@@ -177,4 +188,3 @@ const CreateInvoicePage = () => {
 };
 
 export default CreateInvoicePage;
-

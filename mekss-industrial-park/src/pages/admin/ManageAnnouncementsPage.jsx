@@ -1,28 +1,20 @@
 import React from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
-  Box,
-  Typography,
-  Button,
-  Paper,
-  TextField,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  CircularProgress,
-  Alert,
-  Chip,
-  Stack,
-  FormControlLabel,
+  Card,
+  CardContent,
+  Input,
+  Textarea,
   Checkbox,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-} from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, CampaignOutlined as AnnouncementOutlineIcon } from '@mui/icons-material';
+  Button,
+  Chip,
+  Spinner,
+  Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+} from '@heroui/react';
+import { Plus, Edit2, Trash2, Bell, Pin, Globe, Building2 } from 'lucide-react';
 import { announcementApi } from '../../services/api/announcement.api';
 import { parkApi } from '../../services/api/park.api';
 import { useAuth } from '../../providers/AuthProvider';
@@ -119,125 +111,217 @@ const ManageAnnouncementsPage = () => {
   const saving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">مدیریت اطلاعیه‌ها</Typography>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-100 dark:bg-primary-900/40 text-primary-600">
+            <Bell className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">مدیریت اطلاعیه‌ها</h1>
+            <p className="text-sm text-foreground-500">انتشار، تنظیم و ویرایش اطلاعیه‌های شهرک صنعتی</p>
+          </div>
+        </div>
         <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => { if (showForm) { resetForm(); } else { setShowForm(true); } }}
+          variant="primary"
+          onPress={() => { if (showForm) { resetForm(); } else { setShowForm(true); } }}
+          className="rounded-xl font-bold flex items-center gap-2"
         >
+          {!showForm && <Plus className="h-4 w-4" />}
           {showForm ? 'بستن فرم' : 'ثبت اطلاعیه جدید'}
         </Button>
-      </Box>
+      </div>
 
       {showForm && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" gutterBottom>{editing ? 'ویرایش اطلاعیه' : 'فرم ثبت اطلاعیه'}</Typography>
-          <Box component="form" onSubmit={handleSubmit}>
-            <TextField fullWidth required label="عنوان اطلاعیه" margin="normal" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-            <TextField fullWidth required label="متن اطلاعیه" multiline rows={4} margin="normal" value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1 }} alignItems={{ sm: 'center' }}>
-              <FormControlLabel
-                control={<Checkbox checked={form.isGlobal} onChange={(e) => setForm((f) => ({ ...f, isGlobal: e.target.checked, parkId: e.target.checked ? '' : f.parkId }))} />}
-                label="نمایش سراسری (همه شهرک‌ها)"
-              />
-              <FormControlLabel
-                control={<Checkbox checked={form.isPinned} onChange={(e) => setForm((f) => ({ ...f, isPinned: e.target.checked }))} />}
-                label="سنجاق‌شده (نمایش در ابتدای فهرست)"
-              />
-            </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1 }}>
-              <TextField
-                label="اولویت"
-                type="number"
-                value={form.priority}
-                onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                sx={{ width: { sm: 160 } }}
-              />
-              <TextField
-                label="تاریخ انقضا (اختیاری)"
-                type="date"
-                value={form.expiresAt}
-                onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ width: { sm: 220 } }}
-              />
-              {!editing && isSuperAdmin && !form.isGlobal && (
-                <FormControl sx={{ minWidth: { sm: 220 } }}>
-                  <InputLabel id="announcement-park-label">شهرک صنعتی هدف</InputLabel>
-                  <Select
-                    labelId="announcement-park-label"
-                    label="شهرک صنعتی هدف"
-                    value={form.parkId}
-                    onChange={(e) => setForm((f) => ({ ...f, parkId: e.target.value }))}
-                  >
-                    <MenuItem value="">بدون شهرک مشخص</MenuItem>
-                    {parks.map((park) => (
-                      <MenuItem key={park.id} value={park.id}>{park.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
-            </Stack>
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-              <Button type="submit" variant="contained" disabled={saving}>
-                {saving ? <CircularProgress size={22} /> : editing ? 'ذخیره تغییرات' : 'ثبت'}
-              </Button>
-              <Button onClick={resetForm} disabled={saving}>انصراف</Button>
-            </Stack>
-          </Box>
-        </Paper>
+        <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-bold text-foreground mb-4">
+              {editing ? 'ویرایش اطلاعیه' : 'فرم ثبت اطلاعیه جدید'}
+            </h2>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-foreground-600">عنوان اطلاعیه</label>
+                <Input
+                  placeholder="عنوان اطلاع‌رسانی را وارد کنید..."
+                  value={form.title}
+                  onValueChange={(val) => setForm((f) => ({ ...f, title: val }))}
+                  variant="primary"
+                  isRequired
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-foreground-600">متن اطلاعیه</label>
+                <Textarea
+                  placeholder="متن کامل اطلاعیه..."
+                  value={form.content}
+                  onValueChange={(val) => setForm((f) => ({ ...f, content: val }))}
+                  variant="primary"
+                  minRows={4}
+                  isRequired
+                  className="rounded-xl"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-6 py-1">
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={form.isGlobal}
+                    onChange={(e) => setForm((f) => ({ ...f, isGlobal: e.target.checked, parkId: e.target.checked ? '' : f.parkId }))}
+                    className="h-4 w-4 rounded border-default-300 text-primary focus:ring-primary"
+                  />
+                  نمایش سراسری (همه شهرک‌ها)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={form.isPinned}
+                    onChange={(e) => setForm((f) => ({ ...f, isPinned: e.target.checked }))}
+                    className="h-4 w-4 rounded border-default-300 text-primary focus:ring-primary"
+                  />
+                  سنجاق‌شده (نمایش در ابتدای فهرست)
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-foreground-600">اولویت</label>
+                  <Input
+                    type="number"
+                    value={form.priority}
+                    onValueChange={(val) => setForm((f) => ({ ...f, priority: val }))}
+                    variant="primary"
+                    className="rounded-xl"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-foreground-600">تاریخ انقضا (اختیاری)</label>
+                  <Input
+                    type="date"
+                    value={form.expiresAt}
+                    onValueChange={(val) => setForm((f) => ({ ...f, expiresAt: val }))}
+                    variant="primary"
+                    className="rounded-xl"
+                  />
+                </div>
+
+                {!editing && isSuperAdmin && !form.isGlobal && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">شهرک صنعتی هدف</label>
+                    <select
+                      value={form.parkId}
+                      onChange={(e) => setForm((f) => ({ ...f, parkId: e.target.value }))}
+                      className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+                    >
+                      <option value="">انتخاب شهرک...</option>
+                      {parks.map((park) => (
+                        <option key={park.id} value={park.id}>{park.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 justify-end mt-2">
+                <Button variant="tertiary" onPress={resetForm} isDisabled={saving} className="rounded-xl font-medium">
+                  انصراف
+                </Button>
+                <Button type="submit" variant="primary" isDisabled={saving} className="rounded-xl font-bold">
+                  {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت اطلاعیه')}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت اطلاعیه‌ها ناموفق بود.')}</Alert>}
+      {isLoading && (
+        <div className="flex min-h-[200px] flex-col items-center justify-center gap-3">
+          <Spinner size="lg" />
+          <p className="text-sm text-foreground-500">در حال دریافت اطلاعیه‌ها...</p>
+        </div>
+      )}
+
+      {isError && (
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{getErrorMessage(error, 'دریافت اطلاعیه‌ها ناموفق بود.')}</AlertDescription>
+          </AlertContent>
+        </Alert>
+      )}
+
       {!isLoading && !isError && (
-        <Paper>
-          <List>
-            {announcements.length === 0 && (
-              <ListItem>
+        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
+          <CardContent className="p-0 divide-y divide-default-100 dark:divide-white/5">
+            {announcements.length === 0 ? (
+              <div className="p-8">
                 <EmptyState
-                  icon={<AnnouncementOutlineIcon fontSize="medium" />}
+                  icon={<Bell className="h-8 w-8 text-default-400" />}
                   title="هنوز اطلاعیه‌ای ثبت نشده است"
                   description="با دکمه «ثبت اطلاعیه جدید» می‌توانید اولین اطلاعیه را برای کاربران منتشر کنید."
-                  sx={{ width: '100%' }}
                 />
-              </ListItem>
+              </div>
+            ) : (
+              announcements.map((ann) => (
+                <div key={ann.id} className="flex items-center justify-between p-4 hover:bg-default-50 transition-colors">
+                  <div className="flex flex-col gap-1 min-w-0 pr-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-foreground text-base">{ann.title}</span>
+                      {ann.isPinned && (
+                        <Chip size="sm" color="warning" variant="soft" className="font-semibold flex items-center gap-1">
+                          <Pin className="h-3 w-3" />
+                          سنجاق‌شده
+                        </Chip>
+                      )}
+                      {ann.isGlobal ? (
+                        <Chip size="sm" color="accent" variant="soft" className="font-semibold flex items-center gap-1">
+                          <Globe className="h-3 w-3" />
+                          سراسری
+                        </Chip>
+                      ) : (
+                        <Chip size="sm" color="default" variant="soft" className="font-semibold flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />
+                          شهرک‌محور
+                        </Chip>
+                      )}
+                    </div>
+                    <span className="text-xs text-foreground-400">
+                      ثبت: {new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(new Date(ann.createdAt))}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button isIconOnly variant="ghost" size="sm" onPress={() => startEdit(ann)} className="rounded-xl" aria-label="ویرایش">
+                      <Edit2 className="h-4 w-4 text-default-600" />
+                    </Button>
+                    <Button isIconOnly variant="danger-soft" size="sm" onPress={() => setDeleteTarget(ann.id)} className="rounded-xl" aria-label="حذف">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
             )}
-            {announcements.map((ann) => (
-              <ListItem key={ann.id} divider>
-                <ListItemText
-                  primary={(
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      <span>{ann.title}</span>
-                      {ann.isPinned && <Chip size="small" color="warning" label="سنجاق‌شده" />}
-                      {ann.isGlobal ? <Chip size="small" color="info" label="سراسری" /> : <Chip size="small" label="شهرک‌محور" />}
-                    </Stack>
-                  )}
-                  secondary={new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(new Date(ann.createdAt))}
-                />
-                <ListItemSecondaryAction>
-                  <IconButton onClick={() => startEdit(ann)}><EditIcon /></IconButton>
-                  <IconButton color="error" onClick={() => setDeleteTarget(ann.id)}><DeleteIcon /></IconButton>
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
+          </CardContent>
+        </Card>
       )}
+
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="حذف اطلاعیه"
         description="این اطلاعیه برای همیشه حذف خواهد شد. آیا اطمینان دارید؟"
         confirmLabel="حذف"
-        confirmColor="error"
+        confirmColor="danger"
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
       />
-    </Box>
+    </div>
   );
 };
 
 export default ManageAnnouncementsPage;
+

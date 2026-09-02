@@ -1,8 +1,18 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Box, Button, CircularProgress, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
-import { ArrowBack as ArrowBackIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import {
+  Card,
+  CardBody,
+  Input,
+  Select,
+  SelectItem,
+  Textarea,
+  Button,
+  Alert,
+  Spinner,
+} from '@heroui/react';
+import { ArrowRight, MegaPhone, RotateCw } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
@@ -48,7 +58,7 @@ const NewAdvertisementPage = () => {
     onError: (error) => showNotification(getErrorMessage(error, 'ثبت آگهی ناموفق بود.'), 'error'),
   });
 
-  const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  const update = (field, val) => setForm((current) => ({ ...current, [field]: val }));
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -72,62 +82,147 @@ const NewAdvertisementPage = () => {
   const unavailable = scope && !scope.canCreate;
 
   return (
-    <Stack spacing={2.5}>
-      <Box>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/advertisements')}>بازگشت به آگهی‌ها</Button>
-      </Box>
-      <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, maxWidth: 760, width: '100%', mx: 'auto' }}>
-        <Typography variant="h5">ثبت آگهی جدید</Typography>
-        <Typography color="text.secondary" sx={{ mt: 0.75, mb: 2 }}>
-          شهرک صنعتی از دسترسی واقعی حساب شما تعیین می‌شود و پس از ثبت قابل جابه‌جایی نیست.
-        </Typography>
+    <div className="flex flex-col gap-6 max-w-3xl mx-auto">
+      <div className="flex items-center">
+        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/advertisements')} variant="light" className="rounded-xl font-medium">
+          بازگشت به آگهی‌ها
+        </Button>
+      </div>
 
-        {scopeQuery.isLoading && <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 180 }}><CircularProgress /></Box>}
-        {scopeQuery.isError && (
-          <Alert
-            severity="error"
-            action={<Button color="inherit" startIcon={<RefreshIcon />} onClick={() => scopeQuery.refetch()}>تلاش دوباره</Button>}
-          >
-            {getErrorMessage(scopeQuery.error, 'دریافت محدوده مجاز ثبت آگهی ناموفق بود.')}
-          </Alert>
-        )}
-        {unavailable && (
-          <Alert severity="warning">هیچ شهرک صنعتی فعال و مرتبطی برای حساب شما وجود ندارد؛ ثبت آگهی فعلاً ممکن نیست.</Alert>
-        )}
+      <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
+        <CardBody className="p-6 gap-6">
+          <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
+            <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
+              <MegaPhone className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground">ثبت آگهی جدید</h1>
+              <p className="text-xs text-foreground-500 mt-0.5">شهرک صنعتی از دسترسی واقعی حساب شما تعیین می‌شود و پس از ثبت قابل جابه‌جایی نیست.</p>
+            </div>
+          </div>
 
-        {!scopeQuery.isLoading && !scopeQuery.isError && !unavailable && (
-          <Box component="form" onSubmit={handleSubmit} noValidate>
-            <TextField fullWidth required label="عنوان آگهی" value={form.title} onChange={update('title')} margin="normal" inputProps={{ maxLength: 200 }} />
-            <TextField select fullWidth required label="دسته‌بندی" value={form.category} onChange={update('category')} margin="normal">
-              {categories.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-            </TextField>
-            <TextField
-              select
-              fullWidth
-              required
-              label="شهرک صنعتی"
-              value={form.parkId}
-              onChange={update('parkId')}
-              margin="normal"
-              disabled={!scope?.requiresSelection}
-              helperText={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'}
-            >
-              {(scope?.parks || []).map((park) => <MenuItem key={park.id} value={park.id}>{park.name} ({park.code})</MenuItem>)}
-            </TextField>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5 }}>
-              <TextField fullWidth required label="استان" value={form.province} onChange={update('province')} margin="normal" />
-              <TextField fullWidth required label="شهر" value={form.city} onChange={update('city')} margin="normal" />
-            </Box>
-            <TextField fullWidth required label="شرح آگهی" multiline minRows={5} value={form.content} onChange={update('content')} margin="normal" inputProps={{ maxLength: 8000 }} />
-            <TextField fullWidth required label="شماره تماس" value={form.contact} onChange={update('contact')} margin="normal" inputProps={{ dir: 'ltr', maxLength: 20 }} />
-            <Button type="submit" variant="contained" sx={{ mt: 2 }} disabled={createMutation.isPending || !form.parkId}>
-              {createMutation.isPending ? <CircularProgress size={22} color="inherit" /> : 'ثبت برای بررسی'}
-            </Button>
-          </Box>
-        )}
-      </Paper>
-    </Stack>
+          {scopeQuery.isLoading && (
+            <div className="flex min-h-[180px] items-center justify-center">
+              <Spinner size="lg" label="در حال دریافت محدوده مجاز..." />
+            </div>
+          )}
+
+          {scopeQuery.isError && (
+            <Alert color="danger" title="خطا" endContent={<Button size="sm" variant="flat" color="danger" startContent={<RotateCw className="h-4 w-4" />} onPress={() => scopeQuery.refetch()}>تلاش دوباره</Button>}>
+              {getErrorMessage(scopeQuery.error, 'دریافت محدوده مجاز ثبت آگهی ناموفق بود.')}
+            </Alert>
+          )}
+
+          {unavailable && (
+            <Alert color="warning" title="هشدار عدم دسترسی">
+              هیچ شهرک صنعتی فعال و مرتبطی برای حساب شما وجود ندارد؛ ثبت آگهی فعلاً ممکن نیست.
+            </Alert>
+          )}
+
+          {!scopeQuery.isLoading && !scopeQuery.isError && !unavailable && (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+              <Input
+                required
+                label="عنوان آگهی"
+                placeholder="عنوان مناسب آگهی..."
+                value={form.title}
+                onValueChange={(val) => update('title', val)}
+                maxLength={200}
+                variant="bordered"
+                classNames={{ inputWrapper: 'rounded-xl' }}
+              />
+
+              <Select
+                label="دسته‌بندی"
+                selectedKeys={[form.category]}
+                onSelectionChange={(keys) => update('category', Array.from(keys)[0] || '')}
+                variant="bordered"
+                isRequired
+                classNames={{ trigger: 'rounded-xl' }}
+              >
+                {categories.map((option) => (
+                  <SelectItem key={option.value}>{option.label}</SelectItem>
+                ))}
+              </Select>
+
+              <Select
+                label="شهرک صنعتی"
+                selectedKeys={form.parkId ? [form.parkId] : []}
+                onSelectionChange={(keys) => update('parkId', Array.from(keys)[0] || '')}
+                variant="bordered"
+                isDisabled={!scope?.requiresSelection}
+                isRequired
+                classNames={{ trigger: 'rounded-xl' }}
+                description={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'}
+              >
+                {(scope?.parks || []).map((park) => (
+                  <SelectItem key={park.id}>{`${park.name} (${park.code})`}</SelectItem>
+                ))}
+              </Select>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  required
+                  label="استان"
+                  placeholder="استان..."
+                  value={form.province}
+                  onValueChange={(val) => update('province', val)}
+                  variant="bordered"
+                  classNames={{ inputWrapper: 'rounded-xl' }}
+                />
+                <Input
+                  required
+                  label="شهر"
+                  placeholder="شهر..."
+                  value={form.city}
+                  onValueChange={(val) => update('city', val)}
+                  variant="bordered"
+                  classNames={{ inputWrapper: 'rounded-xl' }}
+                />
+              </div>
+
+              <Textarea
+                required
+                label="شرح آگهی"
+                placeholder="متن کامل و جزئیات آگهی..."
+                value={form.content}
+                onValueChange={(val) => update('content', val)}
+                minRows={5}
+                maxLength={8000}
+                variant="bordered"
+                classNames={{ inputWrapper: 'rounded-xl' }}
+              />
+
+              <Input
+                required
+                label="شماره تماس"
+                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                value={form.contact}
+                onValueChange={(val) => update('contact', val)}
+                maxLength={20}
+                variant="bordered"
+                dir="ltr"
+                classNames={{ inputWrapper: 'rounded-xl' }}
+              />
+
+              <div className="flex justify-end mt-2">
+                <Button
+                  type="submit"
+                  color="primary"
+                  isLoading={createMutation.isPending}
+                  isDisabled={createMutation.isPending || !form.parkId}
+                  className="rounded-xl font-bold px-8 shadow-md shadow-primary/20"
+                >
+                  ثبت برای بررسی
+                </Button>
+              </div>
+            </form>
+          )}
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 
 export default NewAdvertisementPage;
+

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Tabs, Tab, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Check, X, Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -48,12 +48,20 @@ export const ApproveGatePassesPage = () => {
       <h1 className="text-2xl font-bold text-foreground">تایید برگ‌های خروج</h1>
 
       <Card>
-        <CardBody className="p-0">
-          <div className="border-b border-default-200 p-2">
-            <Tabs selectedKey={tab} onSelectionChange={setTab} variant="underlined">
-              <Tab key="pending" title="در انتظار تایید" />
-              <Tab key="history" title="تاریخچه" />
-            </Tabs>
+        <CardContent className="p-0">
+          <div className="flex gap-2 border-b border-default-200 p-2">
+            <button
+              onClick={() => setTab('pending')}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'pending' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+            >
+              در انتظار تایید
+            </button>
+            <button
+              onClick={() => setTab('history')}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'history' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+            >
+              تاریخچه
+            </button>
           </div>
 
           {isLoading ? (
@@ -63,8 +71,11 @@ export const ApproveGatePassesPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : filteredPasses.length === 0 ? (
             <EmptyState
@@ -73,7 +84,7 @@ export const ApproveGatePassesPage = () => {
               description={tab === 'pending' ? 'به محض ثبت برگ خروج جدید توسط واحدهای صنعتی، برای بررسی اینجا نمایش داده می‌شود.' : undefined}
             />
           ) : (
-            <Table removeWrapper aria-label="برگ‌های خروج">
+            <Table aria-label="برگ‌های خروج">
               <TableHeader>
                 <TableColumn>واحد صنعتی</TableColumn>
                 <TableColumn>نام راننده</TableColumn>
@@ -92,21 +103,21 @@ export const ApproveGatePassesPage = () => {
                       {pass.status === 'PENDING' && (
                         <div className="flex gap-2">
                           <Button
-                            color="success"
-                            variant="flat"
+                            variant="ghost"
                             size="sm"
                             isIconOnly
-                            onClick={() => setApproveTarget(pass.id)}
-                            isLoading={approveMutation.isPending}
+                            onPress={() => setApproveTarget(pass.id)}
+                            isDisabled={approveMutation.isPending}
+                            aria-label="تایید"
                           >
-                            <Check className="h-4 w-4" />
+                            {approveMutation.isPending && approveTarget === pass.id ? <Spinner size="sm" /> : <Check className="h-4 w-4 text-success" />}
                           </Button>
                           <Button
-                            color="danger"
-                            variant="flat"
+                            variant="danger-soft"
                             size="sm"
                             isIconOnly
-                            onClick={() => setRejectTarget(pass.id)}
+                            onPress={() => setRejectTarget(pass.id)}
+                            aria-label="رد"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -118,7 +129,7 @@ export const ApproveGatePassesPage = () => {
               </TableBody>
             </Table>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
       <ConfirmDialog

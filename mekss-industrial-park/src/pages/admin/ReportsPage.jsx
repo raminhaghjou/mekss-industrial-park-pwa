@@ -1,6 +1,22 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Box, Typography, Paper, Grid, MenuItem, TextField, Button, CircularProgress, Alert, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
+import {
+  Card,
+  CardBody,
+  Input,
+  Select,
+  SelectItem,
+  Button,
+  Spinner,
+  Alert,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+} from '@heroui/react';
+import { FileText, Filter, BarChart3 } from 'lucide-react';
 import { reportApi } from '../../services/api/report.api';
 import { getErrorMessage } from '../../utils/apiError';
 
@@ -24,66 +40,136 @@ const ReportsPage = () => {
   const handleGenerate = () => setSubmittedFilters({ type, from, to });
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        گزارش‌گیری
-      </Typography>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-100 dark:bg-primary-900/40 text-primary-600">
+          <BarChart3 className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">گزارش‌گیری جامع</h1>
+          <p className="text-sm text-foreground-500">تحلیل داده‌های مالی، ترددها و درخواست‌های شهرک صنعتی</p>
+        </div>
+      </div>
 
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>فیلترها</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={4}>
-            <TextField select fullWidth label="نوع گزارش" value={type} onChange={(e) => setType(e.target.value)}>
-              <MenuItem value="financial">مالی</MenuItem>
-              <MenuItem value="gatepass">تردد</MenuItem>
-              <MenuItem value="requests">درخواست‌ها</MenuItem>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="از تاریخ" type="date" InputLabelProps={{ shrink: true }} value={from} onChange={(e) => setFrom(e.target.value)} />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="تا تاریخ" type="date" InputLabelProps={{ shrink: true }} value={to} onChange={(e) => setTo(e.target.value)} />
-          </Grid>
-          <Grid item xs={12}>
-            <Button variant="contained" onClick={handleGenerate}>ایجاد گزارش</Button>
-          </Grid>
-        </Grid>
-      </Paper>
+      <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
+        <CardBody className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="h-4 w-4 text-primary-500" />
+            <h2 className="text-base font-bold text-foreground">فیلترهای گزارش</h2>
+          </div>
 
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>نمایش گزارش: {typeLabels[submittedFilters.type]}</Typography>
-        {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-        {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت گزارش ناموفق بود.')}</Alert>}
-        {!isLoading && !isError && isFetched && data?.type === 'financial' && (
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}><Typography>تعداد قبض‌ها: {data.count}</Typography></Grid>
-            <Grid item xs={12} sm={4}><Typography>جمع مبلغ: {data.totalAmount.toLocaleString('fa-IR')} ریال</Typography></Grid>
-            <Grid item xs={12} sm={4}><Typography>مبلغ پرداخت‌شده: {data.paidAmount.toLocaleString('fa-IR')} ریال</Typography></Grid>
-          </Grid>
-        )}
-        {!isLoading && !isError && isFetched && (data?.type === 'gatepass' || data?.type === 'requests') && (
-          <Table size="small">
-            <TableHead>
-              <TableRow><TableCell>وضعیت</TableCell><TableCell align="left">تعداد</TableCell></TableRow>
-            </TableHead>
-            <TableBody>
-              {data.byStatus.length === 0 && <TableRow><TableCell colSpan={2} align="center">داده‌ای برای نمایش وجود ندارد.</TableCell></TableRow>}
-              {data.byStatus.map((row) => (
-                <TableRow key={row.status}>
-                  <TableCell>{statusLabels[row.status] || row.status}</TableCell>
-                  <TableCell align="left">{row.count}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-          خروجی فایل قابل دانلود برای گزارش‌ها در این نسخه پشتیبانی نمی‌شود.
-        </Typography>
-      </Paper>
-    </Box>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <Select
+              label="نوع گزارش"
+              selectedKeys={[type]}
+              onSelectionChange={(keys) => setType(Array.from(keys)[0] || 'financial')}
+              variant="bordered"
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              <SelectItem key="financial">مالی</SelectItem>
+              <SelectItem key="gatepass">تردد</SelectItem>
+              <SelectItem key="requests">درخواست‌ها</SelectItem>
+            </Select>
+
+            <Input
+              type="date"
+              label="از تاریخ"
+              value={from}
+              onValueChange={setFrom}
+              variant="bordered"
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Input
+              type="date"
+              label="تا تاریخ"
+              value={to}
+              onValueChange={setTo}
+              variant="bordered"
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Button color="primary" onPress={handleGenerate} className="rounded-xl font-bold px-6">
+              ایجاد گزارش
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
+        <CardBody className="p-6">
+          <h2 className="text-lg font-bold text-foreground mb-4">
+            نمایش گزارش: {typeLabels[submittedFilters.type]}
+          </h2>
+
+          {isLoading && (
+            <div className="flex min-h-[160px] items-center justify-center">
+              <Spinner size="lg" label="در حال دریافت داده‌های گزارش..." />
+            </div>
+          )}
+
+          {isError && (
+            <Alert color="danger" title="خطا">
+              {getErrorMessage(error, 'دریافت گزارش ناموفق بود.')}
+            </Alert>
+          )}
+
+          {!isLoading && !isError && isFetched && data?.type === 'financial' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-2">
+              <div className="p-4 rounded-2xl bg-default-100 dark:bg-default-100/30 text-center">
+                <span className="text-xs text-foreground-500">تعداد قبض‌ها</span>
+                <p className="text-2xl font-bold text-foreground mt-1">{data.count}</p>
+              </div>
+              <div className="p-4 rounded-2xl bg-primary-50 dark:bg-primary-950/30 text-center">
+                <span className="text-xs text-primary-600 dark:text-primary-400">جمع کل مبلغ</span>
+                <p className="text-2xl font-bold text-primary-600 dark:text-primary-400 mt-1">
+                  {data.totalAmount.toLocaleString('fa-IR')} <span className="text-xs">ریال</span>
+                </p>
+              </div>
+              <div className="p-4 rounded-2xl bg-success-50 dark:bg-success-950/30 text-center">
+                <span className="text-xs text-success-600 dark:text-success-400">مبلغ پرداخت‌شده</span>
+                <p className="text-2xl font-bold text-success-600 dark:text-success-400 mt-1">
+                  {data.paidAmount.toLocaleString('fa-IR')} <span className="text-xs">ریال</span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && !isError && isFetched && (data?.type === 'gatepass' || data?.type === 'requests') && (
+            <Table aria-label="جدول خلاصه آمار" classNames={{ table: 'min-w-[300px]' }}>
+              <TableHeader>
+                <TableColumn className="font-bold text-right">وضعیت</TableColumn>
+                <TableColumn className="font-bold text-left">تعداد</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {data.byStatus.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center text-foreground-400">
+                      داده‌ای برای نمایش وجود ندارد.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  data.byStatus.map((row) => (
+                    <TableRow key={row.status}>
+                      <TableCell className="font-medium">{statusLabels[row.status] || row.status}</TableCell>
+                      <TableCell className="text-left font-mono font-bold">{row.count}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+
+          <p className="mt-4 text-xs text-foreground-400">
+            خروجی فایل قابل دانلود برای گزارش‌ها در این نسخه پشتیبانی نمی‌شود.
+          </p>
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 
 export default ReportsPage;
+

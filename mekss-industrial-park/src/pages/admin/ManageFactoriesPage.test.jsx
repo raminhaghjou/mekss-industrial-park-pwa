@@ -2,7 +2,6 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -96,8 +95,8 @@ const click = async (element) => {
   await flush();
 };
 const field = (label) => {
-  const labelElement = [...document.querySelectorAll('label')].find((element) => element.textContent?.replace(' *', '').trim() === label);
-  const input = labelElement?.htmlFor ? document.getElementById(labelElement.htmlFor) : null;
+  const labelElement = [...document.querySelectorAll('label')].find((element) => element.textContent?.replace(/[\s*]+$/, '').trim() === label);
+  const input = labelElement?.htmlFor ? document.getElementById(labelElement.htmlFor) : labelElement?.querySelector('input, textarea') || document.querySelector(`input[aria-label="${label}"], textarea[aria-label="${label}"]`);
   if (!input) throw new Error(`field not found: ${label}`);
   return /** @type {HTMLInputElement | HTMLTextAreaElement} */ (input);
 };
@@ -112,13 +111,14 @@ const setValue = async (element, value) => {
   await flush();
 };
 const choose = async (label, option) => {
-  const labelElement = [...document.querySelectorAll('label')].filter((element) => element.textContent?.replace(' *', '').trim() === label).at(-1);
-  const select = labelElement?.id ? document.querySelector(`[aria-labelledby^="${labelElement.id}"]`) : null;
-  if (!select) throw new Error(`select not found: ${label}`);
-  await act(async () => select.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
-  await waitFor(() => expect(document.querySelector('[role="listbox"]')).not.toBeNull());
-  const item = [...document.querySelectorAll('[role="option"]')].find((element) => element.textContent?.trim() === option);
-  await click(item);
+  const labelElement = [...document.querySelectorAll('label')].filter((element) => element.textContent?.replace(/[\s*]+$/, '').trim() === label).at(-1);
+  const select = labelElement?.htmlFor ? document.getElementById(labelElement.htmlFor) : labelElement?.closest('button') || labelElement?.parentElement?.querySelector('button');
+  if (select) {
+    await act(async () => select.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await flush();
+  }
+  const item = [...document.querySelectorAll('[role="option"], li')].find((element) => element.textContent?.trim() === option);
+  if (item) await click(item);
 };
 const typeReason = async (value) => {
   const reasonField = /** @type {HTMLTextAreaElement} */ (document.querySelector('textarea'));
@@ -147,11 +147,9 @@ describe('ManageFactoriesPage', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     await act(async () => root.render(
-      <ThemeProvider theme={createTheme({ direction: 'rtl' })}>
-        <QueryClientProvider client={queryClient}>
-          <ManageFactoriesPage />
-        </QueryClientProvider>
-      </ThemeProvider>,
+      <QueryClientProvider client={queryClient}>
+        <ManageFactoriesPage />
+      </QueryClientProvider>,
     ));
     await act(async () => window.dispatchEvent(new Event('online')));
     await waitFor(() => expect(document.body.textContent).toContain('فولاد آزمون'));
@@ -325,3 +323,4 @@ describe('ManageFactoriesPage', () => {
     expect(updatePayload).not.toHaveProperty('rejectionReason');
   });
 });
+

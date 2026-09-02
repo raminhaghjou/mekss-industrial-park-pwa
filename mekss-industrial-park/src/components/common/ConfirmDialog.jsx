@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Button, TextArea } from '@heroui/react';
+import { ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Button, Textarea, Spinner } from '@heroui/react';
 
 export const ConfirmDialog = ({
   open,
@@ -30,38 +30,45 @@ export const ConfirmDialog = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
-      <div className="w-full max-w-md rounded-xl bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-2 text-lg font-semibold">{title}</h3>
-        {description && <p className="mb-4 text-foreground-600">{description}</p>}
-        {requireReason && (
-          <textarea
-            className="mb-4 w-full rounded-lg border border-default-300 p-2 focus:border-primary-500 focus:outline-none"
-            placeholder={`${reasonLabel} را وارد کنید...`}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-          />
-        )}
-        <div className="flex justify-end gap-2">
-          <button
-            className="rounded-lg px-4 py-2 text-foreground-600 hover:bg-default-100"
-            onClick={handleClose}
-            disabled={loading}
-          >
-            {cancelLabel}
-          </button>
-          <button
-            className={`rounded-lg px-4 py-2 text-white ${confirmColor === 'danger' ? 'bg-danger-500 hover:bg-danger-600' : 'bg-primary-500 hover:bg-primary-600'} disabled:opacity-50`}
-            onClick={handleConfirm}
-            disabled={(requireReason && !reason.trim()) || loading}
-          >
-            {loading ? '...' : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+    <ModalBackdrop isOpen={open} onOpenChange={(isOpen) => !isOpen && handleClose()} isDismissable={!loading} variant="blur">
+      <ModalContainer size="md">
+        <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+          <ModalHeader className="flex flex-col gap-1 text-lg font-bold text-foreground">
+            {title}
+          </ModalHeader>
+          <ModalBody className="gap-3">
+            {description && <p className="text-sm text-foreground-500">{description}</p>}
+            {requireReason && (
+              <Textarea
+                label={reasonLabel}
+                placeholder={`${reasonLabel} را وارد کنید...`}
+                value={reason}
+                onValueChange={setReason}
+                variant="primary"
+                minRows={3}
+                isRequired
+                className="rounded-xl"
+              />
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="tertiary" onPress={handleClose} isDisabled={loading} className="rounded-xl font-medium">
+              {cancelLabel}
+            </Button>
+            <Button
+              variant={confirmColor === 'danger' ? 'danger' : 'primary'}
+              onPress={handleConfirm}
+              isDisabled={loading || (requireReason && !reason.trim())}
+              className="rounded-xl font-bold"
+            >
+              {loading ? <Spinner size="sm" /> : confirmLabel}
+            </Button>
+          </ModalFooter>
+        </ModalDialog>
+      </ModalContainer>
+    </ModalBackdrop>
   );
 };
 
 export default ConfirmDialog;
+

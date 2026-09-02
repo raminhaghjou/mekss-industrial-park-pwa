@@ -1,38 +1,40 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Alert,
-  Box,
+  Card,
+  CardContent,
   Button,
   Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Pagination,
-  Paper,
-  Select,
-  Stack,
+  Spinner,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Input,
+  Textarea,
   Table,
+  TableHeader,
+  TableColumn,
   TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
   TableRow,
-  TextField,
-  Typography,
-} from '@mui/material';
+  TableCell,
+  Pagination,
+  Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+} from '@heroui/react';
 import {
-  Add as AddIcon,
-  CheckCircleOutline as ApproveIcon,
-  EditOutlined as EditIcon,
-  Refresh as RefreshIcon,
-  VisibilityOutlined as ViewIcon,
-} from '@mui/icons-material';
+  Plus,
+  Check,
+  Edit2,
+  RotateCw,
+  Eye,
+  Search,
+  X,
+} from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
@@ -44,7 +46,7 @@ const statusMeta = {
   PENDING: { label: 'در انتظار تایید', color: 'warning' },
   ACTIVE: { label: 'فعال', color: 'success' },
   INACTIVE: { label: 'غیرفعال', color: 'default' },
-  SUSPENDED: { label: 'معلق', color: 'error' },
+  SUSPENDED: { label: 'معلق', color: 'danger' },
 };
 
 const requiredCreateFields = [
@@ -108,65 +110,118 @@ const formatDate = (value) => value
   : '—';
 
 const DetailRow = ({ label, children, ltr = false }) => (
-  <Box>
-    <Typography variant="caption" color="text.secondary">{label}</Typography>
-    <Typography variant="body2" dir={ltr ? 'ltr' : 'rtl'} sx={{ mt: 0.25, overflowWrap: 'anywhere' }}>{children || '—'}</Typography>
-  </Box>
+  <div className="flex flex-col gap-0.5">
+    <span className="text-xs text-foreground-500 font-medium">{label}</span>
+    <span className={`text-sm font-semibold ${ltr ? 'text-left' : 'text-right'} break-words text-foreground`}>
+      {children || '—'}
+    </span>
+  </div>
 );
 
 const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) => {
-  const setField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  const setField = (field, val) => setForm((current) => ({ ...current, [field]: val }));
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, pt: 0.5 }}>
-      <TextField required label="نام واحد صنعتی" value={form.name} onChange={setField('name')} disabled={disabled} inputProps={{ maxLength: 160 }} />
-      <TextField required label="شماره مجوز" value={form.licenseNumber} onChange={setField('licenseNumber')} disabled={disabled} inputProps={{ maxLength: 80 }} />
-      <TextField required label="شناسه ملی" value={form.nationalId} onChange={setField('nationalId')} disabled={disabled} inputProps={{ inputMode: 'numeric', maxLength: 11 }} />
-      <TextField required label="نوع فعالیت" value={form.activityType} onChange={setField('activityType')} disabled={disabled} inputProps={{ maxLength: 120 }} />
-      <TextField required label="تلفن همراه" value={form.phoneNumber} onChange={setField('phoneNumber')} disabled={disabled} inputProps={{ inputMode: 'tel', maxLength: 11 }} />
-      <TextField label="تلفن همراه دوم" value={form.phoneNumber2} onChange={setField('phoneNumber2')} disabled={disabled} inputProps={{ inputMode: 'tel', maxLength: 11 }} />
-      <TextField label="تلفن ثابت" value={form.landline} onChange={setField('landline')} disabled={disabled} inputProps={{ inputMode: 'tel', maxLength: 20 }} />
-      <TextField label="نمابر" value={form.fax} onChange={setField('fax')} disabled={disabled} inputProps={{ inputMode: 'tel', maxLength: 20 }} />
-      <TextField type="email" label="ایمیل" value={form.email} onChange={setField('email')} disabled={disabled} inputProps={{ maxLength: 254 }} />
-      <TextField type="url" label="وب‌سایت" value={form.website} onChange={setField('website')} disabled={disabled} inputProps={{ maxLength: 300 }} />
-      <TextField type="number" label="تعداد کارکنان" value={form.employees} onChange={setField('employees')} disabled={disabled} inputProps={{ min: 0, max: 1000000 }} />
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">نام واحد صنعتی</label>
+        <Input required value={form.name} onValueChange={(v) => setField('name', v)} isDisabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">شماره مجوز</label>
+        <Input required value={form.licenseNumber} onValueChange={(v) => setField('licenseNumber', v)} isDisabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">شناسه ملی</label>
+        <Input required value={form.nationalId} onValueChange={(v) => setField('nationalId', v)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">نوع فعالیت</label>
+        <Input required value={form.activityType} onValueChange={(v) => setField('activityType', v)} isDisabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">تلفن همراه</label>
+        <Input required value={form.phoneNumber} onValueChange={(v) => setField('phoneNumber', v)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">تلفن همراه دوم</label>
+        <Input value={form.phoneNumber2} onValueChange={(v) => setField('phoneNumber2', v)} isDisabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">تلفن ثابت</label>
+        <Input value={form.landline} onValueChange={(v) => setField('landline', v)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">نمابر</label>
+        <Input value={form.fax} onValueChange={(v) => setField('fax', v)} isDisabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">ایمیل</label>
+        <Input type="email" value={form.email} onValueChange={(v) => setField('email', v)} isDisabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">وب‌سایت</label>
+        <Input type="url" value={form.website} onValueChange={(v) => setField('website', v)} isDisabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
+        <Input type="number" value={form.employees} onValueChange={(v) => setField('employees', v)} isDisabled={disabled} variant="primary" className="rounded-xl" />
+      </div>
       {!editing && (
-        <FormControl required disabled={disabled}>
-          <InputLabel id="factory-park-label">شهرک صنعتی</InputLabel>
-          <Select labelId="factory-park-label" label="شهرک صنعتی" value={form.parkId} onChange={setField('parkId')}>
-            {parks.map((park) => <MenuItem key={park.id} value={park.id}>{park.name}</MenuItem>)}
-          </Select>
-        </FormControl>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-foreground-600">شهرک صنعتی</label>
+          <select
+            value={form.parkId}
+            onChange={(e) => setField('parkId', e.target.value)}
+            disabled={disabled}
+            required
+            className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+          >
+            <option value="">انتخاب شهرک...</option>
+            {parks.map((park) => <option key={park.id} value={park.id}>{park.name}</option>)}
+          </select>
+        </div>
       )}
       {!editing && (
-        <FormControl required disabled={disabled}>
-          <InputLabel id="factory-owner-label">مالک / مدیر واحد</InputLabel>
-          <Select labelId="factory-owner-label" label="مالک / مدیر واحد" value={form.managerId} onChange={setField('managerId')}>
-            {owners.map((owner) => <MenuItem key={owner.id} value={owner.id}>{owner.name || owner.phoneNumber}</MenuItem>)}
-          </Select>
-        </FormControl>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-foreground-600">مالک / مدیر واحد</label>
+          <select
+            value={form.managerId}
+            onChange={(e) => setField('managerId', e.target.value)}
+            disabled={disabled}
+            required
+            className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+          >
+            <option value="">انتخاب مالک / مدیر...</option>
+            {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name || owner.phoneNumber}</option>)}
+          </select>
+        </div>
       )}
-      <TextField
-        required
-        multiline
-        minRows={2}
-        label="نشانی"
-        value={form.address}
-        onChange={setField('address')}
-        disabled={disabled}
-        inputProps={{ maxLength: 240 }}
-        sx={{ gridColumn: '1 / -1' }}
-      />
-      <TextField
-        multiline
-        minRows={3}
-        label="توضیحات"
-        value={form.description}
-        onChange={setField('description')}
-        disabled={disabled}
-        inputProps={{ maxLength: 2000 }}
-        sx={{ gridColumn: '1 / -1' }}
-      />
-    </Box>
+      <div className="sm:col-span-2 flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">نشانی</label>
+        <Textarea
+          required
+          minRows={2}
+          value={form.address}
+          onValueChange={(v) => setField('address', v)}
+          isDisabled={disabled}
+          maxLength={240}
+          variant="primary"
+          className="rounded-xl"
+        />
+      </div>
+      <div className="sm:col-span-2 flex flex-col gap-1">
+        <label className="text-xs font-medium text-foreground-600">توضیحات</label>
+        <Textarea
+          minRows={3}
+          value={form.description}
+          onValueChange={(v) => setField('description', v)}
+          isDisabled={disabled}
+          maxLength={2000}
+          variant="primary"
+          className="rounded-xl"
+        />
+      </div>
+    </div>
   );
 };
 
@@ -345,173 +400,305 @@ const ManageFactoriesPage = () => {
   const owners = scope.owners || [];
 
   return (
-    <Stack spacing={2.5}>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
-        <Box>
-          <Typography variant="h4">مدیریت واحدهای صنعتی</Typography>
-          <Typography color="text.secondary" sx={{ mt: 0.5 }}>ثبت، ویرایش پروفایل و بررسی درخواست‌ها در محدوده مدیریتی شما</Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={startCreate} disabled={!online || mutationPending || scopeQuery.isLoading}>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">مدیریت واحدهای صنعتی</h1>
+          <p className="text-sm text-foreground-500 mt-1">ثبت، ویرایش پروفایل و بررسی درخواست‌ها در محدوده مدیریتی شما</p>
+        </div>
+        <Button
+          variant="primary"
+          onPress={startCreate}
+          isDisabled={!online || mutationPending || scopeQuery.isLoading}
+          className="rounded-xl font-bold shadow-md shadow-primary/20 flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
           ثبت واحد جدید
         </Button>
-      </Box>
+      </div>
 
-      {!online && <Alert severity="warning">اتصال اینترنت برقرار نیست. اطلاعات فعلی فقط برای مشاهده است و همه عملیات ثبت و تصمیم‌گیری غیرفعال شده‌اند.</Alert>}
+      {!online && (
+        <Alert status="warning">
+          <AlertContent>
+            <AlertTitle>حالت آفلاین</AlertTitle>
+            <AlertDescription>اتصال اینترنت برقرار نیست. اطلاعات فعلی فقط برای مشاهده است و همه عملیات ثبت و تصمیم‌گیری غیرفعال شده‌اند.</AlertDescription>
+          </AlertContent>
+        </Alert>
+      )}
+
       {scopeQuery.isError && (
-        <Alert severity="error" action={<Button color="inherit" onClick={() => scopeQuery.refetch()}>تلاش دوباره</Button>}>
-          {factoryError(scopeQuery.error, 'دریافت شهرک‌ها و مالکان مجاز ناموفق بود.')}
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{factoryError(scopeQuery.error, 'دریافت شهرک‌ها و مالکان مجاز ناموفق بود.')}</AlertDescription>
+          </AlertContent>
         </Alert>
       )}
 
-      <Paper variant="outlined">
-        <Box
-          component="form"
-          role="search"
-          onSubmit={submitSearch}
-          sx={{ p: 2, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(240px, 1fr) 190px 220px auto' }, gap: 1.5, alignItems: 'center' }}
-        >
-          <TextField size="small" label="جست‌وجوی نام، مجوز یا شناسه ملی" value={draftSearch} onChange={(event) => setDraftSearch(event.target.value)} inputProps={{ maxLength: 200 }} />
-          <FormControl size="small">
-            <InputLabel id="factory-status-filter-label">وضعیت</InputLabel>
-            <Select labelId="factory-status-filter-label" label="وضعیت" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-              <MenuItem value="">همه وضعیت‌ها</MenuItem>
-              {Object.entries(statusMeta).map(([value, meta]) => <MenuItem key={value} value={value}>{meta.label}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small">
-            <InputLabel id="factory-park-filter-label">شهرک صنعتی</InputLabel>
-            <Select labelId="factory-park-filter-label" label="شهرک صنعتی" value={parkId} onChange={(event) => { setParkId(event.target.value); setPage(1); }}>
-              <MenuItem value="">همه شهرک‌ها</MenuItem>
-              {parks.map((park) => <MenuItem key={park.id} value={park.id}>{park.name}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <Button type="submit" variant="contained">اعمال جست‌وجو</Button>
-        </Box>
-      </Paper>
+      <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
+        <CardContent className="p-4">
+          <form onSubmit={submitSearch} role="search" className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
+            <div className="relative flex items-center">
+              <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+              <Input
+                size="md"
+                placeholder="نام، مجوز یا شناسه ملی..."
+                value={draftSearch}
+                onValueChange={setDraftSearch}
+                maxLength={200}
+                variant="primary"
+                className="pr-9 rounded-xl"
+              />
+            </div>
 
-      {factoriesQuery.isLoading && <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 240 }}><CircularProgress aria-label="در حال دریافت واحدهای صنعتی" /></Box>}
+            <select
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-default-300 bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
+            >
+              <option value="">همه وضعیت‌ها</option>
+              {Object.entries(statusMeta).map(([val, meta]) => (
+                <option key={val} value={val}>{meta.label}</option>
+              ))}
+            </select>
+
+            <select
+              value={parkId}
+              onChange={(e) => { setParkId(e.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-default-300 bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
+            >
+              <option value="">همه شهرک‌ها</option>
+              {parks.map((park) => <option key={park.id} value={park.id}>{park.name}</option>)}
+            </select>
+
+            <Button type="submit" variant="primary" className="rounded-xl font-bold">
+              اعمال جست‌وجو
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {factoriesQuery.isLoading && (
+        <div className="flex min-h-[240px] flex-col items-center justify-center gap-3">
+          <Spinner size="lg" />
+          <p className="text-sm text-foreground-500">در حال دریافت واحدهای صنعتی...</p>
+        </div>
+      )}
+
       {factoriesQuery.isError && (
-        <Alert severity="error" action={<Button color="inherit" startIcon={<RefreshIcon />} onClick={() => factoriesQuery.refetch()}>تلاش دوباره</Button>}>
-          {factoryError(factoriesQuery.error, 'دریافت فهرست واحدهای صنعتی ناموفق بود.')}
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{factoryError(factoriesQuery.error, 'دریافت فهرست واحدهای صنعتی ناموفق بود.')}</AlertDescription>
+          </AlertContent>
         </Alert>
       )}
+
       {!factoriesQuery.isLoading && !factoriesQuery.isError && factories.length === 0 && (
-        <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6">واحد صنعتی‌ای پیدا نشد</Typography>
-          <Typography color="text.secondary" sx={{ mt: 0.75 }}>فیلترها را تغییر دهید یا یک واحد صنعتی جدید ثبت کنید.</Typography>
-        </Paper>
+        <Card className="p-8 text-center border border-default-200 rounded-2xl">
+          <h3 className="text-lg font-bold text-foreground">واحد صنعتی‌ای پیدا نشد</h3>
+          <p className="mt-2 text-sm text-foreground-500">فیلترها را تغییر دهید یا یک واحد صنعتی جدید ثبت کنید.</p>
+        </Card>
       )}
+
       {!factoriesQuery.isLoading && !factoriesQuery.isError && factories.length > 0 && (
-        <TableContainer component={Paper} variant="outlined">
-          <Table aria-label="فهرست واحدهای صنعتی">
-            <TableHead>
-              <TableRow>
-                <TableCell>واحد صنعتی</TableCell>
-                <TableCell>مالک / مدیر</TableCell>
-                <TableCell>شهرک</TableCell>
-                <TableCell>وضعیت</TableCell>
-                <TableCell align="center">عملیات</TableCell>
-              </TableRow>
-            </TableHead>
+        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
+          <Table aria-label="فهرست واحدهای صنعتی" className="p-0 shadow-none">
+            <TableHeader>
+              <TableColumn className="text-right font-bold">واحد صنعتی</TableColumn>
+              <TableColumn className="text-right font-bold">مالک / مدیر</TableColumn>
+              <TableColumn className="text-right font-bold">شهرک</TableColumn>
+              <TableColumn className="text-right font-bold">وضعیت</TableColumn>
+              <TableColumn className="text-center font-bold">عملیات</TableColumn>
+            </TableHeader>
             <TableBody>
               {factories.map((factory) => {
                 const meta = statusMeta[factory.status] || { label: factory.status, color: 'default' };
                 return (
-                  <TableRow key={factory.id} hover>
+                  <TableRow key={factory.id}>
                     <TableCell>
-                      <Typography variant="subtitle1">{factory.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">مجوز: {factory.licenseNumber || '—'}</Typography>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-foreground">{factory.name}</span>
+                        <span className="text-xs text-foreground-500">مجوز: {factory.licenseNumber || '—'}</span>
+                      </div>
                     </TableCell>
                     <TableCell>{factory.manager?.name || factory.owner?.name || '—'}</TableCell>
                     <TableCell>{factory.park?.name || '—'}</TableCell>
-                    <TableCell><Chip size="small" label={meta.label} color={meta.color} /></TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={0.5}>
-                        <Button size="small" startIcon={<ViewIcon />} onClick={() => setDetailId(factory.id)}>جزئیات</Button>
-                        <Button size="small" startIcon={editLoadingId === factory.id ? <CircularProgress size={16} /> : <EditIcon />} onClick={() => startEdit(factory)} disabled={!online || mutationPending || Boolean(editLoadingId)}>{editLoadingId === factory.id ? 'در حال دریافت' : 'ویرایش'}</Button>
+                    <TableCell>
+                      <Chip size="sm" color={meta.color} variant="soft" className="font-semibold">
+                        {meta.label}
+                      </Chip>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                        <Button size="sm" variant="ghost" onPress={() => setDetailId(factory.id)} className="rounded-xl font-medium flex items-center gap-1">
+                          <Eye className="h-4 w-4" />
+                          جزئیات
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          onPress={() => startEdit(factory)}
+                          isDisabled={!online || mutationPending || Boolean(editLoadingId)}
+                          className="rounded-xl font-medium flex items-center gap-1"
+                        >
+                          {editLoadingId === factory.id ? <Spinner size="sm" /> : <Edit2 className="h-4 w-4" />}
+                          {editLoadingId === factory.id ? 'در حال دریافت' : 'ویرایش'}
+                        </Button>
                         {factory.status === 'PENDING' && (
                           <>
-                            <Button size="small" color="success" startIcon={<ApproveIcon />} onClick={() => setApproveTarget(factory)} disabled={!online || mutationPending}>تایید</Button>
-                            <Button size="small" color="error" onClick={() => setRejectTarget(factory)} disabled={!online || mutationPending}>رد</Button>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onPress={() => setApproveTarget(factory)}
+                              isDisabled={!online || mutationPending}
+                              className="rounded-xl font-bold flex items-center gap-1"
+                            >
+                              <Check className="h-4 w-4" />
+                              تایید
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger-soft"
+                              onPress={() => setRejectTarget(factory)}
+                              isDisabled={!online || mutationPending}
+                              className="rounded-xl font-bold flex items-center gap-1"
+                            >
+                              <X className="h-4 w-4" />
+                              رد
+                            </Button>
                           </>
                         )}
-                      </Stack>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
-        </TableContainer>
+        </Card>
       )}
 
       {!factoriesQuery.isError && total > pageSize && (
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <Pagination page={page} count={pageCount} onChange={(_, value) => setPage(value)} color="primary" />
-        </Box>
+        <div className="flex justify-center mt-4">
+          <Pagination page={page} total={pageCount} onChange={setPage} className="rounded-2xl" />
+        </div>
       )}
 
-      <Dialog open={Boolean(detailId)} onClose={() => setDetailId(null)} maxWidth="md" fullWidth aria-labelledby="factory-detail-title">
-        <DialogTitle id="factory-detail-title">جزئیات واحد صنعتی</DialogTitle>
-        <DialogContent dividers>
-          {detailQuery.isLoading && <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 220 }}><CircularProgress aria-label="در حال دریافت جزئیات واحد صنعتی" /></Box>}
-          {detailQuery.isError && (
-            <Alert severity="error" action={<Button color="inherit" onClick={() => detailQuery.refetch()}>تلاش دوباره</Button>}>
-              {factoryError(detailQuery.error, 'دریافت جزئیات واحد صنعتی ناموفق بود.')}
-            </Alert>
-          )}
-          {detailQuery.data && (
-            <Stack spacing={2.5}>
-              <Box>
-                <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1}>
-                  <Typography variant="h5">{detailQuery.data.name}</Typography>
-                  <Chip size="small" label={(statusMeta[detailQuery.data.status] || { label: detailQuery.data.status }).label} color={(statusMeta[detailQuery.data.status] || { color: 'default' }).color} />
-                </Stack>
-                <Typography color="text.secondary" sx={{ mt: 0.5 }}>{detailQuery.data.description || 'توضیحی ثبت نشده است.'}</Typography>
-              </Box>
-              {detailQuery.data.rejectionReason && <Alert severity="error" icon={false}>دلیل رد: {detailQuery.data.rejectionReason}</Alert>}
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-                <DetailRow label="شماره مجوز">{detailQuery.data.licenseNumber}</DetailRow>
-                <DetailRow label="شناسه ملی">{detailQuery.data.nationalId}</DetailRow>
-                <DetailRow label="نوع فعالیت">{detailQuery.data.activityType}</DetailRow>
-                <DetailRow label="تعداد کارکنان">{detailQuery.data.employees === 0 ? '۰' : detailQuery.data.employees}</DetailRow>
-                <DetailRow label="شهرک صنعتی">{detailQuery.data.park?.name}</DetailRow>
-                <DetailRow label="مالک / مدیر">{detailQuery.data.manager?.name || detailQuery.data.owner?.name}</DetailRow>
-                <DetailRow label="تلفن همراه" ltr>{detailQuery.data.phoneNumber}</DetailRow>
-                <DetailRow label="تلفن همراه دوم" ltr>{detailQuery.data.phoneNumber2}</DetailRow>
-                <DetailRow label="تلفن ثابت" ltr>{detailQuery.data.landline}</DetailRow>
-                <DetailRow label="نمابر" ltr>{detailQuery.data.fax}</DetailRow>
-                <DetailRow label="ایمیل" ltr>{detailQuery.data.email}</DetailRow>
-                <DetailRow label="وب‌سایت" ltr>{detailQuery.data.website}</DetailRow>
-                <Box sx={{ gridColumn: '1 / -1' }}><DetailRow label="نشانی">{detailQuery.data.address}</DetailRow></Box>
-                {detailQuery.data.reviewedBy && <DetailRow label="بررسی‌کننده">{detailQuery.data.reviewedBy.name}</DetailRow>}
-                {detailQuery.data.reviewedAt && <DetailRow label="زمان بررسی">{formatDate(detailQuery.data.reviewedAt)}</DetailRow>}
-              </Box>
-            </Stack>
-          )}
-        </DialogContent>
-        <DialogActions><Button onClick={() => setDetailId(null)}>بستن</Button></DialogActions>
-      </Dialog>
+      {Boolean(detailId) && (
+        <ModalBackdrop isOpen={Boolean(detailId)} onOpenChange={(open) => !open && setDetailId(null)} variant="blur">
+          <ModalContainer size="lg">
+            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+              <ModalHeader className="text-lg font-bold">جزئیات واحد صنعتی</ModalHeader>
+              <ModalBody className="gap-4 max-h-[75vh] overflow-y-auto">
+                {detailQuery.isLoading && (
+                  <div className="flex min-h-[200px] flex-col items-center justify-center gap-3">
+                    <Spinner size="lg" />
+                  </div>
+                )}
+                {detailQuery.isError && (
+                  <Alert status="danger">
+                    <AlertContent>
+                      <AlertTitle>خطا</AlertTitle>
+                      <AlertDescription>{factoryError(detailQuery.error, 'دریافت جزئیات واحد صنعتی ناموفق بود.')}</AlertDescription>
+                    </AlertContent>
+                  </Alert>
+                )}
+                {detailQuery.data && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h2 className="text-xl font-bold text-foreground">{detailQuery.data.name}</h2>
+                      <Chip size="sm" color={(statusMeta[detailQuery.data.status] || { color: 'default' }).color} variant="soft" className="font-semibold">
+                        {(statusMeta[detailQuery.data.status] || { label: detailQuery.data.status }).label}
+                      </Chip>
+                    </div>
+                    <p className="text-sm text-foreground-600 leading-relaxed">{detailQuery.data.description || 'توضیحی ثبت نشده است.'}</p>
+                    {detailQuery.data.rejectionReason && (
+                      <Alert status="danger">
+                        <AlertContent>
+                          <AlertTitle>دلیل رد</AlertTitle>
+                          <AlertDescription>{detailQuery.data.rejectionReason}</AlertDescription>
+                        </AlertContent>
+                      </Alert>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-default-50 dark:bg-default-100/30">
+                      <DetailRow label="شماره مجوز">{detailQuery.data.licenseNumber}</DetailRow>
+                      <DetailRow label="شناسه ملی">{detailQuery.data.nationalId}</DetailRow>
+                      <DetailRow label="نوع فعالیت">{detailQuery.data.activityType}</DetailRow>
+                      <DetailRow label="تعداد کارکنان">{detailQuery.data.employees === 0 ? '۰' : detailQuery.data.employees}</DetailRow>
+                      <DetailRow label="شهرک صنعتی">{detailQuery.data.park?.name}</DetailRow>
+                      <DetailRow label="مالک / مدیر">{detailQuery.data.manager?.name || detailQuery.data.owner?.name}</DetailRow>
+                      <DetailRow label="تلفن همراه" ltr>{detailQuery.data.phoneNumber}</DetailRow>
+                      <DetailRow label="تلفن همراه دوم" ltr>{detailQuery.data.phoneNumber2}</DetailRow>
+                      <DetailRow label="تلفن ثابت" ltr>{detailQuery.data.landline}</DetailRow>
+                      <DetailRow label="نمابر" ltr>{detailQuery.data.fax}</DetailRow>
+                      <DetailRow label="ایمیل" ltr>{detailQuery.data.email}</DetailRow>
+                      <DetailRow label="وب‌سایت" ltr>{detailQuery.data.website}</DetailRow>
+                      <div className="sm:col-span-2"><DetailRow label="نشانی">{detailQuery.data.address}</DetailRow></div>
+                      {detailQuery.data.reviewedBy && <DetailRow label="بررسی‌کننده">{detailQuery.data.reviewedBy.name}</DetailRow>}
+                      {detailQuery.data.reviewedAt && <DetailRow label="زمان بررسی">{formatDate(detailQuery.data.reviewedAt)}</DetailRow>}
+                    </div>
+                  </div>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="tertiary" onPress={() => setDetailId(null)} className="rounded-xl font-medium">
+                  بستن
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      )}
 
-      <Dialog open={formOpen} onClose={closeForm} maxWidth="md" fullWidth aria-labelledby="factory-form-title">
-        <DialogTitle id="factory-form-title">{editing ? `ویرایش پروفایل «${editing.name}»` : 'ثبت واحد صنعتی جدید'}</DialogTitle>
-        <Box component="form" onSubmit={submitForm} noValidate>
-          <DialogContent dividers>
-            {!online && <Alert severity="warning" sx={{ mb: 2 }}>برای ثبت اطلاعات باید دوباره به اینترنت متصل شوید. ورودی‌های شما حفظ می‌شوند.</Alert>}
-            {!editing && scopeQuery.isLoading && <Alert severity="info" sx={{ mb: 2 }}>در حال دریافت شهرک‌ها و مالکان مجاز…</Alert>}
-            {!editing && !scopeQuery.isLoading && (parks.length === 0 || owners.length === 0) && (
-              <Alert severity="warning" sx={{ mb: 2 }}>شهرک یا مالک مجازی برای ثبت واحد جدید در محدوده شما وجود ندارد.</Alert>
-            )}
-            <FactoryFormFields form={form} setForm={setForm} editing={Boolean(editing)} parks={parks} owners={owners} disabled={mutationPending} />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeForm} disabled={mutationPending}>انصراف</Button>
-            <Button type="submit" variant="contained" disabled={!online || mutationPending || (!editing && scopeQuery.isLoading)}>
-              {mutationPending ? <CircularProgress size={22} /> : editing ? 'ذخیره تغییرات' : 'ثبت واحد صنعتی'}
-            </Button>
-          </DialogActions>
-        </Box>
-      </Dialog>
+      {formOpen && (
+        <ModalBackdrop isOpen={formOpen} onOpenChange={(open) => !open && closeForm()} variant="blur">
+          <ModalContainer size="lg">
+            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+              <ModalHeader className="text-lg font-bold">
+                {editing ? `ویرایش پروفایل «${editing.name}»` : 'ثبت واحد صنعتی جدید'}
+              </ModalHeader>
+              <form onSubmit={submitForm}>
+                <ModalBody className="gap-4 max-h-[75vh] overflow-y-auto">
+                  {!online && (
+                    <Alert status="warning">
+                      <AlertContent>
+                        <AlertTitle>آفلاین</AlertTitle>
+                        <AlertDescription>برای ثبت اطلاعات باید دوباره به اینترنت متصل شوید. ورودی‌های شما حفظ می‌شوند.</AlertDescription>
+                      </AlertContent>
+                    </Alert>
+                  )}
+                  {!editing && scopeQuery.isLoading && (
+                    <Alert status="accent">
+                      <AlertContent>
+                        <AlertTitle>در حال دریافت</AlertTitle>
+                        <AlertDescription>در حال دریافت شهرک‌ها و مالکان مجاز…</AlertDescription>
+                      </AlertContent>
+                    </Alert>
+                  )}
+                  {!editing && !scopeQuery.isLoading && (parks.length === 0 || owners.length === 0) && (
+                    <Alert status="warning">
+                      <AlertContent>
+                        <AlertTitle>هشدار</AlertTitle>
+                        <AlertDescription>شهرک یا مالک مجازی برای ثبت واحد جدید در محدوده شما وجود ندارد.</AlertDescription>
+                      </AlertContent>
+                    </Alert>
+                  )}
+                  <FactoryFormFields form={form} setForm={setForm} editing={Boolean(editing)} parks={parks} owners={owners} disabled={mutationPending} />
+                </ModalBody>
+                <ModalFooter className="mt-4">
+                  <Button variant="tertiary" onPress={closeForm} isDisabled={mutationPending} className="rounded-xl font-medium">
+                    انصراف
+                  </Button>
+                  <Button type="submit" variant="primary" isDisabled={!online || (!editing && scopeQuery.isLoading) || mutationPending} className="rounded-xl font-bold px-6">
+                    {mutationPending ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت واحد صنعتی')}
+                  </Button>
+                </ModalFooter>
+              </form>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      )}
 
       <ConfirmDialog
         open={Boolean(approveTarget)}
@@ -530,14 +717,15 @@ const ManageFactoriesPage = () => {
         requireReason
         reasonLabel="دلیل رد"
         confirmLabel="ثبت رد واحد صنعتی"
-        confirmColor="error"
+        confirmColor="danger"
         loading={mutationPending}
         disabled={!online}
         onConfirm={(reason) => { if (rejectTarget) runMutation({ type: 'reject', id: rejectTarget.id, reason }); }}
         onClose={() => { if (!mutationPending) setRejectTarget(null); }}
       />
-    </Stack>
+    </div>
   );
 };
 
 export default ManageFactoriesPage;
+

@@ -2,23 +2,20 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box,
-  Typography,
-  Paper,
+  Card,
+  CardBody,
   Table,
+  TableHeader,
+  TableColumn,
   TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
   TableRow,
+  TableCell,
   Button,
-  TextField,
-  InputAdornment,
-  Grid,
-  CircularProgress,
+  Input,
+  Spinner,
   Alert,
-} from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+} from '@heroui/react';
+import { Search, ShieldCheck, ArrowRight } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 
@@ -38,49 +35,63 @@ const GuardGatePassesPage = () => {
   });
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        برگ‌های خروج در انتظار تایید نهایی
-      </Typography>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">برگ‌های خروج در انتظار تایید نهایی</h1>
+        <p className="text-sm text-foreground-500 mt-1">لیست مجوزهای تاییدشده ترافیک خروجی شهرک</p>
+      </div>
 
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="جستجو بر اساس شماره پلاک یا شناسه برگ خروج"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-            />
-          </Grid>
-        </Grid>
-      </Paper>
+      <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
+        <CardBody className="p-4">
+          <Input
+            size="md"
+            label="جست‌وجوی برگ خروج"
+            placeholder="بر اساس شماره پلاک یا شناسه برگ خروج..."
+            value={search}
+            onValueChange={setSearch}
+            variant="bordered"
+            startContent={<Search className="h-4 w-4 text-default-400" />}
+            classNames={{ inputWrapper: 'rounded-xl' }}
+          />
+        </CardBody>
+      </Card>
 
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}</Alert>}
+      {isLoading && (
+        <div className="flex min-h-[220px] items-center justify-center">
+          <Spinner size="lg" label="در حال دریافت لیست برگ‌های خروج..." />
+        </div>
+      )}
+
+      {isError && (
+        <Alert color="danger" title="خطا">
+          {getErrorMessage(error, 'دریافت برگ‌های خروج ناموفق بود.')}
+        </Alert>
+      )}
+
       {!isLoading && !isError && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>واحد صنعتی</TableCell>
-                <TableCell>نام راننده</TableCell>
-                <TableCell>شماره پلاک</TableCell>
-                <TableCell align="center">عملیات</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {approvedPasses.length === 0 && (
-                <TableRow><TableCell colSpan={4} align="center">هیچ برگ خروج تایید‌شده‌ای برای نمایش وجود ندارد.</TableCell></TableRow>
-              )}
+        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
+          <Table aria-label="جدول برگ خروج نگهبانی" classNames={{ wrapper: 'p-0 shadow-none' }}>
+            <TableHeader>
+              <TableColumn className="text-right font-bold">واحد صنعتی</TableColumn>
+              <TableColumn className="text-right font-bold">نام راننده</TableColumn>
+              <TableColumn className="text-right font-bold">شماره پلاک</TableColumn>
+              <TableColumn className="text-center font-bold">عملیات</TableColumn>
+            </TableHeader>
+            <TableBody emptyContent="هیچ برگ خروج تایید‌شده‌ای برای نمایش وجود ندارد.">
               {approvedPasses.map((pass) => (
                 <TableRow key={pass.id}>
-                  <TableCell>{pass.factory?.name || '—'}</TableCell>
+                  <TableCell className="font-bold text-foreground">{pass.factory?.name || '—'}</TableCell>
                   <TableCell>{pass.driverName}</TableCell>
-                  <TableCell>{pass.licensePlate}</TableCell>
-                  <TableCell align="center">
-                    <Button variant="outlined" onClick={() => navigate(`/guard/gate-passes/${pass.id}/verify`)}>
+                  <TableCell className="font-mono text-sm">{pass.licensePlate}</TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      size="sm"
+                      color="primary"
+                      variant="flat"
+                      startContent={<ShieldCheck className="h-4 w-4" />}
+                      onPress={() => navigate(`/guard/gate-passes/${pass.id}/verify`)}
+                      className="rounded-xl font-bold"
+                    >
                       بررسی و تایید خروج
                     </Button>
                   </TableCell>
@@ -88,10 +99,11 @@ const GuardGatePassesPage = () => {
               ))}
             </TableBody>
           </Table>
-        </TableContainer>
+        </Card>
       )}
-    </Box>
+    </div>
   );
 };
 
 export default GuardGatePassesPage;
+

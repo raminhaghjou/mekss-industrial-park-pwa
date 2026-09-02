@@ -33,7 +33,17 @@ const deferred = () => {
 
 describe('API refresh interceptor', () => {
   beforeEach(() => {
-    localStorage.clear();
+    if (typeof localStorage !== 'undefined' && typeof localStorage.clear === 'function') {
+      localStorage.clear();
+    } else {
+      const store = {};
+      globalThis.localStorage = /** @type {any} */ ({
+        getItem: (k) => store[k] || null,
+        setItem: (k, v) => { store[k] = String(v); },
+        removeItem: (k) => { delete store[k]; },
+        clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+      });
+    }
     mocks.client.mockClear();
     mocks.post.mockReset();
   });

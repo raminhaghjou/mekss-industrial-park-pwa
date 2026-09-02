@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
-  Box,
-  Typography,
-  TextField,
+  Card,
+  CardBody,
+  Input,
+  Select,
+  SelectItem,
+  Textarea,
   Button,
-  Grid,
-  Paper,
-  IconButton,
-  MenuItem,
-  CircularProgress,
   Alert,
-} from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+} from '@heroui/react';
+import { ArrowRight } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -60,7 +58,7 @@ const CreateGatePassForm = ({ handleBack }) => {
     onError: (err) => showNotification(getErrorMessage(err, 'ثبت برگ خروج ناموفق بود.'), 'error'),
   });
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -73,63 +71,141 @@ const CreateGatePassForm = ({ handleBack }) => {
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <IconButton onClick={handleBack} sx={{ ml: 1 }} aria-label="بازگشت به لیست">
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h5">
-          فرم ایجاد برگ خروج جدید
-        </Typography>
-      </Box>
-      {factoriesError && <Alert severity="error" sx={{ mb: 2 }}>دریافت لیست واحدهای صنعتی ناموفق بود.</Alert>}
-      <Box component="form" onSubmit={handleSubmit}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} sm={6}>
-            <TextField select fullWidth required label="واحد صنعتی" name="factoryId" value={form.factoryId} onChange={handleChange} disabled={loadingFactories}>
-              {(factories || []).map((factory) => <MenuItem key={factory.id} value={factory.id}>{factory.name}</MenuItem>)}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField select fullWidth required label="نوع بار" name="cargoType" value={form.cargoType} onChange={handleChange}>
-              {cargoTypes.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth required label="نام راننده" name="driverName" value={form.driverName} onChange={handleChange} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth required label="کد ملی راننده" name="driverNationalId" value={form.driverNationalId} onChange={handleChange} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth required label="تلفن راننده" name="driverPhone" value={form.driverPhone} onChange={handleChange} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField select fullWidth required label="نوع خودرو" name="vehicleType" value={form.vehicleType} onChange={handleChange}>
-              {vehicleTypes.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth required label="شماره پلاک" name="licensePlate" value={form.licensePlate} onChange={handleChange} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField fullWidth required label="تاریخ و ساعت خروج" name="exitDate" type="datetime-local" InputLabelProps={{ shrink: true }} value={form.exitDate} onChange={handleChange} />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField fullWidth label="توضیحات بار (اختیاری)" name="cargoDescription" multiline rows={3} value={form.cargoDescription} onChange={handleChange} />
-          </Grid>
-          <Grid item xs={12} sx={{ textAlign: 'right' }}>
-            <Button type="submit" variant="contained" disabled={createMutation.isPending}>
-              {createMutation.isPending ? <CircularProgress size={22} /> : 'ثبت و ارسال برای تایید'}
-            </Button>
-            <Button variant="text" onClick={handleBack} sx={{ ml: 2 }} disabled={createMutation.isPending}>
+    <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
+      <CardBody className="p-6">
+        <div className="flex items-center gap-3 mb-6 border-b border-default-100 pb-4 dark:border-white/5">
+          <Button isIconOnly variant="light" onPress={handleBack} aria-label="بازگشت به لیست" className="rounded-xl">
+            <ArrowRight className="h-5 w-5" />
+          </Button>
+          <h2 className="text-xl font-bold text-foreground">
+            فرم ایجاد برگ خروج جدید
+          </h2>
+        </div>
+
+        {factoriesError && (
+          <Alert color="danger" title="خطا" className="mb-4">
+            دریافت لیست واحدهای صنعتی ناموفق بود.
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="واحد صنعتی"
+              selectedKeys={form.factoryId ? [form.factoryId] : []}
+              onSelectionChange={(keys) => handleChange('factoryId', Array.from(keys)[0] || '')}
+              variant="bordered"
+              isDisabled={loadingFactories}
+              isRequired
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              {(factories || []).map((factory) => (
+                <SelectItem key={factory.id}>{factory.name}</SelectItem>
+              ))}
+            </Select>
+
+            <Select
+              label="نوع بار"
+              selectedKeys={[form.cargoType]}
+              onSelectionChange={(keys) => handleChange('cargoType', Array.from(keys)[0] || '')}
+              variant="bordered"
+              isRequired
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              {cargoTypes.map((option) => (
+                <SelectItem key={option.value}>{option.label}</SelectItem>
+              ))}
+            </Select>
+
+            <Input
+              label="نام راننده"
+              placeholder="نام و نام خانوادگی راننده"
+              value={form.driverName}
+              onValueChange={(val) => handleChange('driverName', val)}
+              variant="bordered"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Input
+              label="کد ملی راننده"
+              placeholder="کد ملی ۱۰ رقمی"
+              value={form.driverNationalId}
+              onValueChange={(val) => handleChange('driverNationalId', val)}
+              variant="bordered"
+              dir="ltr"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Input
+              label="تلفن راننده"
+              placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+              value={form.driverPhone}
+              onValueChange={(val) => handleChange('driverPhone', val)}
+              variant="bordered"
+              dir="ltr"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Select
+              label="نوع خودرو"
+              selectedKeys={[form.vehicleType]}
+              onSelectionChange={(keys) => handleChange('vehicleType', Array.from(keys)[0] || '')}
+              variant="bordered"
+              isRequired
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              {vehicleTypes.map((option) => (
+                <SelectItem key={option.value}>{option.label}</SelectItem>
+              ))}
+            </Select>
+
+            <Input
+              label="شماره پلاک"
+              placeholder="مثلا: ۱۲ ب ۳۴۵ ایران ۷۸"
+              value={form.licensePlate}
+              onValueChange={(val) => handleChange('licensePlate', val)}
+              variant="bordered"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Input
+              type="datetime-local"
+              label="تاریخ و ساعت خروج"
+              value={form.exitDate}
+              onValueChange={(val) => handleChange('exitDate', val)}
+              variant="bordered"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+          </div>
+
+          <Textarea
+            label="توضیحات بار (اختیاری)"
+            placeholder="شرح جزئیات محموله..."
+            value={form.cargoDescription}
+            onValueChange={(val) => handleChange('cargoDescription', val)}
+            variant="bordered"
+            minRows={3}
+            classNames={{ inputWrapper: 'rounded-xl' }}
+          />
+
+          <div className="flex items-center justify-end gap-3 mt-4">
+            <Button variant="flat" color="default" onPress={handleBack} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
               انصراف
             </Button>
-          </Grid>
-        </Grid>
-      </Box>
-    </Paper>
+            <Button type="submit" color="primary" isLoading={createMutation.isPending} className="rounded-xl font-bold">
+              ثبت و ارسال برای تایید
+            </Button>
+          </div>
+        </form>
+      </CardBody>
+    </Card>
   );
 };
 
 export default CreateGatePassForm;
+

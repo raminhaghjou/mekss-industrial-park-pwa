@@ -1,39 +1,51 @@
 import React from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
-  Box,
-  Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  IconButton,
-  TextField,
-  InputAdornment,
-  CircularProgress,
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Grid,
-  MenuItem,
-  Select,
-  InputLabel,
-  FormControl,
+  Card,
+  CardContent,
   Button,
-} from '@mui/material';
-import { Edit as EditIcon, Block as BlockIcon, CheckCircle as CheckCircleIcon, Search as SearchIcon, Add as AddIcon, DeleteForever as DeleteIcon, LockReset as LockResetIcon } from '@mui/icons-material';
+  Chip,
+  Spinner,
+  ModalBackdrop,
+  ModalContainer,
+  ModalDialog,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Input,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+} from '@heroui/react';
+import {
+  Plus,
+  Edit2,
+  Lock,
+  Ban,
+  CheckCircle,
+  Trash2,
+  Search,
+} from 'lucide-react';
 import { userApi } from '../../services/api/user.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
 
-const roleLabels = { SUPER_ADMIN: 'ادمین کل', PARK_MANAGER: 'مدیر شهرک', FACTORY_OWNER: 'مالک واحد صنعتی', SECURITY_GUARD: 'نگهبان', GOVERNMENT_OFFICIAL: 'نماینده دولت', EMPLOYEE: 'کارمند' };
+const roleLabels = {
+  SUPER_ADMIN: 'ادمین کل',
+  PARK_MANAGER: 'مدیر شهرک',
+  FACTORY_OWNER: 'مالک واحد صنعتی',
+  SECURITY_GUARD: 'نگهبان',
+  GOVERNMENT_OFFICIAL: 'نماینده دولت',
+  EMPLOYEE: 'کارمند',
+};
 const roles = Object.keys(roleLabels);
 const emptyForm = { phoneNumber: '', name: '', password: '', email: '', role: 'EMPLOYEE' };
 
@@ -105,107 +117,205 @@ const ManageUsersPage = () => {
   const saving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">مدیریت کاربران</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={startCreate}>افزودن کاربر جدید</Button>
-      </Box>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">مدیریت کاربران سامانه</h1>
+          <p className="text-sm text-foreground-500 mt-1">مدیریت حساب‌ها، سطح دسترسی، فعال‌سازی و بازنشانی رمز عبور</p>
+        </div>
+        <Button
+          variant="primary"
+          onPress={startCreate}
+          className="rounded-xl font-bold shadow-md shadow-primary/20 flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          افزودن کاربر جدید
+        </Button>
+      </div>
 
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <TextField
-          fullWidth
-          label="جستجو بر اساس نام، تلفن یا ایمیل"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-        />
-      </Paper>
+      <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
+        <CardContent className="p-4">
+          <div className="relative flex items-center">
+            <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
+            <Input
+              size="md"
+              placeholder="جست‌وجوی کاربر بر اساس نام، تلفن یا ایمیل..."
+              value={search}
+              onValueChange={setSearch}
+              variant="primary"
+              className="pr-9 rounded-xl"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت لیست کاربران ناموفق بود.')}</Alert>}
+      {isLoading && (
+        <div className="flex min-h-[220px] flex-col items-center justify-center gap-3">
+          <Spinner size="lg" />
+          <p className="text-sm text-foreground-500">در حال دریافت لیست کاربران...</p>
+        </div>
+      )}
+
+      {isError && (
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{getErrorMessage(error, 'دریافت لیست کاربران ناموفق بود.')}</AlertDescription>
+          </AlertContent>
+        </Alert>
+      )}
+
       {!isLoading && !isError && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>نام کاربر</TableCell>
-                <TableCell>تلفن</TableCell>
-                <TableCell>نقش</TableCell>
-                <TableCell>وضعیت</TableCell>
-                <TableCell align="center">عملیات</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.length === 0 && <TableRow><TableCell colSpan={5} align="center">هیچ کاربری یافت نشد.</TableCell></TableRow>}
+        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
+          <Table aria-label="جدول مدیریت کاربران" className="p-0 shadow-none">
+            <TableHeader>
+              <TableColumn className="text-right font-bold">نام کاربر</TableColumn>
+              <TableColumn className="text-right font-bold">تلفن</TableColumn>
+              <TableColumn className="text-right font-bold">نقش</TableColumn>
+              <TableColumn className="text-right font-bold">وضعیت</TableColumn>
+              <TableColumn className="text-center font-bold">عملیات</TableColumn>
+            </TableHeader>
+            <TableBody emptyContent="هیچ کاربری یافت نشد.">
               {users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>{user.phoneNumber}</TableCell>
-                  <TableCell>{roleLabels[user.role] || user.role}</TableCell>
+                  <TableCell className="font-bold text-foreground">{user.name}</TableCell>
+                  <TableCell className="font-mono text-sm" dir="ltr">{user.phoneNumber}</TableCell>
                   <TableCell>
-                    <Chip label={user.isActive ? 'فعال' : 'غیرفعال'} color={user.isActive ? 'success' : 'default'} size="small" />
+                    <Chip size="sm" variant="secondary" className="font-medium">
+                      {roleLabels[user.role] || user.role}
+                    </Chip>
                   </TableCell>
-                  <TableCell align="center">
-                    <IconButton size="small" onClick={() => startEdit(user)}><EditIcon /></IconButton>
-                    <IconButton size="small" onClick={() => setResetTarget(user.id)}><LockResetIcon /></IconButton>
-                    {user.isActive ? (
-                      <IconButton size="small" color="warning" onClick={() => toggleActiveMutation.mutate({ id: user.id, isActive: false })}><BlockIcon /></IconButton>
-                    ) : (
-                      <IconButton size="small" color="success" onClick={() => toggleActiveMutation.mutate({ id: user.id, isActive: true })}><CheckCircleIcon /></IconButton>
-                    )}
-                    <IconButton size="small" color="error" onClick={() => setDeleteTarget(user.id)}><DeleteIcon /></IconButton>
+                  <TableCell>
+                    <Chip size="sm" color={user.isActive ? 'success' : 'default'} variant="soft" className="font-semibold">
+                      {user.isActive ? 'فعال' : 'غیرفعال'}
+                    </Chip>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button isIconOnly size="sm" variant="ghost" onPress={() => startEdit(user)} aria-label="ویرایش">
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button isIconOnly size="sm" variant="ghost" onPress={() => setResetTarget(user.id)} aria-label="بازنشانی رمز عبور">
+                        <Lock className="h-4 w-4" />
+                      </Button>
+                      {user.isActive ? (
+                        <Button isIconOnly size="sm" variant="danger-soft" onPress={() => toggleActiveMutation.mutate({ id: user.id, isActive: false })} aria-label="غیرفعال کردن">
+                          <Ban className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button isIconOnly size="sm" variant="ghost" onPress={() => toggleActiveMutation.mutate({ id: user.id, isActive: true })} aria-label="فعال کردن">
+                          <CheckCircle className="h-4 w-4 text-success" />
+                        </Button>
+                      )}
+                      <Button isIconOnly size="sm" variant="danger" onPress={() => setDeleteTarget(user.id)} aria-label="حذف">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </TableContainer>
+        </Card>
       )}
 
-      <Dialog open={formOpen} onClose={closeForm} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? 'ویرایش کاربر' : 'افزودن کاربر جدید'}</DialogTitle>
-        <Box component="form" onSubmit={handleSubmit}>
-          <DialogContent>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth required disabled={Boolean(editing)} label="شماره تلفن" value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth required label="نام و نام خانوادگی" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>نقش</InputLabel>
-                  <Select value={form.role} label="نقش" onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                    {roles.map((role) => <MenuItem key={role} value={role}>{roleLabels[role]}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField fullWidth label="ایمیل (اختیاری)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </Grid>
-              {!editing && (
-                <Grid item xs={12}>
-                  <TextField fullWidth required label="رمز عبور" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-                </Grid>
-              )}
-            </Grid>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeForm} disabled={saving}>انصراف</Button>
-            <Button type="submit" variant="contained" disabled={saving}>
-              {saving ? <CircularProgress size={22} /> : editing ? 'ذخیره تغییرات' : 'ایجاد کاربر'}
-            </Button>
-          </DialogActions>
-        </Box>
-      </Dialog>
+      {formOpen && (
+        <ModalBackdrop isOpen={formOpen} onOpenChange={(open) => !open && closeForm()} variant="blur">
+          <ModalContainer size="lg">
+            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+              <ModalHeader className="text-lg font-bold">
+                {editing ? 'ویرایش کاربر' : 'افزودن کاربر جدید'}
+              </ModalHeader>
+              <form onSubmit={handleSubmit}>
+                <ModalBody className="gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-foreground-600">شماره تلفن</label>
+                      <Input
+                        required
+                        isDisabled={Boolean(editing)}
+                        placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                        value={form.phoneNumber}
+                        onValueChange={(val) => setForm({ ...form, phoneNumber: val })}
+                        variant="primary"
+                        dir="ltr"
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-foreground-600">نام و نام خانوادگی</label>
+                      <Input
+                        required
+                        placeholder="نام کامل"
+                        value={form.name}
+                        onValueChange={(val) => setForm({ ...form, name: val })}
+                        variant="primary"
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-foreground-600">نقش کاربر</label>
+                      <select
+                        value={form.role}
+                        onChange={(e) => setForm({ ...form, role: e.target.value })}
+                        className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+                        required
+                      >
+                        {roles.map((role) => (
+                          <option key={role} value={role}>{roleLabels[role]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-foreground-600">ایمیل (اختیاری)</label>
+                      <Input
+                        type="email"
+                        placeholder="email@example.com"
+                        value={form.email}
+                        onValueChange={(val) => setForm({ ...form, email: val })}
+                        variant="primary"
+                        dir="ltr"
+                        className="rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  {!editing && (
+                    <div className="flex flex-col gap-1 mt-2">
+                      <label className="text-xs font-medium text-foreground-600">رمز عبور</label>
+                      <Input
+                        type="password"
+                        required
+                        placeholder="رمز عبور کاربر"
+                        value={form.password}
+                        onValueChange={(val) => setForm({ ...form, password: val })}
+                        variant="primary"
+                        dir="ltr"
+                        className="rounded-xl"
+                      />
+                    </div>
+                  )}
+                </ModalBody>
+                <ModalFooter className="mt-4">
+                  <Button variant="tertiary" onPress={closeForm} isDisabled={saving} className="rounded-xl font-medium">
+                    انصراف
+                  </Button>
+                  <Button type="submit" variant="primary" isDisabled={saving} className="rounded-xl font-bold px-6">
+                    {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ایجاد کاربر')}
+                  </Button>
+                </ModalFooter>
+              </form>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      )}
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="حذف کاربر"
         description="این عملیات فقط زمانی موفق است که کاربر واحد صنعتی یا شهرک وابسته نداشته باشد. حذف آخرین ادمین کل فعال مجاز نیست."
         confirmLabel="حذف"
-        confirmColor="error"
+        confirmColor="danger"
         loading={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
@@ -216,17 +326,15 @@ const ManageUsersPage = () => {
         title="بازنشانی رمز عبور"
         description="رمز عبور جدید کاربر را وارد کنید. کاربر پس از ورود موظف به تغییر آن خواهد بود."
         requireReason
-        reasonMultiline={false}
-        reasonType="password"
-        trimReason={false}
         reasonLabel="رمز عبور جدید"
         confirmLabel="بازنشانی"
         loading={resetPasswordMutation.isPending}
         onConfirm={(newPassword) => resetPasswordMutation.mutate({ id: resetTarget, newPassword })}
         onClose={() => setResetTarget(null)}
       />
-    </Box>
+    </div>
   );
 };
 
 export default ManageUsersPage;
+

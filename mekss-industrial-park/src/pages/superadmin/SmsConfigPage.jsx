@@ -1,6 +1,17 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Box, Typography, Paper, Grid, Alert, Chip, CircularProgress } from '@mui/material';
+import {
+  Card,
+  CardContent,
+  Chip,
+  Alert,
+  AlertIndicator,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
+  Spinner,
+} from '@heroui/react';
+import { MessageSquare, ShieldCheck } from 'lucide-react';
 import { smsApi } from '../../services/api/sms.api';
 import { getErrorMessage } from '../../utils/apiError';
 
@@ -13,36 +24,72 @@ const SmsConfigPage = () => {
   });
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        وضعیت سرویس پیامک
-      </Typography>
-      <Alert severity="info" sx={{ mb: 3 }}>
-        به دلایل امنیتی، کلید دسترسی و سایر اطلاعات محرمانه سرویس پیامک فقط از طریق متغیرهای محیطی سرور تنظیم می‌شوند و در مرورگر نمایش داده نمی‌شوند.
-        این صفحه فقط وضعیت پیکربندی را نشان می‌دهد.
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
+          <MessageSquare className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">وضعیت سرویس پیامک</h1>
+          <p className="text-sm text-foreground-500 mt-0.5">بررسی وضعیت ارتباط با پنل ارسال پیامک انبوه سامانه</p>
+        </div>
+      </div>
+
+      <Alert status="accent">
+        <AlertIndicator><ShieldCheck className="h-5 w-5" /></AlertIndicator>
+        <AlertContent>
+          <AlertTitle>توجه امنیتی</AlertTitle>
+          <AlertDescription>
+            به دلایل امنیتی، کلید دسترسی و اطلاعات محرمانه سرویس پیامک فقط از طریق متغیرهای محیطی سرور تنظیم می‌شوند. این صفحه وضعیت سلامت و پیکربندی ماژول را نمایش می‌دهد.
+          </AlertDescription>
+        </AlertContent>
       </Alert>
-      {isLoading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
-      {isError && <Alert severity="error">{getErrorMessage(error, 'دریافت وضعیت سرویس پیامک ناموفق بود.')}</Alert>}
-      {!isLoading && !isError && data && (
-        <Paper sx={{ p: 3 }}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="body2" color="text.secondary">سرویس‌دهنده</Typography>
-              <Typography variant="h6">{providerLabels[data.provider] || data.provider}</Typography>
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="body2" color="text.secondary">وضعیت پیکربندی</Typography>
-              <Chip label={data.configured ? 'پیکربندی شده' : 'پیکربندی نشده'} color={data.configured ? 'success' : 'error'} />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="body2" color="text.secondary">شماره فرستنده</Typography>
-              <Typography variant="h6">{data.maskedSender || '—'}</Typography>
-            </Grid>
-          </Grid>
-        </Paper>
+
+      {isLoading && (
+        <div className="flex min-h-[220px] flex-col items-center justify-center gap-3">
+          <Spinner size="lg" />
+          <p className="text-sm text-foreground-500">در حال استعلام وضعیت سرویس پیامک...</p>
+        </div>
       )}
-    </Box>
+
+      {isError && (
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>خطا</AlertTitle>
+            <AlertDescription>{getErrorMessage(error, 'دریافت وضعیت سرویس پیامک ناموفق بود.')}</AlertDescription>
+          </AlertContent>
+        </Alert>
+      )}
+
+      {!isLoading && !isError && data && (
+        <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="flex flex-col gap-1 p-4 rounded-2xl bg-default-50 dark:bg-default-100/30">
+                <span className="text-xs text-foreground-500 font-medium">سرویس‌دهنده</span>
+                <span className="text-base font-bold text-foreground">{providerLabels[data.provider] || data.provider}</span>
+              </div>
+
+              <div className="flex flex-col gap-1 p-4 rounded-2xl bg-default-50 dark:bg-default-100/30">
+                <span className="text-xs text-foreground-500 font-medium">وضعیت پیکربندی</span>
+                <div className="mt-1">
+                  <Chip color={data.configured ? 'success' : 'danger'} variant="soft" className="font-semibold">
+                    {data.configured ? 'پیکربندی شده' : 'پیکربندی نشده'}
+                  </Chip>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 p-4 rounded-2xl bg-default-50 dark:bg-default-100/30">
+                <span className="text-xs text-foreground-500 font-medium">شماره فرستنده</span>
+                <span className="text-base font-bold text-foreground font-mono" dir="ltr">{data.maskedSender || '—'}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 };
 
 export default SmsConfigPage;
+

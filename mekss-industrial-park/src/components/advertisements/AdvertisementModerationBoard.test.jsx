@@ -2,7 +2,6 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -103,11 +102,9 @@ describe('AdvertisementModerationBoard', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     await act(async () => root.render(
-      <ThemeProvider theme={createTheme({ direction: 'rtl' })}>
-        <QueryClientProvider client={queryClient}>
-          <AdvertisementModerationBoard showParkFilter />
-        </QueryClientProvider>
-      </ThemeProvider>,
+      <QueryClientProvider client={queryClient}>
+        <AdvertisementModerationBoard showParkFilter />
+      </QueryClientProvider>,
     ));
     await waitFor(() => expect(document.body.textContent).toContain('آگهی تست محدوده'));
   });

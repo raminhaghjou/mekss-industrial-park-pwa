@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardBody, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Skeleton, Alert } from '@heroui/react';
+import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Input, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Plus, Pencil, Trash2, MapPin } from 'lucide-react';
 import { parkApi } from '../../services/api/park.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -81,17 +81,20 @@ export const ManageParksPage = () => {
     }
   };
 
+  const saving = createMutation.isPending || updateMutation.isPending;
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">مدیریت شهرک‌های صنعتی</h1>
-        <Button color="primary" startContent={<Plus className="h-4 w-4" />} onClick={() => { resetForm(); setFormOpen(true); }}>
+        <Button variant="primary" onPress={() => { resetForm(); setFormOpen(true); }} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
           افزودن شهرک جدید
         </Button>
       </div>
 
       <Card>
-        <CardBody className="p-0">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex flex-col gap-2 p-4">
               {[...Array(5)].map((_, i) => (
@@ -99,8 +102,11 @@ export const ManageParksPage = () => {
               ))}
             </div>
           ) : isError ? (
-            <Alert color="danger" title="خطا در دریافت اطلاعات">
-              {getErrorMessage(error, 'دریافت لیست شهرک‌ها ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا در دریافت اطلاعات</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت لیست شهرک‌ها ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           ) : parks.length === 0 ? (
             <EmptyState
@@ -109,7 +115,7 @@ export const ManageParksPage = () => {
               description="با دکمه «افزودن شهرک جدید» می‌توانید اولین شهرک صنعتی را ثبت کنید."
             />
           ) : (
-            <Table removeWrapper aria-label="شهرک‌های صنعتی">
+            <Table aria-label="شهرک‌های صنعتی">
               <TableHeader>
                 <TableColumn>کد</TableColumn>
                 <TableColumn>نام شهرک</TableColumn>
@@ -124,16 +130,16 @@ export const ManageParksPage = () => {
                     <TableCell>{park.name}</TableCell>
                     <TableCell>{park.province} - {park.city}</TableCell>
                     <TableCell>
-                      <Chip color={park.status === 'ACTIVE' ? 'success' : 'default'} size="sm" variant="flat">
+                      <Chip color={park.status === 'ACTIVE' ? 'success' : 'default'} size="sm" variant="soft">
                         {park.status === 'ACTIVE' ? 'فعال' : 'غیرفعال'}
                       </Chip>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button variant="flat" size="sm" isIconOnly onClick={() => startEdit(park)}>
+                        <Button variant="tertiary" size="sm" isIconOnly onPress={() => startEdit(park)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button color="danger" variant="flat" size="sm" isIconOnly onClick={() => setDeleteTarget(park.id)}>
+                        <Button variant="danger-soft" size="sm" isIconOnly onPress={() => setDeleteTarget(park.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -143,30 +149,52 @@ export const ManageParksPage = () => {
               </TableBody>
             </Table>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
-      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} size="2xl">
-        <ModalContent>
-          <ModalHeader>{editTarget ? 'ویرایش شهرک صنعتی' : 'افزودن شهرک صنعتی جدید'}</ModalHeader>
-          <ModalBody>
-            <div className="flex flex-col gap-4">
-              <Input label="کد شهرک" value={formData.code} onValueChange={(v) => setFormData({ ...formData, code: v })} variant="bordered" />
-              <Input label="نام شهرک" value={formData.name} onValueChange={(v) => setFormData({ ...formData, name: v })} variant="bordered" isRequired />
-              <Input label="استان" value={formData.province} onValueChange={(v) => setFormData({ ...formData, province: v })} variant="bordered" />
-              <Input label="شهر" value={formData.city} onValueChange={(v) => setFormData({ ...formData, city: v })} variant="bordered" />
-              <Input label="آدرس" value={formData.address} onValueChange={(v) => setFormData({ ...formData, address: v })} variant="bordered" />
-              <Input label="شماره تماس" value={formData.phoneNumber} onValueChange={(v) => setFormData({ ...formData, phoneNumber: v })} variant="bordered" dir="ltr" />
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onClick={() => setFormOpen(false)}>انصراف</Button>
-            <Button color="primary" onClick={handleSubmit} isLoading={createMutation.isPending || updateMutation.isPending}>
-              {editTarget ? 'ذخیره تغییرات' : 'افزودن'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {formOpen && (
+        <ModalBackdrop isOpen={formOpen} onOpenChange={(open) => !open && setFormOpen(false)} variant="blur">
+          <ModalContainer size="lg">
+            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+              <ModalHeader className="text-lg font-bold">{editTarget ? 'ویرایش شهرک صنعتی' : 'افزودن شهرک صنعتی جدید'}</ModalHeader>
+              <ModalBody>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">کد شهرک</label>
+                    <Input value={formData.code} onValueChange={(v) => setFormData({ ...formData, code: v })} variant="primary" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">نام شهرک</label>
+                    <Input value={formData.name} onValueChange={(v) => setFormData({ ...formData, name: v })} variant="primary" isRequired />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">استان</label>
+                    <Input value={formData.province} onValueChange={(v) => setFormData({ ...formData, province: v })} variant="primary" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">شهر</label>
+                    <Input value={formData.city} onValueChange={(v) => setFormData({ ...formData, city: v })} variant="primary" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">آدرس</label>
+                    <Input value={formData.address} onValueChange={(v) => setFormData({ ...formData, address: v })} variant="primary" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-foreground-600">شماره تماس</label>
+                    <Input value={formData.phoneNumber} onValueChange={(v) => setFormData({ ...formData, phoneNumber: v })} variant="primary" dir="ltr" />
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter className="mt-4">
+                <Button variant="tertiary" onPress={() => setFormOpen(false)} isDisabled={saving}>انصراف</Button>
+                <Button variant="primary" onPress={handleSubmit} isDisabled={saving}>
+                  {saving ? <Spinner size="sm" /> : (editTarget ? 'ذخیره تغییرات' : 'افزودن')}
+                </Button>
+              </ModalFooter>
+            </ModalDialog>
+          </ModalContainer>
+        </ModalBackdrop>
+      )}
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

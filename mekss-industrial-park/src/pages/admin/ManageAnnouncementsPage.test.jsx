@@ -2,7 +2,6 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -72,7 +71,7 @@ const click = async (element) => {
 };
 const field = (label) => {
   const labelElement = [...document.querySelectorAll('label')].find((element) => element.textContent?.replace(/[\s*]+$/, '').trim() === label);
-  const input = labelElement?.htmlFor ? document.getElementById(labelElement.htmlFor) : null;
+  const input = labelElement?.htmlFor ? document.getElementById(labelElement.htmlFor) : labelElement?.querySelector('input, textarea') || document.querySelector(`input[aria-label="${label}"], textarea[aria-label="${label}"]`);
   if (!input) throw new Error(`field not found: ${label} (labels: ${[...document.querySelectorAll('label')].map((l) => l.textContent).join(' | ')})`);
   return /** @type {HTMLInputElement} */ (input);
 };
@@ -106,11 +105,9 @@ describe('ManageAnnouncementsPage', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     await act(async () => root.render(
-      <ThemeProvider theme={createTheme({ direction: 'rtl' })}>
-        <QueryClientProvider client={queryClient}>
-          <ManageAnnouncementsPage />
-        </QueryClientProvider>
-      </ThemeProvider>,
+      <QueryClientProvider client={queryClient}>
+        <ManageAnnouncementsPage />
+      </QueryClientProvider>,
     ));
     await waitFor(() => expect(document.body.textContent).toContain('اطلاعیه آزمون'));
   });
@@ -137,7 +134,7 @@ describe('ManageAnnouncementsPage', () => {
     await click(checkbox('سنجاق‌شده'));
     await setValue(field('اولویت'), '5');
 
-    await click(button('ثبت'));
+    await click(button('ثبت اطلاعیه'));
 
     await waitFor(() => expect(mocks.createAnnouncement).toHaveBeenCalled());
     expect(mocks.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({
@@ -146,7 +143,7 @@ describe('ManageAnnouncementsPage', () => {
   });
 
   it('pre-fills the edit form with every existing field, including isPinned and priority', async () => {
-    const editButtons = [...document.querySelectorAll('svg[data-testid="EditIcon"]')].map((el) => el.closest('button'));
+    const editButtons = [...document.querySelectorAll('button')].filter((b) => b.getAttribute('aria-label') === 'ویرایش' || b.innerHTML.includes('Edit2'));
     await click(editButtons[0]);
 
     expect(field('عنوان اطلاعیه').value).toBe('اطلاعیه آزمون');
@@ -156,7 +153,7 @@ describe('ManageAnnouncementsPage', () => {
   });
 
   it('deletes an announcement only after explicit confirmation', async () => {
-    const deleteButtons = [...document.querySelectorAll('svg[data-testid="DeleteIcon"]')].map((el) => el.closest('button'));
+    const deleteButtons = [...document.querySelectorAll('button')].filter((b) => b.getAttribute('aria-label') === 'حذف' || b.innerHTML.includes('Trash2'));
     await click(deleteButtons[0]);
     expect(document.body.textContent).toContain('حذف اطلاعیه');
     expect(mocks.deleteAnnouncement).not.toHaveBeenCalled();
@@ -165,3 +162,4 @@ describe('ManageAnnouncementsPage', () => {
     await waitFor(() => expect(mocks.deleteAnnouncement).toHaveBeenCalledWith('ann-1'));
   });
 });
+

@@ -2,7 +2,6 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -77,16 +76,14 @@ describe('VerifyGatePassPage', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     await act(async () => root.render(
-      <ThemeProvider theme={createTheme({ direction: 'rtl' })}>
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/guard/gate-passes/pass-1/verify']}>
-            <Routes>
-              <Route path="/guard/gate-passes/:id/verify" element={<VerifyGatePassPage />} />
-              <Route path="/guard/gate-passes" element={<div>لیست نگهبانی</div>} />
-            </Routes>
-          </MemoryRouter>
-        </QueryClientProvider>
-      </ThemeProvider>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/guard/gate-passes/pass-1/verify']}>
+          <Routes>
+            <Route path="/guard/gate-passes/:id/verify" element={<VerifyGatePassPage />} />
+            <Route path="/guard/gate-passes" element={<div>لیست نگهبانی</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     ));
     await waitFor(() => expect(document.body.textContent).toContain('راننده آزمون'));
   });
@@ -134,3 +131,4 @@ describe('VerifyGatePassPage', () => {
     await waitFor(() => expect(mocks.denyGatePassExit).toHaveBeenCalledWith('pass-1', { reason: 'پلاک مطابقت ندارد' }));
   });
 });
+

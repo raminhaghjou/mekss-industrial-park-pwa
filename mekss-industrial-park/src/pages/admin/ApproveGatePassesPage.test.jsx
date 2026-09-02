@@ -2,7 +2,6 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -75,11 +74,9 @@ describe('ApproveGatePassesPage', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     await act(async () => root.render(
-      <ThemeProvider theme={createTheme({ direction: 'rtl' })}>
-        <QueryClientProvider client={queryClient}>
-          <ApproveGatePassesPage />
-        </QueryClientProvider>
-      </ThemeProvider>,
+      <QueryClientProvider client={queryClient}>
+        <ApproveGatePassesPage />
+      </QueryClientProvider>,
     ));
     await waitFor(() => expect(document.body.textContent).toContain('راننده آزمون'));
   });
@@ -93,7 +90,8 @@ describe('ApproveGatePassesPage', () => {
   });
 
   it('requires explicit confirmation before approving a gate pass, and does not mutate on cancel', async () => {
-    const trigger = document.querySelector('svg[data-testid="CheckCircleIcon"]')?.closest('button');
+    const actionButtons = document.querySelectorAll('table button');
+    const trigger = actionButtons[0];
     await click(trigger);
 
     expect(document.body.textContent).toContain('تایید برگ خروج');
@@ -104,7 +102,8 @@ describe('ApproveGatePassesPage', () => {
   });
 
   it('approves only after the confirmation dialog is explicitly confirmed', async () => {
-    const trigger = document.querySelector('svg[data-testid="CheckCircleIcon"]')?.closest('button');
+    const actionButtons = document.querySelectorAll('table button');
+    const trigger = actionButtons[0];
     await click(trigger);
     const confirm = button('تایید');
     await click(confirm);
@@ -114,7 +113,8 @@ describe('ApproveGatePassesPage', () => {
   });
 
   it('still requires a rejection reason and rejects only after confirming', async () => {
-    const trigger = document.querySelector('svg[data-testid="CancelIcon"]')?.closest('button');
+    const actionButtons = document.querySelectorAll('table button');
+    const trigger = actionButtons[1];
     await click(trigger);
     expect(document.body.textContent).toContain('رد برگ خروج');
 
@@ -133,3 +133,4 @@ describe('ApproveGatePassesPage', () => {
     await waitFor(() => expect(mocks.rejectGatePass).toHaveBeenCalledWith('pass-1', { reason: 'نامعتبر بودن مدارک' }));
   });
 });
+

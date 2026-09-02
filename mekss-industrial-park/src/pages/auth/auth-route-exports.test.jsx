@@ -1,17 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@mui/icons-material', () => {
-  const Icon = () => null;
-
-  return {
-    Business: Icon,
-    Lock: Icon,
-    Person: Icon,
-    Phone: Icon,
-    Visibility: Icon,
-    VisibilityOff: Icon,
-  };
-});
 
 describe('auth route module exports', () => {
   it(

@@ -1,22 +1,16 @@
 import React from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
-  Box,
-  Typography,
-  Paper,
-  TextField,
-  Button,
-  Grid,
-  Checkbox,
-  ListItemText,
-  OutlinedInput,
+  Card,
+  CardBody,
+  Input,
   Select,
-  InputLabel,
-  FormControl,
-  MenuItem,
-  CircularProgress,
+  SelectItem,
+  Textarea,
+  Button,
   Alert,
-} from '@mui/material';
+} from '@heroui/react';
+import { Send, MessageSquare } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { messageApi } from '../../services/api/message.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -70,50 +64,81 @@ const SendMessagePage = () => {
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        ارسال پیام گروهی
-      </Typography>
-      <Paper sx={{ p: 3 }}>
-        {isError && <Alert severity="error" sx={{ mb: 2 }}>دریافت لیست گیرندگان ناموفق بود.</Alert>}
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <FormControl fullWidth required>
-                <InputLabel>انتخاب گیرندگان</InputLabel>
-                <Select
-                  multiple
-                  value={selectedManagerIds}
-                  onChange={(e) => setSelectedManagerIds(/** @type {string[]} */ (e.target.value))}
-                  input={<OutlinedInput label="انتخاب گیرندگان" />}
-                  renderValue={(selected) => recipients.filter((r) => selected.includes(r.id)).map((r) => r.label).join('، ')}
-                  disabled={isLoading}
-                >
-                  {recipients.map((recipient) => (
-                    <MenuItem key={recipient.id} value={recipient.id}>
-                      <Checkbox checked={selectedManagerIds.indexOf(recipient.id) > -1} />
-                      <ListItemText primary={recipient.label} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField fullWidth required label="موضوع پیام" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField fullWidth required label="متن پیام" multiline rows={6} value={body} onChange={(e) => setBody(e.target.value)} />
-            </Grid>
-            <Grid item xs={12} sx={{ textAlign: 'right' }}>
-              <Button type="submit" variant="contained" disabled={sendMutation.isPending}>
-                {sendMutation.isPending ? <CircularProgress size={22} /> : 'ارسال پیام'}
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-100 dark:bg-primary-900/40 text-primary-600">
+          <MessageSquare className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">ارسال پیام گروهی</h1>
+          <p className="text-sm text-foreground-500">ارسال اعلان و اطلاع‌رسانی مستقیم به مدیران واحدهای صنعتی</p>
+        </div>
+      </div>
+
+      <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
+        <CardBody className="p-6">
+          {isError && (
+            <Alert color="danger" title="خطا" className="mb-4">
+              دریافت لیست گیرندگان ناموفق بود.
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <Select
+              label="انتخاب گیرندگان"
+              placeholder="مدیران مورد نظر را انتخاب کنید..."
+              selectionMode="multiple"
+              selectedKeys={new Set(selectedManagerIds)}
+              onSelectionChange={(keys) => setSelectedManagerIds(Array.from(keys))}
+              variant="bordered"
+              isDisabled={isLoading}
+              isRequired
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              {recipients.map((recipient) => (
+                <SelectItem key={recipient.id}>{recipient.label}</SelectItem>
+              ))}
+            </Select>
+
+            <Input
+              label="موضوع پیام"
+              placeholder="عنوان پیام اطلاع‌رسانی..."
+              value={subject}
+              onValueChange={setSubject}
+              variant="bordered"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Textarea
+              label="متن پیام"
+              placeholder="متن کامل پیام را وارد کنید..."
+              value={body}
+              onValueChange={setBody}
+              variant="bordered"
+              minRows={6}
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <div className="flex items-center justify-end mt-2">
+              <Button
+                type="submit"
+                color="primary"
+                size="lg"
+                startContent={<Send className="h-4 w-4" />}
+                isLoading={sendMutation.isPending}
+                className="rounded-xl font-bold px-8 shadow-md"
+              >
+                ارسال پیام
               </Button>
-            </Grid>
-          </Grid>
-        </Box>
-      </Paper>
-    </Box>
+            </div>
+          </form>
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 
 export default SendMessagePage;
+

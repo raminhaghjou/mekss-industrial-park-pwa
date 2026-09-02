@@ -1,8 +1,17 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Box, Typography, Paper, TextField, Button, MenuItem, CircularProgress, Alert } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import {
+  Card,
+  CardBody,
+  Input,
+  Select,
+  SelectItem,
+  Textarea,
+  Button,
+  Alert,
+} from '@heroui/react';
+import { ArrowRight, FilePlus } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -74,33 +83,95 @@ const NewRequestPage = () => {
   };
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/requests')}>
+    <div className="flex flex-col gap-6 max-w-3xl mx-auto">
+      <div className="flex items-center">
+        <Button startContent={<ArrowRight className="h-4 w-4" />} onPress={() => navigate('/requests')} variant="light" className="rounded-xl font-medium">
           بازگشت به لیست
         </Button>
-      </Box>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>
-          فرم ثبت درخواست جدید
-        </Typography>
-        {factoriesError && <Alert severity="error" sx={{ mb: 2 }}>دریافت لیست واحدهای صنعتی ناموفق بود.</Alert>}
-        <Box component="form" onSubmit={handleSubmit} noValidate>
-          <TextField select fullWidth required label="واحد صنعتی" value={factoryId} onChange={(e) => setFactoryId(e.target.value)} margin="normal" disabled={loadingFactories}>
-            {(factories || []).map((factory) => <MenuItem key={factory.id} value={factory.id}>{factory.name}</MenuItem>)}
-          </TextField>
-          <TextField select fullWidth required label="نوع درخواست" value={requestType} onChange={(e) => setRequestType(e.target.value)} margin="normal">
-            {requestTypes.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-          </TextField>
-          <TextField fullWidth required label="موضوع" value={subject} onChange={(e) => setSubject(e.target.value)} margin="normal" />
-          <TextField fullWidth required label="شرح درخواست" multiline rows={5} value={description} onChange={(e) => setDescription(e.target.value)} margin="normal" />
-          <Button type="submit" variant="contained" sx={{ mt: 2 }} disabled={createMutation.isPending}>
-            {createMutation.isPending ? <CircularProgress size={22} /> : 'ثبت درخواست'}
-          </Button>
-        </Box>
-      </Paper>
-    </Box>
+      </div>
+
+      <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
+        <CardBody className="p-6 gap-6">
+          <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
+            <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
+              <FilePlus className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground">فرم ثبت درخواست جدید</h1>
+              <p className="text-xs text-foreground-500 mt-0.5">ثبت و پیگیری درخواست‌های اداری، خدمات و مجوزها</p>
+            </div>
+          </div>
+
+          {factoriesError && (
+            <Alert color="danger" title="خطا">
+              دریافت لیست واحدهای صنعتی ناموفق بود.
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <Select
+              label="واحد صنعتی"
+              placeholder="واحد صنعتی مربوطه را انتخاب کنید"
+              selectedKeys={factoryId ? [factoryId] : []}
+              onSelectionChange={(keys) => setFactoryId(Array.from(keys)[0] || '')}
+              variant="bordered"
+              isDisabled={loadingFactories}
+              isRequired
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              {(factories || []).map((factory) => (
+                <SelectItem key={factory.id}>{factory.name}</SelectItem>
+              ))}
+            </Select>
+
+            <Select
+              label="نوع درخواست"
+              selectedKeys={[requestType]}
+              onSelectionChange={(keys) => setRequestType(Array.from(keys)[0] || '')}
+              variant="bordered"
+              isRequired
+              classNames={{ trigger: 'rounded-xl' }}
+            >
+              {requestTypes.map((option) => (
+                <SelectItem key={option.value}>{option.label}</SelectItem>
+              ))}
+            </Select>
+
+            <Input
+              label="موضوع درخواست"
+              placeholder="عنوان کوتاه درخواست..."
+              value={subject}
+              onValueChange={setSubject}
+              variant="bordered"
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <Textarea
+              label="شرح درخواست"
+              placeholder="جزئیات کامل درخواست خود را وارد نمایید..."
+              value={description}
+              onValueChange={setDescription}
+              variant="bordered"
+              minRows={4}
+              isRequired
+              classNames={{ inputWrapper: 'rounded-xl' }}
+            />
+
+            <div className="flex items-center justify-end gap-3 mt-2">
+              <Button variant="flat" color="default" onPress={() => navigate('/requests')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
+                انصراف
+              </Button>
+              <Button type="submit" color="primary" isLoading={createMutation.isPending} className="rounded-xl font-bold px-6 shadow-md shadow-primary/20">
+                ثبت درخواست
+              </Button>
+            </div>
+          </form>
+        </CardBody>
+      </Card>
+    </div>
   );
 };
 
 export default NewRequestPage;
+

@@ -2,13 +2,14 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
-  CardBody,
+  CardContent,
   Input,
-  Select,
-  SelectItem,
   Button,
   Spinner,
   Alert,
+  AlertContent,
+  AlertTitle,
+  AlertDescription,
   Table,
   TableHeader,
   TableColumn,
@@ -16,7 +17,7 @@ import {
   TableRow,
   TableCell,
 } from '@heroui/react';
-import { FileText, Filter, BarChart3 } from 'lucide-react';
+import { Filter, BarChart3 } from 'lucide-react';
 import { reportApi } from '../../services/api/report.api';
 import { getErrorMessage } from '../../utils/apiError';
 
@@ -52,67 +53,76 @@ const ReportsPage = () => {
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
-        <CardBody className="p-6">
+        <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <Filter className="h-4 w-4 text-primary-500" />
             <h2 className="text-base font-bold text-foreground">فیلترهای گزارش</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <Select
-              label="نوع گزارش"
-              selectedKeys={[type]}
-              onSelectionChange={(keys) => setType(Array.from(keys)[0] || 'financial')}
-              variant="bordered"
-              classNames={{ trigger: 'rounded-xl' }}
-            >
-              <SelectItem key="financial">مالی</SelectItem>
-              <SelectItem key="gatepass">تردد</SelectItem>
-              <SelectItem key="requests">درخواست‌ها</SelectItem>
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-foreground-600">نوع گزارش</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="w-full rounded-xl border border-default-300 bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none"
+              >
+                <option value="financial">مالی</option>
+                <option value="gatepass">تردد</option>
+                <option value="requests">درخواست‌ها</option>
+              </select>
+            </div>
 
-            <Input
-              type="date"
-              label="از تاریخ"
-              value={from}
-              onValueChange={setFrom}
-              variant="bordered"
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-foreground-600">از تاریخ</label>
+              <Input
+                type="date"
+                value={from}
+                onValueChange={setFrom}
+                variant="primary"
+                className="rounded-xl"
+              />
+            </div>
 
-            <Input
-              type="date"
-              label="تا تاریخ"
-              value={to}
-              onValueChange={setTo}
-              variant="bordered"
-              classNames={{ inputWrapper: 'rounded-xl' }}
-            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-foreground-600">تا تاریخ</label>
+              <Input
+                type="date"
+                value={to}
+                onValueChange={setTo}
+                variant="primary"
+                className="rounded-xl"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end">
-            <Button color="primary" onPress={handleGenerate} className="rounded-xl font-bold px-6">
+            <Button variant="primary" onPress={handleGenerate} className="rounded-xl font-bold px-6">
               ایجاد گزارش
             </Button>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
-        <CardBody className="p-6">
+        <CardContent className="p-6">
           <h2 className="text-lg font-bold text-foreground mb-4">
             نمایش گزارش: {typeLabels[submittedFilters.type]}
           </h2>
 
           {isLoading && (
-            <div className="flex min-h-[160px] items-center justify-center">
-              <Spinner size="lg" label="در حال دریافت داده‌های گزارش..." />
+            <div className="flex min-h-[160px] flex-col items-center justify-center gap-3">
+              <Spinner size="lg" />
+              <p className="text-sm text-foreground-500">در حال دریافت داده‌های گزارش...</p>
             </div>
           )}
 
           {isError && (
-            <Alert color="danger" title="خطا">
-              {getErrorMessage(error, 'دریافت گزارش ناموفق بود.')}
+            <Alert status="danger">
+              <AlertContent>
+                <AlertTitle>خطا</AlertTitle>
+                <AlertDescription>{getErrorMessage(error, 'دریافت گزارش ناموفق بود.')}</AlertDescription>
+              </AlertContent>
             </Alert>
           )}
 
@@ -138,7 +148,7 @@ const ReportsPage = () => {
           )}
 
           {!isLoading && !isError && isFetched && (data?.type === 'gatepass' || data?.type === 'requests') && (
-            <Table aria-label="جدول خلاصه آمار" classNames={{ table: 'min-w-[300px]' }}>
+            <Table aria-label="جدول خلاصه آمار" className="min-w-[300px]">
               <TableHeader>
                 <TableColumn className="font-bold text-right">وضعیت</TableColumn>
                 <TableColumn className="font-bold text-left">تعداد</TableColumn>
@@ -165,7 +175,7 @@ const ReportsPage = () => {
           <p className="mt-4 text-xs text-foreground-400">
             خروجی فایل قابل دانلود برای گزارش‌ها در این نسخه پشتیبانی نمی‌شود.
           </p>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

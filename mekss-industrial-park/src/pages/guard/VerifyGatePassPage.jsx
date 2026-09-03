@@ -140,11 +140,10 @@ const VerifyGatePassPage = () => {
               variant="primary"
               size="lg"
               onPress={() => setVerifyOpen(true)}
-              isLoading={verifyMutation.isPending}
               isDisabled={verifyMutation.isPending || pass.status !== 'APPROVED'}
               className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20 flex items-center gap-2"
             >
-              <CheckCircle2 className="h-5 w-5" />
+              {verifyMutation.isPending ? <Spinner size="sm" /> : <CheckCircle2 className="h-5 w-5" />}
               ثبت خروج
             </Button>
             <Button

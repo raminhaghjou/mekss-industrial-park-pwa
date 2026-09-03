@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
+import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Check, X, FileText } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -87,9 +87,10 @@ export const ApproveRequestsPage = () => {
               description={tab === 'pending' ? 'درخواست‌های جدید واحدهای صنعتی برای بررسی در این بخش نمایش داده می‌شوند.' : undefined}
             />
           ) : (
-            <Table aria-label="درخواست‌ها">
+            <Table>
+              <TableContent aria-label="درخواست‌ها">
               <TableHeader>
-                <TableColumn>نوع</TableColumn>
+                <TableColumn isRowHeader>نوع</TableColumn>
                 <TableColumn>موضوع</TableColumn>
                 <TableColumn>واحد صنعتی</TableColumn>
                 <TableColumn>تاریخ</TableColumn>
@@ -98,7 +99,7 @@ export const ApproveRequestsPage = () => {
               </TableHeader>
               <TableBody>
                 {filteredRequests.map((req) => (
-                  <TableRow key={req.id}>
+                  <TableRow key={req.id} id={req.id}>
                     <TableCell>{typeLabels[req.type] || req.type}</TableCell>
                     <TableCell>{req.title}</TableCell>
                     <TableCell>{req.factory?.name || '—'}</TableCell>
@@ -136,6 +137,7 @@ export const ApproveRequestsPage = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              </TableContent>
             </Table>
           )}
         </CardContent>

@@ -19,6 +19,7 @@ import {
   AlertTitle,
   AlertDescription,
   Label,
+  Spinner,
 } from '@heroui/react';
 import { ArrowRight, FilePlus } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
@@ -126,14 +127,14 @@ const NewRequestPage = () => {
               <Label className="text-xs font-medium text-foreground-600">واحد صنعتی</Label>
               <Select
                 value={factoryId}
-                onChange={(val) => setFactoryId(val || '')}
+                onChange={(val) => setFactoryId(String(val || ''))}
                 variant="primary"
                 isDisabled={loadingFactories}
                 isRequired
                 className="rounded-xl"
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="واحد صنعتی مربوطه را انتخاب کنید" />
+               placeholder="واحد صنعتی مربوطه را انتخاب کنید">
+      <SelectTrigger>
+        <SelectValue />
                   <SelectIndicator />
                 </SelectTrigger>
                 <SelectPopover>
@@ -150,7 +151,7 @@ const NewRequestPage = () => {
               <Label className="text-xs font-medium text-foreground-600">نوع درخواست</Label>
               <Select
                 value={requestType}
-                onChange={(val) => setRequestType(val || 'OTHER')}
+                onChange={(val) => setRequestType(String(val || 'OTHER'))}
                 variant="primary"
                 isRequired
                 className="rounded-xl"
@@ -176,7 +177,7 @@ const NewRequestPage = () => {
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 variant="primary"
-                isRequired
+                required
                 className="rounded-xl"
               />
             </div>
@@ -188,8 +189,8 @@ const NewRequestPage = () => {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 variant="primary"
-                minRows={4}
-                isRequired
+                rows={4}
+                required
                 className="rounded-xl"
               />
             </div>
@@ -202,10 +203,9 @@ const NewRequestPage = () => {
                 type="submit"
                 className="rounded-xl font-bold px-6 shadow-md shadow-primary/20"
                 variant="primary"
-                isLoading={createMutation.isPending}
                 isDisabled={createMutation.isPending}
               >
-                ثبت درخواست
+                {createMutation.isPending ? <Spinner size="sm" /> : 'ثبت درخواست'}
               </Button>
             </div>
           </form>

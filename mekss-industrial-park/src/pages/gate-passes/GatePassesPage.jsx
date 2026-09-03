@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
+import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
 
-const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', USED: 'primary', CANCELLED: 'default' };
+const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', USED: 'accent', CANCELLED: 'default' };
 
 export const GatePassesPage = () => {
   const { data, isLoading, isError, error } = useQuery({
@@ -42,16 +42,17 @@ export const GatePassesPage = () => {
               description="برگ‌های خروج صادر شده برای واحد صنعتی شما در اینجا نمایش داده می‌شوند."
             />
           ) : (
-            <Table removeWrapper aria-label="برگ‌های خروج">
+            <Table>
+              <TableContent aria-label="برگ‌های خروج">
               <TableHeader>
-                <TableColumn>نام راننده</TableColumn>
+                <TableColumn isRowHeader>نام راننده</TableColumn>
                 <TableColumn>شماره پلاک</TableColumn>
                 <TableColumn>تاریخ خروج</TableColumn>
                 <TableColumn>وضعیت</TableColumn>
               </TableHeader>
               <TableBody>
                 {passes.map((pass) => (
-                  <TableRow key={pass.id}>
+                  <TableRow key={pass.id} id={pass.id}>
                     <TableCell>{pass.driverName}</TableCell>
                     <TableCell dir="ltr">{pass.licensePlate}</TableCell>
                     <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
@@ -63,6 +64,7 @@ export const GatePassesPage = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              </TableContent>
             </Table>
           )}
         </CardContent>

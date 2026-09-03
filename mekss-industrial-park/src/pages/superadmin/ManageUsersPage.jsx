@@ -13,7 +13,7 @@ import {
   ModalBody,
   ModalFooter,
   Input,
-  Table,
+  Table, TableContent,
   TableHeader,
   TableColumn,
   TableBody,
@@ -146,7 +146,6 @@ const ManageUsersPage = () => {
           <div className="relative flex items-center">
             <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
             <Input
-              size="md"
               placeholder="جست‌وجوی کاربر بر اساس نام، تلفن یا ایمیل..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -175,17 +174,18 @@ const ManageUsersPage = () => {
 
       {!isLoading && !isError && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
-          <Table aria-label="جدول مدیریت کاربران" className="p-0 shadow-none">
-            <TableHeader>
-              <TableColumn className="text-right font-bold">نام کاربر</TableColumn>
+          <Table>
+              <TableContent aria-label="جدول مدیریت کاربران" className="p-0 shadow-none">
+              <TableHeader>
+              <TableColumn className="text-right font-bold" isRowHeader>نام کاربر</TableColumn>
               <TableColumn className="text-right font-bold">تلفن</TableColumn>
               <TableColumn className="text-right font-bold">نقش</TableColumn>
               <TableColumn className="text-right font-bold">وضعیت</TableColumn>
               <TableColumn className="text-center font-bold">عملیات</TableColumn>
             </TableHeader>
-            <TableBody emptyContent="هیچ کاربری یافت نشد.">
+            <TableBody>
               {users.map((user) => (
-                <TableRow key={user.id}>
+                <TableRow key={user.id} id={user.id}>
                   <TableCell className="font-bold text-foreground">{user.name}</TableCell>
                   <TableCell className="font-mono text-sm" dir="ltr">{user.phoneNumber}</TableCell>
                   <TableCell>
@@ -223,7 +223,8 @@ const ManageUsersPage = () => {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+              </TableContent>
+            </Table>
         </Card>
       )}
 
@@ -241,7 +242,7 @@ const ManageUsersPage = () => {
                       <label className="text-xs font-medium text-foreground-600">شماره تلفن</label>
                       <Input
                         required
-                        isDisabled={Boolean(editing)}
+                        disabled={Boolean(editing)}
                         placeholder="۰۹۱۲۳۴۵۶۷۸۹"
                         value={form.phoneNumber}
                         onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
@@ -265,7 +266,7 @@ const ManageUsersPage = () => {
                       <Label className="text-xs font-medium text-foreground-600">نقش کاربر</Label>
                       <Select
                         value={form.role}
-                        onChange={(val) => setForm({ ...form, role: val || 'EMPLOYEE' })}
+                        onChange={(val) => setForm({ ...form, role: String(val || 'EMPLOYEE') })}
                         variant="primary"
                         isRequired
                         className="rounded-xl"
@@ -317,8 +318,8 @@ const ManageUsersPage = () => {
                   <Button variant="tertiary" onPress={closeForm} isDisabled={saving} className="rounded-xl font-medium">
                     انصراف
                   </Button>
-                  <Button type="submit" variant="primary" isLoading={saving} isDisabled={saving} className="rounded-xl font-bold px-6">
-                    {editing ? 'ذخیره تغییرات' : 'ایجاد کاربر'}
+                  <Button type="submit" variant="primary" isDisabled={saving} className="rounded-xl font-bold px-6">
+                    {saving ? <Spinner size="sm" /> : editing ? 'ذخیره تغییرات' : 'ایجاد کاربر'}
                   </Button>
                 </ModalFooter>
               </form>

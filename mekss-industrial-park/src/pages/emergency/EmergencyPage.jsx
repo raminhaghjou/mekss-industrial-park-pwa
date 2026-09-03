@@ -11,6 +11,7 @@ import {
   AlertContent,
   AlertTitle,
   AlertDescription,
+  Spinner,
 } from '@heroui/react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { emergencyApi } from '../../services/api/emergency.api';
@@ -23,11 +24,11 @@ export const EmergencyPage = () => {
 
   const { data: alerts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['emergency-alerts'],
-    queryFn: () => emergencyApi.getActiveAlerts().then((res) => res.data),
+    queryFn: () => emergencyApi.getEmergencies().then((res) => res.data),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => emergencyApi.createAlert(data),
+    mutationFn: (/** @type {{description: string}} */ data) => emergencyApi.createEmergency(data),
     onSuccess: () => {
       showNotification('هشدار اضطراری ارسال شد', 'success');
       setDescription('');
@@ -37,7 +38,7 @@ export const EmergencyPage = () => {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: (id) => emergencyApi.resolveAlert(id),
+    mutationFn: (/** @type {string} */ id) => emergencyApi.resolveEmergency(id),
     onSuccess: () => {
       showNotification('هشدار رفع شد', 'success');
       refetch();
@@ -61,16 +62,15 @@ export const EmergencyPage = () => {
             placeholder="توضیحات هشدار را وارد کنید..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            minRows={3}
+            rows={3}
           />
           <Button
             variant="danger"
             className="mt-4 flex items-center gap-2"
             onPress={() => createMutation.mutate({ description })}
-            isLoading={createMutation.isPending}
             isDisabled={createMutation.isPending || !description.trim()}
           >
-            <AlertTriangle className="h-4 w-4" />
+            {createMutation.isPending ? <Spinner size="sm" /> : <AlertTriangle className="h-4 w-4" />}
             ارسال هشدار
           </Button>
         </CardContent>
@@ -114,9 +114,9 @@ export const EmergencyPage = () => {
                     size="sm"
                     className="flex items-center gap-2"
                     onPress={() => resolveMutation.mutate(alert.id)}
-                    isLoading={resolveMutation.isPending}
+                    isDisabled={resolveMutation.isPending}
                   >
-                    <CheckCircle className="h-4 w-4" />
+                    {resolveMutation.isPending ? <Spinner size="sm" /> : <CheckCircle className="h-4 w-4" />}
                     رفع شد
                   </Button>
                 </div>

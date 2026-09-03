@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
+import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Plus, FileText } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -51,16 +51,17 @@ export const RequestsPage = () => {
               description="با دکمه «ثبت درخواست جدید» می‌توانید اولین درخواست خود را ارسال کنید."
             />
           ) : (
-            <Table removeWrapper aria-label="درخواست‌ها">
+            <Table>
+              <TableContent aria-label="درخواست‌ها">
               <TableHeader>
-                <TableColumn>نوع</TableColumn>
+                <TableColumn isRowHeader>نوع</TableColumn>
                 <TableColumn>موضوع</TableColumn>
                 <TableColumn>تاریخ</TableColumn>
                 <TableColumn>وضعیت</TableColumn>
               </TableHeader>
               <TableBody>
                 {requests.map((req) => (
-                  <TableRow key={req.id}>
+                  <TableRow key={req.id} id={req.id}>
                     <TableCell>{typeLabels[req.type] || req.type}</TableCell>
                     <TableCell>{req.title}</TableCell>
                     <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
@@ -72,6 +73,7 @@ export const RequestsPage = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              </TableContent>
             </Table>
           )}
         </CardContent>

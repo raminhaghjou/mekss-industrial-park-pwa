@@ -12,6 +12,7 @@ import {
   ModalContainer,
   ModalDialog,
   ModalHeader,
+  ModalHeading,
   ModalBody,
   ModalFooter,
   Input,
@@ -23,11 +24,6 @@ import {
   ListBox,
   ListBoxItem,
   Label,
-  Tabs,
-  TabList,
-  Tab,
-  TabPanel,
-  Pagination,
   Alert,
   AlertContent,
   AlertTitle,
@@ -90,9 +86,15 @@ const DetailRow = ({ label, children, ltr = false }) => (
 const FilterSelect = ({ label, value, onChange, children, placeholder }) => (
   <div className="flex flex-col gap-1">
     <Label className="text-xs font-medium text-foreground-600">{label}</Label>
-    <Select value={value} onChange={onChange} variant="primary" className="rounded-xl">
+    <Select
+      value={value || null}
+      onChange={(key) => onChange(key == null ? '' : String(key))}
+      variant="primary"
+      className="rounded-xl"
+      placeholder={placeholder}
+    >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue />
         <SelectIndicator />
       </SelectTrigger>
       <SelectPopover>
@@ -121,7 +123,6 @@ const SearchFilters = ({
       <div className="relative flex items-center">
         <Search className="absolute right-3 h-4 w-4 text-default-400 pointer-events-none" />
         <Input
-          size="md"
           placeholder="در عنوان، متن یا شهر..."
           value={draftSearch}
           onChange={(e) => setDraftSearch(e.target.value)}
@@ -274,19 +275,24 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
       )}
 
       <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
-        <CardContent className="p-4">
-          <Tabs selectedKey={tab} onSelectionChange={changeTab} variant="primary">
-            <TabList className="w-full mb-4 rounded-xl">
-              <Tab id="PENDING">در انتظار تایید</Tab>
-              <Tab id="HISTORY">تاریخچه تصمیم‌ها</Tab>
-            </TabList>
-            <TabPanel id="PENDING">
-              <SearchFilters view="PENDING" {...filterProps} />
-            </TabPanel>
-            <TabPanel id="HISTORY">
-              <SearchFilters view="HISTORY" {...filterProps} />
-            </TabPanel>
-          </Tabs>
+        <CardContent className="p-4 flex flex-col gap-4">
+          <div className="flex gap-2 rounded-xl bg-default-100 p-1 dark:bg-default-50/10">
+            <Button
+              variant={tab === 'PENDING' ? 'primary' : 'ghost'}
+              className="flex-1 rounded-lg font-medium"
+              onPress={() => changeTab('PENDING')}
+            >
+              در انتظار تایید
+            </Button>
+            <Button
+              variant={tab === 'HISTORY' ? 'primary' : 'ghost'}
+              className="flex-1 rounded-lg font-medium"
+              onPress={() => changeTab('HISTORY')}
+            >
+              تاریخچه تصمیم‌ها
+            </Button>
+          </div>
+          <SearchFilters view={view} {...filterProps} />
         </CardContent>
       </Card>
 
@@ -392,15 +398,21 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
 
       {!advertisementsQuery.isError && data.total > data.pageSize && (
         <div className="flex justify-center mt-4">
-          <Pagination page={page} total={pageCount} onChange={setPage} className="rounded-2xl" />
+          <div className="flex items-center gap-3">
+            <Button size="sm" variant="ghost" isDisabled={page <= 1} onPress={() => setPage((p) => p - 1)}>قبلی</Button>
+            <span className="text-sm text-foreground-500">{page} / {pageCount}</span>
+            <Button size="sm" variant="ghost" isDisabled={page >= pageCount} onPress={() => setPage((p) => p + 1)}>بعدی</Button>
+          </div>
         </div>
       )}
 
       {Boolean(detailId) && (
         <ModalBackdrop isOpen={Boolean(detailId)} onOpenChange={(open) => !open && setDetailId(null)} variant="blur">
-          <ModalContainer size="2xl">
-            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
-              <ModalHeader className="text-lg font-bold">جزئیات آگهی</ModalHeader>
+          <ModalContainer size="lg">
+            <ModalDialog aria-label="جزئیات آگهی" className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+              <ModalHeader className="text-lg font-bold">
+                <ModalHeading>جزئیات آگهی</ModalHeading>
+              </ModalHeader>
               <ModalBody className="gap-4 max-h-[75vh] overflow-y-auto">
                 {detailQuery.isLoading && (
                   <div className="flex min-h-[200px] items-center justify-center">

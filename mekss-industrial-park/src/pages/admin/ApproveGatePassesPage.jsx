@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
+import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Check, X, Ticket } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -84,9 +84,10 @@ export const ApproveGatePassesPage = () => {
               description={tab === 'pending' ? 'به محض ثبت برگ خروج جدید توسط واحدهای صنعتی، برای بررسی اینجا نمایش داده می‌شود.' : undefined}
             />
           ) : (
-            <Table aria-label="برگ‌های خروج">
+            <Table>
+              <TableContent aria-label="برگ‌های خروج">
               <TableHeader>
-                <TableColumn>واحد صنعتی</TableColumn>
+                <TableColumn isRowHeader>واحد صنعتی</TableColumn>
                 <TableColumn>نام راننده</TableColumn>
                 <TableColumn>شماره پلاک</TableColumn>
                 <TableColumn>تاریخ خروج</TableColumn>
@@ -94,7 +95,7 @@ export const ApproveGatePassesPage = () => {
               </TableHeader>
               <TableBody>
                 {filteredPasses.map((pass) => (
-                  <TableRow key={pass.id}>
+                  <TableRow key={pass.id} id={pass.id}>
                     <TableCell>{pass.factory?.name || '—'}</TableCell>
                     <TableCell>{pass.driverName}</TableCell>
                     <TableCell dir="ltr">{pass.licensePlate}</TableCell>
@@ -127,6 +128,7 @@ export const ApproveGatePassesPage = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              </TableContent>
             </Table>
           )}
         </CardContent>

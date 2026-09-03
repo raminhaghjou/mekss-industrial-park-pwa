@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
-import { Card, CardContent, CardHeader, Input, Button, Avatar, Separator, Label } from '@heroui/react';
+import { Card, CardContent, CardHeader, Input, Button, Avatar, Separator, Label, Spinner } from '@heroui/react';
 import { User, Phone, Building2, Save } from 'lucide-react';
 
 export const ProfilePage = () => {
@@ -28,10 +28,9 @@ export const ProfilePage = () => {
 
       <Card>
         <CardHeader className="flex items-center gap-4 p-6">
-          <Avatar
-            name={user?.name?.charAt(0) || 'U'}
-            className="h-16 w-16 bg-gradient-to-br from-primary-500 to-primary-700 text-2xl text-white"
-          />
+          <Avatar size="lg" className="h-16 w-16 bg-gradient-to-br from-primary-500 to-primary-700 text-2xl text-white">
+            <Avatar.Fallback>{user?.name?.charAt(0) || 'U'}</Avatar.Fallback>
+          </Avatar>
           <div>
             <h2 className="text-lg font-semibold text-foreground">{user?.name}</h2>
             <p className="text-sm text-foreground-500">{user?.role}</p>
@@ -66,7 +65,7 @@ export const ProfilePage = () => {
                   onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                   variant="primary"
                   dir="ltr"
-                  isReadOnly
+                  readOnly
                   className="pr-9 rounded-xl"
                 />
               </div>
@@ -92,10 +91,9 @@ export const ProfilePage = () => {
               variant="primary"
               size="lg"
               className="mt-4 flex items-center gap-2"
-              isLoading={loading}
               isDisabled={loading}
             >
-              <Save className="h-4 w-4" />
+              {loading ? <Spinner size="sm" /> : <Save className="h-4 w-4" />}
               ذخیره تغییرات
             </Button>
           </form>

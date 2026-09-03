@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Listbox, ListboxItem, Avatar, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
+import { Card, CardContent, ListBox, ListBoxItem, Avatar, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { MessageSquare } from 'lucide-react';
 import { messageApi } from '../../services/api/message.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -39,18 +39,16 @@ export const MessagesPage = () => {
               description="پیام‌های دریافتی از مدیریت شهرک در اینجا نمایش داده می‌شوند."
             />
           ) : (
-            <Listbox aria-label="پیام‌ها">
+            <ListBox aria-label="پیام‌ها">
               {messages.map((msg) => (
-                <ListboxItem
+                <ListBoxItem
                   key={msg.id}
                   textValue={msg.subject}
                 >
                   <div className="flex items-start gap-3 w-full">
-                    <Avatar
-                      name={msg.sender?.name?.charAt(0) || 'M'}
-                      className="bg-primary-100 text-primary-700 shrink-0"
-                      size="sm"
-                    />
+                    <Avatar size="sm" className="bg-primary-100 text-primary-700 shrink-0">
+                      <Avatar.Fallback>{msg.sender?.name?.charAt(0) || 'M'}</Avatar.Fallback>
+                    </Avatar>
                     <div className="flex flex-1 flex-col min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium truncate">{msg.subject}</span>
@@ -63,9 +61,9 @@ export const MessagesPage = () => {
                       </span>
                     </div>
                   </div>
-                </ListboxItem>
+                </ListBoxItem>
               ))}
-            </Listbox>
+            </ListBox>
           )}
         </CardContent>
       </Card>

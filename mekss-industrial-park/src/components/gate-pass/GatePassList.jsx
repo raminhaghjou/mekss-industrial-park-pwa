@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Table,
+  Table, TableContent,
   TableHeader,
   TableColumn,
   TableBody,
@@ -15,7 +15,7 @@ const statusColors = {
   PENDING: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
-  COMPLETED: 'primary',
+  COMPLETED: 'accent',
   EXPIRED: 'default',
 };
 
@@ -39,9 +39,10 @@ const GatePassList = ({ passes }) => {
   return (
     <Card className="border border-default-200 shadow-sm rounded-2xl overflow-hidden dark:border-white/10">
       <CardContent className="p-0">
-        <Table aria-label="جدول برگ خروج" className="min-w-[650px]">
-          <TableHeader>
-            <TableColumn className="font-bold text-right">نام راننده</TableColumn>
+        <Table>
+              <TableContent aria-label="جدول برگ خروج" className="min-w-[650px]">
+              <TableHeader>
+            <TableColumn className="font-bold text-right" isRowHeader>نام راننده</TableColumn>
             <TableColumn className="font-bold text-right">شماره پلاک</TableColumn>
             <TableColumn className="font-bold text-right">نوع بار</TableColumn>
             <TableColumn className="font-bold text-right">تاریخ خروج</TableColumn>
@@ -49,7 +50,7 @@ const GatePassList = ({ passes }) => {
           </TableHeader>
           <TableBody>
             {passes.map((pass) => (
-              <TableRow key={pass.id}>
+              <TableRow key={pass.id} id={pass.id}>
                 <TableCell className="font-medium text-foreground">{pass.driverName}</TableCell>
                 <TableCell className="font-mono dir-ltr text-right">{pass.licensePlate}</TableCell>
                 <TableCell>{pass.cargoDescription || pass.cargoType}</TableCell>
@@ -62,7 +63,8 @@ const GatePassList = ({ passes }) => {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+              </TableContent>
+            </Table>
       </CardContent>
     </Card>
   );

@@ -18,7 +18,7 @@ import {
   AlertContent,
   AlertTitle,
   AlertDescription,
-  Table,
+  Table, TableContent,
   TableHeader,
   TableColumn,
   TableBody,
@@ -85,8 +85,10 @@ const ReportsPage = () => {
                   <SelectIndicator />
                 </SelectTrigger>
                 <SelectPopover>
-                  <ListBox items={typeOptions}>
-                    {(option) => <ListBoxItem id={option.value}>{option.label}</ListBoxItem>}
+                  <ListBox>
+                    {typeOptions.map((option) => (
+                      <ListBoxItem key={option.value} id={option.value}>{option.label}</ListBoxItem>
+                    ))}
                   </ListBox>
                 </SelectPopover>
               </Select>
@@ -167,9 +169,10 @@ const ReportsPage = () => {
           )}
 
           {!isLoading && !isError && isFetched && (data?.type === 'gatepass' || data?.type === 'requests') && (
-            <Table aria-label="جدول خلاصه آمار" className="min-w-[300px]">
+            <Table>
+              <TableContent aria-label="جدول خلاصه آمار" className="min-w-[300px]">
               <TableHeader>
-                <TableColumn className="font-bold text-right">وضعیت</TableColumn>
+                <TableColumn className="font-bold text-right" isRowHeader>وضعیت</TableColumn>
                 <TableColumn className="font-bold text-left">تعداد</TableColumn>
               </TableHeader>
               <TableBody>
@@ -181,13 +184,14 @@ const ReportsPage = () => {
                   </TableRow>
                 ) : (
                   data.byStatus.map((row) => (
-                    <TableRow key={row.status}>
+                    <TableRow key={row.status} id={row.status}>
                       <TableCell className="font-medium">{statusLabels[row.status] || row.status}</TableCell>
                       <TableCell className="text-left font-mono font-bold">{row.count}</TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
+              </TableContent>
             </Table>
           )}
 

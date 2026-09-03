@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Input, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
+import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Input, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Plus, Pencil, Trash2, MapPin } from 'lucide-react';
 import { parkApi } from '../../services/api/park.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -22,7 +22,7 @@ export const ManageParksPage = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => parkApi.createPark(data),
+    mutationFn: (/** @type {typeof formData} */ payload) => parkApi.createPark(payload),
     onSuccess: () => {
       showNotification('شهرک صنعتی با موفقیت ایجاد شد', 'success');
       setFormOpen(false);
@@ -33,7 +33,7 @@ export const ManageParksPage = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => parkApi.updatePark(id, data),
+    mutationFn: (/** @type {{id: string, data: typeof formData}} */ { id, data }) => parkApi.updatePark(id, data),
     onSuccess: () => {
       showNotification('شهرک صنعتی با موفقیت ویرایش شد', 'success');
       setFormOpen(false);
@@ -115,9 +115,10 @@ export const ManageParksPage = () => {
               description="با دکمه «افزودن شهرک جدید» می‌توانید اولین شهرک صنعتی را ثبت کنید."
             />
           ) : (
-            <Table aria-label="شهرک‌های صنعتی">
+            <Table>
+              <TableContent aria-label="شهرک‌های صنعتی">
               <TableHeader>
-                <TableColumn>کد</TableColumn>
+                <TableColumn isRowHeader>کد</TableColumn>
                 <TableColumn>نام شهرک</TableColumn>
                 <TableColumn>موقعیت</TableColumn>
                 <TableColumn>وضعیت</TableColumn>
@@ -125,7 +126,7 @@ export const ManageParksPage = () => {
               </TableHeader>
               <TableBody>
                 {parks.map((park) => (
-                  <TableRow key={park.id}>
+                  <TableRow key={park.id} id={park.id}>
                     <TableCell>{park.code}</TableCell>
                     <TableCell>{park.name}</TableCell>
                     <TableCell>{park.province} - {park.city}</TableCell>
@@ -147,6 +148,7 @@ export const ManageParksPage = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              </TableContent>
             </Table>
           )}
         </CardContent>
@@ -165,7 +167,7 @@ export const ManageParksPage = () => {
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">نام شهرک</label>
-                    <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="primary" isRequired />
+                    <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="primary" required />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">استان</label>
@@ -187,8 +189,8 @@ export const ManageParksPage = () => {
               </ModalBody>
               <ModalFooter className="mt-4">
                 <Button variant="tertiary" onPress={() => setFormOpen(false)} isDisabled={saving}>انصراف</Button>
-                <Button variant="primary" onPress={handleSubmit} isLoading={saving} isDisabled={saving}>
-                  {editTarget ? 'ذخیره تغییرات' : 'افزودن'}
+                <Button variant="primary" onPress={handleSubmit} isDisabled={saving}>
+                  {saving ? <Spinner size="sm" /> : editTarget ? 'ذخیره تغییرات' : 'افزودن'}
                 </Button>
               </ModalFooter>
             </ModalDialog>

@@ -47,8 +47,8 @@ export const AnnouncementsPage = () => {
               <CardHeader className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-foreground">{ann.title}</h3>
-                  {ann.isPinned && <Chip color="primary" size="sm" variant="soft">سنجاق شده</Chip>}
-                  {ann.isGlobal && <Chip color="secondary" size="sm" variant="soft">همگانی</Chip>}
+                  {ann.isPinned && <Chip color="accent" size="sm" variant="soft">سنجاق شده</Chip>}
+                  {ann.isGlobal && <Chip color="default" size="sm" variant="soft">همگانی</Chip>}
                 </div>
                 <span className="text-sm text-foreground-500">
                   {new Date(ann.createdAt).toLocaleDateString('fa-IR')}

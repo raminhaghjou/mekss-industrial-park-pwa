@@ -15,6 +15,7 @@ import {
   ListBox,
   ListBoxItem,
   Label,
+  Spinner,
 } from '@heroui/react';
 import { Eye, EyeOff, Phone, Lock, User, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
@@ -105,7 +106,7 @@ export const RegisterPage = () => {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     variant="primary"
-                    isRequired
+                    required
                     className={`pr-9 ${inputWrapperClass} hover:border-purple-500/50 focus-within:border-purple-500 placeholder:text-slate-500`}
                   />
                 </div>
@@ -122,7 +123,7 @@ export const RegisterPage = () => {
                     onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                     variant="primary"
                     dir="ltr"
-                    isRequired
+                    required
                     className={`pr-9 ${inputWrapperClass} hover:border-cyan-500/50 focus-within:border-cyan-500 text-left placeholder:text-slate-500`}
                   />
                 </div>
@@ -132,7 +133,7 @@ export const RegisterPage = () => {
                 <Label className="text-slate-300 text-xs font-medium">نقش کاربری</Label>
                 <Select
                   value={formData.role}
-                  onChange={(val) => setFormData({ ...formData, role: val || 'FACTORY_OWNER' })}
+                  onChange={(val) => setFormData({ ...formData, role: String(val || 'FACTORY_OWNER') })}
                   variant="primary"
                   className={`${inputWrapperClass} hover:border-indigo-500/50`}
                 >
@@ -159,7 +160,7 @@ export const RegisterPage = () => {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     variant="primary"
-                    isRequired
+                    required
                     className={`pr-9 pl-9 ${inputWrapperClass} hover:border-indigo-500/50 focus-within:border-indigo-500 placeholder:text-slate-500`}
                   />
                   <button
@@ -182,7 +183,7 @@ export const RegisterPage = () => {
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     variant="primary"
-                    isRequired
+                    required
                     className={`pr-9 ${inputWrapperClass} hover:border-indigo-500/50 focus-within:border-indigo-500 placeholder:text-slate-500`}
                   />
                 </div>
@@ -192,11 +193,10 @@ export const RegisterPage = () => {
                 type="submit"
                 variant="primary"
                 size="lg"
-                className="mt-2 w-full rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 text-white font-bold shadow-lg shadow-purple-600/30 transition-all hover:scale-[1.01] hover:shadow-purple-600/50 active:scale-[0.99]"
-                isLoading={loading}
+                className="mt-2 w-full rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 text-white font-bold shadow-lg shadow-purple-600/30 transition-all hover:scale-[1.01] hover:shadow-indigo-600/50 active:scale-[0.99]"
                 isDisabled={loading}
               >
-                تکمیل ثبت‌نام و ایجاد حساب
+                {loading ? <Spinner size="sm" /> : 'تکمیل ثبت‌نام و ایجاد حساب'}
               </Button>
             </form>
 

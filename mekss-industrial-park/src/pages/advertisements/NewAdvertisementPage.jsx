@@ -21,7 +21,7 @@ import {
   Spinner,
   Label,
 } from '@heroui/react';
-import { ArrowRight, MegaPhone, RotateCw } from 'lucide-react';
+import { ArrowRight, Megaphone, RotateCw } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
@@ -103,7 +103,7 @@ const NewAdvertisementPage = () => {
         <CardContent className="p-6 gap-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4 dark:border-white/5">
             <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
-              <MegaPhone className="h-6 w-6" />
+              <Megaphone className="h-6 w-6" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">ثبت آگهی جدید</h1>
@@ -183,14 +183,14 @@ const NewAdvertisementPage = () => {
                 <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی</Label>
                 <Select
                   value={form.parkId}
-                  onChange={(val) => update('parkId', val || '')}
+                  onChange={(val) => update('parkId', String(val || ''))}
                   variant="primary"
                   isDisabled={!scope?.requiresSelection}
                   isRequired
                   className="rounded-xl"
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'} />
+                 placeholder={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'}>
+      <SelectTrigger>
+        <SelectValue />
                     <SelectIndicator />
                   </SelectTrigger>
                   <SelectPopover>
@@ -235,7 +235,7 @@ const NewAdvertisementPage = () => {
                   placeholder="متن کامل و جزئیات آگهی..."
                   value={form.content}
                   onChange={(e) => update('content', e.target.value)}
-                  minRows={5}
+                  rows={5}
                   maxLength={8000}
                   variant="primary"
                   className="rounded-xl"
@@ -260,11 +260,10 @@ const NewAdvertisementPage = () => {
                 <Button
                   type="submit"
                   variant="primary"
-                  isLoading={createMutation.isPending}
                   isDisabled={createMutation.isPending || !form.parkId}
                   className="rounded-xl font-bold px-8 shadow-md shadow-primary/20"
                 >
-                  ثبت برای بررسی
+                  {createMutation.isPending ? <Spinner size="sm" /> : 'ثبت برای بررسی'}
                 </Button>
               </div>
             </form>

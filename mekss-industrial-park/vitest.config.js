@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
     include: ['src/**/*.test.{js,jsx}'],
     exclude: ['src/exploration/**', 'src/**/*.integration.test.{js,jsx}'],
     passWithNoTests: false,

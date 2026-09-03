@@ -147,8 +147,9 @@ const ManageAnnouncementsPage = () => {
             </h2>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-foreground-600">عنوان اطلاعیه</label>
+                <label htmlFor="announcement-title" className="text-xs font-medium text-foreground-600">عنوان اطلاعیه</label>
                 <Input
+                  id="announcement-title"
                   placeholder="عنوان اطلاع‌رسانی را وارد کنید..."
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -158,8 +159,9 @@ const ManageAnnouncementsPage = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-foreground-600">متن اطلاعیه</label>
+                <label htmlFor="announcement-content" className="text-xs font-medium text-foreground-600">متن اطلاعیه</label>
                 <TextArea
+                  id="announcement-content"
                   placeholder="متن کامل اطلاعیه..."
                   value={form.content}
                   onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
@@ -192,8 +194,9 @@ const ManageAnnouncementsPage = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-foreground-600">اولویت</label>
+                  <label htmlFor="announcement-priority" className="text-xs font-medium text-foreground-600">اولویت</label>
                   <Input
+                    id="announcement-priority"
                     type="number"
                     value={form.priority}
                     onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
@@ -203,8 +206,9 @@ const ManageAnnouncementsPage = () => {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-foreground-600">تاریخ انقضا (اختیاری)</label>
+                  <label htmlFor="announcement-expires" className="text-xs font-medium text-foreground-600">تاریخ انقضا (اختیاری)</label>
                   <Input
+                    id="announcement-expires"
                     type="date"
                     value={form.expiresAt}
                     onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
@@ -228,8 +232,10 @@ const ManageAnnouncementsPage = () => {
                         <SelectIndicator />
                       </SelectTrigger>
                       <SelectPopover>
-                        <ListBox items={parks}>
-                          {(park) => <ListBoxItem id={park.id}>{park.name}</ListBoxItem>}
+                        <ListBox>
+                          {parks.map((park) => (
+                            <ListBoxItem key={park.id} id={park.id}>{park.name}</ListBoxItem>
+                          ))}
                         </ListBox>
                       </SelectPopover>
                     </Select>

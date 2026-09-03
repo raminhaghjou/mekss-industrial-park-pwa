@@ -124,11 +124,10 @@ const InvoicePaymentPage = () => {
                 variant="primary"
                 size="lg"
                 onPress={() => payMutation.mutate()}
-                isLoading={payMutation.isPending}
                 isDisabled={payMutation.isPending}
                 className="w-full sm:w-auto px-8 rounded-2xl font-bold text-base shadow-md shadow-primary/20 flex items-center gap-2"
               >
-                <CreditCard className="h-5 w-5" />
+                {payMutation.isPending ? <Spinner size="sm" /> : <CreditCard className="h-5 w-5" />}
                 پرداخت آنلاین
               </Button>
             </div>

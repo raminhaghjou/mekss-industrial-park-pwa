@@ -22,7 +22,7 @@ import {
   ListBox,
   ListBoxItem,
   Label,
-  Table,
+  Table, TableContent,
   TableHeader,
   TableColumn,
   TableBody,
@@ -131,7 +131,7 @@ const FormSelect = ({ label, value, onChange, options, isDisabled = false, place
     <Label className="text-xs font-medium text-foreground-600">{label}</Label>
     <Select
       value={value}
-      onChange={onChange}
+      onChange={(key) => onChange(key == null ? '' : String(key))}
       placeholder={placeholder}
       variant="primary"
       isDisabled={isDisabled}
@@ -142,8 +142,10 @@ const FormSelect = ({ label, value, onChange, options, isDisabled = false, place
         <SelectIndicator />
       </SelectTrigger>
       <SelectPopover>
-        <ListBox items={options}>
-          {(item) => <ListBoxItem id={item.value}>{item.label}</ListBoxItem>}
+        <ListBox>
+          {options.map((item) => (
+            <ListBoxItem key={item.value} id={item.value}>{item.label}</ListBoxItem>
+          ))}
         </ListBox>
       </SelectPopover>
     </Select>
@@ -152,51 +154,52 @@ const FormSelect = ({ label, value, onChange, options, isDisabled = false, place
 
 const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) => {
   const setField = (field, val) => setForm((current) => ({ ...current, [field]: val }));
+  const fieldId = (name) => `factory-${name}`;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">نام واحد صنعتی</label>
-        <Input value={form.name} onChange={(e) => setField('name', e.target.value)} disabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
+        <label htmlFor={fieldId('name')} className="text-xs font-medium text-foreground-600">نام واحد صنعتی</label>
+        <Input id={fieldId('name')} value={form.name} onChange={(e) => setField('name', e.target.value)} disabled={disabled} maxLength={160} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">شماره مجوز</label>
-        <Input value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} disabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
+        <label htmlFor={fieldId('licenseNumber')} className="text-xs font-medium text-foreground-600">شماره مجوز</label>
+        <Input id={fieldId('licenseNumber')} value={form.licenseNumber} onChange={(e) => setField('licenseNumber', e.target.value)} disabled={disabled} maxLength={80} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">شناسه ملی</label>
-        <Input value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('nationalId')} className="text-xs font-medium text-foreground-600">شناسه ملی</label>
+        <Input id={fieldId('nationalId')} value={form.nationalId} onChange={(e) => setField('nationalId', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">نوع فعالیت</label>
-        <Input value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} disabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
+        <label htmlFor={fieldId('activityType')} className="text-xs font-medium text-foreground-600">نوع فعالیت</label>
+        <Input id={fieldId('activityType')} value={form.activityType} onChange={(e) => setField('activityType', e.target.value)} disabled={disabled} maxLength={120} variant="primary" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">تلفن همراه</label>
-        <Input value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('phoneNumber')} className="text-xs font-medium text-foreground-600">تلفن همراه</label>
+        <Input id={fieldId('phoneNumber')} value={form.phoneNumber} onChange={(e) => setField('phoneNumber', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">تلفن همراه دوم</label>
-        <Input value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('phoneNumber2')} className="text-xs font-medium text-foreground-600">تلفن همراه دوم</label>
+        <Input id={fieldId('phoneNumber2')} value={form.phoneNumber2} onChange={(e) => setField('phoneNumber2', e.target.value)} disabled={disabled} maxLength={11} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">تلفن ثابت</label>
-        <Input value={form.landline} onChange={(e) => setField('landline', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('landline')} className="text-xs font-medium text-foreground-600">تلفن ثابت</label>
+        <Input id={fieldId('landline')} value={form.landline} onChange={(e) => setField('landline', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">نمابر</label>
-        <Input value={form.fax} onChange={(e) => setField('fax', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('fax')} className="text-xs font-medium text-foreground-600">نمابر</label>
+        <Input id={fieldId('fax')} value={form.fax} onChange={(e) => setField('fax', e.target.value)} disabled={disabled} maxLength={20} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">ایمیل</label>
-        <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} disabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('email')} className="text-xs font-medium text-foreground-600">ایمیل</label>
+        <Input id={fieldId('email')} type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} disabled={disabled} maxLength={254} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">وب‌سایت</label>
-        <Input type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} disabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
+        <label htmlFor={fieldId('website')} className="text-xs font-medium text-foreground-600">وب‌سایت</label>
+        <Input id={fieldId('website')} type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} disabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
-        <Input type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} disabled={disabled} variant="primary" className="rounded-xl" />
+        <label htmlFor={fieldId('employees')} className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
+        <Input id={fieldId('employees')} type="number" value={form.employees} onChange={(e) => setField('employees', e.target.value)} disabled={disabled} variant="primary" className="rounded-xl" />
       </div>
       {!editing && (
         <FormSelect
@@ -219,8 +222,9 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
         />
       )}
       <div className="sm:col-span-2 flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">نشانی</label>
+        <label htmlFor={fieldId('address')} className="text-xs font-medium text-foreground-600">نشانی</label>
         <TextArea
+          id={fieldId('address')}
           rows={2}
           value={form.address}
           onChange={(e) => setField('address', e.target.value)}
@@ -231,8 +235,9 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
         />
       </div>
       <div className="sm:col-span-2 flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground-600">توضیحات</label>
+        <label htmlFor={fieldId('description')} className="text-xs font-medium text-foreground-600">توضیحات</label>
         <TextArea
+          id={fieldId('description')}
           rows={3}
           value={form.description}
           onChange={(e) => setField('description', e.target.value)}
@@ -519,9 +524,10 @@ const ManageFactoriesPage = () => {
 
       {!factoriesQuery.isLoading && !factoriesQuery.isError && factories.length > 0 && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
-          <Table aria-label="فهرست واحدهای صنعتی" className="p-0 shadow-none">
-            <TableHeader>
-              <TableColumn className="text-right font-bold">واحد صنعتی</TableColumn>
+          <Table>
+              <TableContent aria-label="فهرست واحدهای صنعتی" className="p-0 shadow-none">
+              <TableHeader>
+              <TableColumn className="text-right font-bold" isRowHeader>واحد صنعتی</TableColumn>
               <TableColumn className="text-right font-bold">مالک / مدیر</TableColumn>
               <TableColumn className="text-right font-bold">شهرک</TableColumn>
               <TableColumn className="text-right font-bold">وضعیت</TableColumn>
@@ -531,7 +537,7 @@ const ManageFactoriesPage = () => {
               {factories.map((factory) => {
                 const meta = statusMeta[factory.status] || { label: factory.status, color: 'default' };
                 return (
-                  <TableRow key={factory.id}>
+                  <TableRow key={factory.id} id={factory.id}>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold text-foreground">{factory.name}</span>
@@ -591,7 +597,8 @@ const ManageFactoriesPage = () => {
                 );
               })}
             </TableBody>
-          </Table>
+              </TableContent>
+            </Table>
         </Card>
       )}
 

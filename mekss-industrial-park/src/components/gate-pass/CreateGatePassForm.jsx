@@ -48,19 +48,20 @@ const emptyForm = {
   driverPhone: '', vehicleType: 'TRUCK', licensePlate: '', exitDate: '',
 };
 
-const FormSelect = ({ label, value, onChange, options, isDisabled, isRequired, placeholder }) => (
+const FormSelect = ({ label, value, onChange, options, isDisabled = false, isRequired = false, placeholder = 'انتخاب کنید' }) => (
   <div className="flex flex-col gap-1">
     <Label className="text-xs font-medium text-foreground-600">{label}</Label>
     <Select
-      value={value}
-      onChange={onChange}
+      value={value || null}
+      onChange={(key) => onChange(key == null ? '' : String(key))}
+      placeholder={placeholder}
       variant="primary"
       isDisabled={isDisabled}
       isRequired={isRequired}
       className="rounded-xl"
     >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue />
         <SelectIndicator />
       </SelectTrigger>
       <SelectPopover>
@@ -74,10 +75,10 @@ const FormSelect = ({ label, value, onChange, options, isDisabled, isRequired, p
   </div>
 );
 
-const FormInput = ({ label, ...props }) => (
+const FormInput = ({ label, isRequired, ...props }) => (
   <div className="flex flex-col gap-1">
     <Label className="text-xs font-medium text-foreground-600">{label}</Label>
-    <Input variant="primary" className="rounded-xl" {...props} />
+    <Input variant="primary" className="rounded-xl" required={isRequired} {...props} />
   </div>
 );
 
@@ -214,7 +215,7 @@ const CreateGatePassForm = ({ handleBack }) => {
               value={form.cargoDescription}
               onChange={(e) => handleChange('cargoDescription', e.target.value)}
               variant="primary"
-              minRows={3}
+              rows={3}
               className="rounded-xl"
             />
           </div>

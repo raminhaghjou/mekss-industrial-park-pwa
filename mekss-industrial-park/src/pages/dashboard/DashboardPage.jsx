@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
+import { Card, CardContent, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Building2, Ticket, Receipt, FileText, AlertTriangle, Megaphone, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
@@ -23,12 +23,11 @@ const colorMap = {
   secondary: 'bg-gradient-to-br from-secondary-500 to-secondary-600',
 };
 
-const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge, index }) => (
+const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge = null, index }) => (
   <Card
-    className={`cursor-${onClick ? 'pointer' : 'default'} animate-slide-up p-4`}
+    className={`${onClick ? 'cursor-pointer' : ''} animate-slide-up p-4`}
     style={{ animationDelay: `${index * 70}ms` }}
-    isPressable={!!onClick}
-    onPress={onClick}
+    onClick={onClick}
   >
     <CardContent className="p-0">
       <div className="flex items-center gap-4">
@@ -83,9 +82,9 @@ export const DashboardPage = () => {
             size="sm"
             className="mt-2"
             onPress={() => refetch()}
-            isLoading={isFetching}
+            isDisabled={isFetching}
           >
-            تلاش دوباره
+            {isFetching ? <Spinner size="sm" /> : 'تلاش دوباره'}
           </Button>
         </AlertContent>
       </Alert>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Input, Button, Card, CardContent, CardHeader, Separator, Tabs, TabList, Tab, Label } from '@heroui/react';
+import { Input, Button, Card, CardContent, CardHeader, Separator, Tabs, TabList, Tab, Label, Spinner } from '@heroui/react';
 import { Eye, EyeOff, Phone, Lock, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -141,7 +141,7 @@ export const LoginPage = () => {
                     onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                     variant="primary"
                     dir="ltr"
-                    isRequired
+                    required
                     className={`pr-9 ${inputWrapperClass} hover:border-cyan-500/50 focus-within:border-cyan-500 text-left placeholder:text-slate-500`}
                   />
                 </div>
@@ -158,7 +158,7 @@ export const LoginPage = () => {
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       variant="primary"
-                      isRequired
+                      required
                       className={`pr-9 pl-9 ${inputWrapperClass} hover:border-indigo-500/50 focus-within:border-indigo-500 placeholder:text-slate-500`}
                     />
                     <button
@@ -178,11 +178,10 @@ export const LoginPage = () => {
                     type="button"
                     variant="secondary"
                     onPress={handleSendOtp}
-                    isLoading={loading && !otpSent}
-                    isDisabled={!formData.phoneNumber || otpSent}
+                    isDisabled={!formData.phoneNumber || otpSent || loading}
                     className="w-full rounded-xl bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30 font-medium"
                   >
-                    {otpSent ? 'کد تایید ارسال شد' : 'ارسال کد تایید پیامکی'}
+                    {loading && !otpSent ? <Spinner size="sm" /> : otpSent ? 'کد تایید ارسال شد' : 'ارسال کد تایید پیامکی'}
                   </Button>
 
                   {otpSent && (
@@ -196,7 +195,7 @@ export const LoginPage = () => {
                         maxLength={6}
                         variant="primary"
                         dir="ltr"
-                        isRequired
+                        required
                         className="border-purple-500/40 bg-slate-950/60 backdrop-blur-md focus-within:border-purple-400 rounded-xl text-white font-mono text-center tracking-widest text-lg placeholder:text-slate-600"
                       />
                     </div>
@@ -209,10 +208,9 @@ export const LoginPage = () => {
                 variant="primary"
                 size="lg"
                 className="mt-2 w-full rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-bold shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.01] hover:shadow-indigo-600/50 active:scale-[0.99]"
-                isLoading={loading}
-                isDisabled={loginMethod === 'otp' && (!otpSent || otpCode.length !== 6)}
+                isDisabled={loading || (loginMethod === 'otp' && (!otpSent || otpCode.length !== 6))}
               >
-                {loginMethod === 'otp' ? 'تایید و ورود به داشبورد' : 'ورود به حساب کاربری'}
+                {loading ? <Spinner size="sm" /> : loginMethod === 'otp' ? 'تایید و ورود به داشبورد' : 'ورود به حساب کاربری'}
               </Button>
             </form>
 

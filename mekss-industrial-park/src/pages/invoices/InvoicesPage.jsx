@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
+import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription } from '@heroui/react';
 import { Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -42,16 +42,17 @@ export const InvoicesPage = () => {
               description="قبض‌های صادر شده در این فهرست نمایش داده می‌شوند."
             />
           ) : (
-            <Table removeWrapper aria-label="قبض‌ها">
+            <Table>
+              <TableContent aria-label="قبض‌ها">
               <TableHeader>
-                <TableColumn>شماره قبض</TableColumn>
+                <TableColumn isRowHeader>شماره قبض</TableColumn>
                 <TableColumn>شرح</TableColumn>
                 <TableColumn>مبلغ (ریال)</TableColumn>
                 <TableColumn>وضعیت</TableColumn>
               </TableHeader>
               <TableBody>
                 {invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
+                  <TableRow key={invoice.id} id={invoice.id}>
                     <TableCell dir="ltr">{invoice.invoiceNumber}</TableCell>
                     <TableCell>{invoice.description}</TableCell>
                     <TableCell dir="ltr">{Number(invoice.totalAmount).toLocaleString('fa-IR')}</TableCell>
@@ -63,6 +64,7 @@ export const InvoicesPage = () => {
                   </TableRow>
                 ))}
               </TableBody>
+              </TableContent>
             </Table>
           )}
         </CardContent>

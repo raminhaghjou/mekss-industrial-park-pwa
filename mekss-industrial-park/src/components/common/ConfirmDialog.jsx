@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ModalBackdrop,
   ModalContainer,
   ModalDialog,
   ModalHeader,
+  ModalHeading,
   ModalBody,
   ModalFooter,
   Button,
@@ -28,14 +29,16 @@ export const ConfirmDialog = ({
 }) => {
   const [reason, setReason] = useState('');
 
+  useEffect(() => {
+    if (!open) setReason('');
+  }, [open]);
+
   const handleConfirm = () => {
     if (requireReason && !reason.trim()) return;
     onConfirm?.(reason.trim());
-    setReason('');
   };
 
   const handleClose = () => {
-    setReason('');
     onClose?.();
   };
 
@@ -44,9 +47,9 @@ export const ConfirmDialog = ({
   return (
     <ModalBackdrop isOpen={open} onOpenChange={(isOpen) => !isOpen && handleClose()} isDismissable={!loading} variant="blur">
       <ModalContainer size="md">
-        <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+        <ModalDialog aria-label={title} className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
           <ModalHeader className="flex flex-col gap-1 text-lg font-bold text-foreground">
-            {title}
+            <ModalHeading>{title}</ModalHeading>
           </ModalHeader>
           <ModalBody className="gap-3">
             {description && <p className="text-sm text-foreground-500">{description}</p>}
@@ -58,9 +61,10 @@ export const ConfirmDialog = ({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   variant="primary"
-                  minRows={3}
-                  isRequired
+                  rows={3}
+                  required
                   className="rounded-xl"
+                  disabled={loading}
                 />
               </div>
             )}
@@ -73,9 +77,10 @@ export const ConfirmDialog = ({
               variant={confirmColor === 'danger' ? 'danger' : 'primary'}
               onPress={handleConfirm}
               isDisabled={loading || disabled || (requireReason && !reason.trim())}
-              className="rounded-xl font-bold"
+              className="rounded-xl font-bold flex items-center gap-2"
             >
-              {loading ? <Spinner size="sm" /> : confirmLabel}
+              {loading ? <Spinner size="sm" /> : null}
+              {confirmLabel}
             </Button>
           </ModalFooter>
         </ModalDialog>

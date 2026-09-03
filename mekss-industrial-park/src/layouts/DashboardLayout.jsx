@@ -5,6 +5,7 @@ import {
   Avatar,
   Dropdown,
   DropdownTrigger,
+  DropdownPopover,
   DropdownMenu,
   DropdownItem,
   Separator,
@@ -171,47 +172,47 @@ export const DashboardLayout = () => {
               <Bell className="h-5 w-5" />
             </Button>
 
-            <Dropdown placement="bottom-end">
+            <Dropdown>
               <DropdownTrigger>
                 <Button variant="ghost" className="flex items-center gap-2">
-                  <Avatar
-                    name={user?.name?.charAt(0) || 'U'}
-                    size="sm"
-                    className="bg-gradient-to-br from-primary-500 to-primary-700 text-white"
-                  />
+                  <Avatar size="sm" className="bg-gradient-to-br from-primary-500 to-primary-700 text-white">
+                    <Avatar.Fallback>{user?.name?.charAt(0) || 'U'}</Avatar.Fallback>
+                  </Avatar>
                   <div className="hidden flex-col items-start md:flex">
                     <span className="text-sm font-medium">{user?.name || 'کاربر'}</span>
                     <span className="text-xs text-foreground-500">{roleLabels[user?.role] || user?.role}</span>
                   </div>
                 </Button>
               </DropdownTrigger>
-              <DropdownMenu aria-label="Profile actions">
-                <DropdownItem
-                  key="profile"
-                  className="flex items-center gap-2"
-                  onPress={() => navigate('/profile')}
-                >
-                  <User className="h-4 w-4" />
-                  پروفایل
-                </DropdownItem>
-                <DropdownItem
-                  key="settings"
-                  className="flex items-center gap-2"
-                  onPress={() => navigate('/settings')}
-                >
-                  <Settings className="h-4 w-4" />
-                  تنظیمات
-                </DropdownItem>
-                <DropdownItem
-                  key="logout"
-                  variant="danger"
-                  className="flex items-center gap-2"
-                  onPress={handleLogout}
-                >
-                  <LogOut className="h-4 w-4" />
-                  خروج
-                </DropdownItem>
-              </DropdownMenu>
+              <DropdownPopover placement="bottom end">
+                <DropdownMenu aria-label="Profile actions">
+                  <DropdownItem
+                    id="profile"
+                    className="flex items-center gap-2"
+                    onPress={() => navigate('/profile')}
+                  >
+                    <User className="h-4 w-4" />
+                    پروفایل
+                  </DropdownItem>
+                  <DropdownItem
+                    id="settings"
+                    className="flex items-center gap-2"
+                    onPress={() => navigate('/settings')}
+                  >
+                    <Settings className="h-4 w-4" />
+                    تنظیمات
+                  </DropdownItem>
+                  <DropdownItem
+                    id="logout"
+                    variant="danger"
+                    className="flex items-center gap-2"
+                    onPress={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    خروج
+                  </DropdownItem>
+                </DropdownMenu>
+              </DropdownPopover>
             </Dropdown>
           </div>
         </header>

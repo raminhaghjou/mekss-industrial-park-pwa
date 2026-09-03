@@ -114,8 +114,10 @@ const CreateInvoicePage = () => {
                   <SelectIndicator />
                 </SelectTrigger>
                 <SelectPopover>
-                  <ListBox items={factories || []}>
-                    {(factory) => <ListBoxItem id={factory.id}>{factory.name}</ListBoxItem>}
+                  <ListBox>
+                    {(factories || []).map((factory) => (
+                      <ListBoxItem key={factory.id} id={factory.id}>{factory.name}</ListBoxItem>
+                    ))}
                   </ListBox>
                 </SelectPopover>
               </Select>

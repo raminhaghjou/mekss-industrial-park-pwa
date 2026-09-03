@@ -7,6 +7,7 @@ import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 export const ApproveGatePassesPage = () => {
   const [tab, setTab] = useState('pending');
@@ -84,6 +85,7 @@ export const ApproveGatePassesPage = () => {
               description={tab === 'pending' ? 'به محض ثبت برگ خروج جدید توسط واحدهای صنعتی، برای بررسی اینجا نمایش داده می‌شود.' : undefined}
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="برگ‌های خروج">
               <TableHeader>
@@ -130,6 +132,7 @@ export const ApproveGatePassesPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

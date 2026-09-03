@@ -30,10 +30,19 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
 import { getErrorMessage } from '../../utils/apiError';
 import { queryKeys } from '../../services/queryKeys';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
+import { parseIsoDate, toIsoDate } from '../../utils/jalali';
 
 const emptyForm = { title: '', content: '', isGlobal: false, isPinned: false, priority: '0', parkId: '', expiresAt: '' };
 
-const toDateInputValue = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
+const toDateInputValue = (value) => {
+  if (!value) return '';
+  const fromIso = parseIsoDate(value);
+  if (fromIso) return toIsoDate(fromIso.gy, fromIso.gm, fromIso.gd);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return toIsoDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+};
 
 const ManageAnnouncementsPage = () => {
   const { user } = useAuth();
@@ -205,17 +214,12 @@ const ManageAnnouncementsPage = () => {
                   />
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="announcement-expires" className="text-xs font-medium text-foreground-600">تاریخ انقضا (اختیاری)</label>
-                  <Input
-                    id="announcement-expires"
-                    type="date"
-                    value={form.expiresAt}
-                    onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
-                    variant="primary"
-                    className="rounded-xl"
-                  />
-                </div>
+                <JalaliDatePicker
+                  id="announcement-expires"
+                  label="تاریخ انقضا (اختیاری)"
+                  value={form.expiresAt}
+                  onChange={(expiresAt) => setForm((f) => ({ ...f, expiresAt }))}
+                />
 
                 {!editing && isSuperAdmin && !form.isGlobal && (
                   <div className="flex flex-col gap-1">

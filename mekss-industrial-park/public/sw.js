@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mekss-static-v4';
+const CACHE_NAME = 'mekss-static-v5';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -7,10 +7,21 @@ const APP_SHELL = [
   '/icons/icon.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/icon-maskable-192.png',
+  '/icons/icon-maskable-512.png',
+  /* __PRECACHE_ASSETS__ */
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        APP_SHELL.map((url) =>
+          cache.add(url).catch(() => undefined),
+        ),
+      ),
+    ),
+  );
   self.skipWaiting();
 });
 
@@ -27,7 +38,6 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Authenticated/API traffic and mutations are always network-only.
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
@@ -49,6 +59,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Immutable build assets: cache-first for fast standalone launches.
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/')) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
+          }
+          return response;
+        });
+      }),
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((response) => {
       if (response.ok && ['script', 'style', 'image', 'font'].includes(request.destination)) {
@@ -56,7 +83,7 @@ self.addEventListener('fetch', (event) => {
         event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
       }
       return response;
-    })),
+    }).catch(() => cached)),
   );
 });
 

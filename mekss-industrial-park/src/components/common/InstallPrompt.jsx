@@ -5,7 +5,8 @@ const DISMISS_KEY = 'mekss-install-dismissed-at';
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 const isStandalone = () =>
-  window.matchMedia?.('(display-mode: standalone)').matches;
+  window.matchMedia?.('(display-mode: standalone)').matches
+  || /** @type {Navigator & { standalone?: boolean }} */ (window.navigator).standalone === true;
 
 const isIosDevice = () =>
   /iPad|iPhone|iPod/.test(window.navigator.userAgent) ||
@@ -27,7 +28,7 @@ export const InstallPrompt = () => {
     const lastDismissed = Number(window.localStorage.getItem(DISMISS_KEY) || 0);
     const recentlyDismissed = Date.now() - lastDismissed < DISMISS_COOLDOWN_MS;
     const shouldShowIosHint = isIosDevice() && isSafari() && !recentlyDismissed;
-    
+
     let iosHintTimer;
 
     if (shouldShowIosHint) {
@@ -75,31 +76,42 @@ export const InstallPrompt = () => {
   if (!open || (!nativePromptAvailable && !showIosHint)) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-50 animate-slide-up rounded-xl bg-background/95 p-4 shadow-2xl backdrop-blur-lg border border-default-200 md:bottom-4 md:left-auto md:right-4 md:max-w-sm">
+    <div className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] left-3 right-3 z-50 animate-slide-up rounded-2xl border border-default-200 bg-background/95 p-4 shadow-2xl backdrop-blur-lg lg:bottom-4 lg:left-auto lg:right-4 lg:max-w-sm">
       {showIosHint ? (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-sm font-medium leading-6 text-foreground">
             برای نصب در آیفون: دکمهٔ اشتراک‌گذاری Safari را بزنید و «افزودن به صفحهٔ اصلی» را انتخاب کنید.
           </p>
-          <div className="flex items-center justify-end gap-2">
-            <button className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm text-primary-500 hover:bg-primary-50" onClick={handleDismiss}>
-              <Share className="h-4 w-4" />
-              متوجه شدم
-            </button>
-          </div>
+          <button
+            type="button"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium text-[#0f4c81] hover:bg-primary-50"
+            onClick={handleDismiss}
+          >
+            <Share className="h-4 w-4" />
+            متوجه شدم
+          </button>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-foreground-600">
-            MEKSS را نصب کنید تا سریع‌تر اجرا شود.
+        <div className="flex items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm leading-6 text-foreground-600">
+            MEKSS را نصب کنید تا مثل اپ موبایل اجرا شود.
           </p>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1 rounded-lg bg-primary-500 px-3 py-1.5 text-sm text-white hover:bg-primary-600" onClick={handleInstallClick}>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#0f4c81] px-3 text-sm font-semibold text-white hover:bg-[#0c3d68]"
+              onClick={handleInstallClick}
+            >
               <Download className="h-4 w-4" />
               نصب
             </button>
-            <button className="rounded-lg p-1.5 text-foreground-400 hover:bg-default-100" onClick={handleDismiss}>
-              <X className="h-4 w-4" />
+            <button
+              type="button"
+              className="touch-target rounded-xl text-foreground-400 hover:bg-default-100"
+              onClick={handleDismiss}
+              aria-label="بستن"
+            >
+              <X className="h-5 w-5" />
             </button>
           </div>
         </div>

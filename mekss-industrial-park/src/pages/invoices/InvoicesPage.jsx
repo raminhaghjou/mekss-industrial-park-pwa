@@ -4,6 +4,7 @@ import { Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const statusColors = { PENDING: 'warning', PAID: 'success', OVERDUE: 'danger', CANCELLED: 'default' };
 const statusLabels = { PENDING: 'پرداخت نشده', PAID: 'پرداخت شده', OVERDUE: 'سررسید گذشته', CANCELLED: 'لغو شده' };
@@ -42,6 +43,7 @@ export const InvoicesPage = () => {
               description="قبض‌های صادر شده در این فهرست نمایش داده می‌شوند."
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="قبض‌ها">
               <TableHeader>
@@ -66,6 +68,7 @@ export const InvoicesPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

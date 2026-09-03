@@ -47,7 +47,7 @@ export const ConfirmDialog = ({
   return (
     <ModalBackdrop isOpen={open} onOpenChange={(isOpen) => !isOpen && handleClose()} isDismissable={!loading} variant="blur">
       <ModalContainer size="md">
-        <ModalDialog aria-label={title} className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+        <ModalDialog aria-label={title} className="max-h-[min(90dvh,36rem)] overflow-y-auto rounded-2xl border border-default-200 bg-background p-4 sm:p-6 dark:border-white/10">
           <ModalHeader className="flex flex-col gap-1 text-lg font-bold text-foreground">
             <ModalHeading>{title}</ModalHeading>
           </ModalHeader>
@@ -69,15 +69,15 @@ export const ConfirmDialog = ({
               </div>
             )}
           </ModalBody>
-          <ModalFooter>
-            <Button variant="tertiary" onPress={handleClose} isDisabled={loading} className="rounded-xl font-medium">
+          <ModalFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="tertiary" onPress={handleClose} isDisabled={loading} className="w-full rounded-xl font-medium sm:w-auto">
               {cancelLabel}
             </Button>
             <Button
               variant={confirmColor === 'danger' ? 'danger' : 'primary'}
               onPress={handleConfirm}
               isDisabled={loading || disabled || (requireReason && !reason.trim())}
-              className="rounded-xl font-bold flex items-center gap-2"
+              className="w-full rounded-xl font-bold flex items-center justify-center gap-2 sm:w-auto"
             >
               {loading ? <Spinner size="sm" /> : null}
               {confirmLabel}

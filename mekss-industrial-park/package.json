@@ -15,6 +15,7 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@code-plate/iran-cities": "^1.0.2",
     "@fontsource/vazirmatn": "^5.3.0",
     "@heroui/react": "^3.2.4",
     "@heroui/theme": "^2.4.26",
@@ -25,6 +26,7 @@
     "axios": "^1.6.2",
     "date-fns": "^2.30.0",
     "date-fns-jalali": "2.13.0-0",
+    "jalaali-js": "^2.0.1",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.39.0",
     "qrcode": "^1.5.3",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@eslint/js": "8.57.1",
     "@playwright/test": "1.50.1",
+    "@types/jalaali-js": "^1.2.0",
     "@types/node": "22.10.2",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",

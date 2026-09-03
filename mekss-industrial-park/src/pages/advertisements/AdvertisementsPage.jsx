@@ -21,9 +21,9 @@ export const AdvertisementsPage = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">آگهی‌ها</h1>
-        <Button variant="primary" onPress={() => navigate('/advertisements/new')} className="flex items-center gap-2">
+      <div className="page-toolbar">
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">آگهی‌ها</h1>
+        <Button variant="primary" onPress={() => navigate('/advertisements/new')} className="flex w-full items-center justify-center gap-2 sm:w-auto">
           <Plus className="h-4 w-4" />
           ثبت آگهی جدید
         </Button>

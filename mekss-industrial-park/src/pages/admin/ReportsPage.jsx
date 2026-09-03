@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Card,
   CardContent,
-  Input,
   Select,
   SelectTrigger,
   SelectValue,
@@ -28,6 +27,8 @@ import {
 import { Filter, BarChart3 } from 'lucide-react';
 import { reportApi } from '../../services/api/report.api';
 import { getErrorMessage } from '../../utils/apiError';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const typeOptions = [
   { value: 'financial', label: 'مالی' },
@@ -94,27 +95,8 @@ const ReportsPage = () => {
               </Select>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-foreground-600">از تاریخ</label>
-              <Input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                variant="primary"
-                className="rounded-xl"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-foreground-600">تا تاریخ</label>
-              <Input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                variant="primary"
-                className="rounded-xl"
-              />
-            </div>
+            <JalaliDatePicker label="از تاریخ" value={from} onChange={setFrom} />
+            <JalaliDatePicker label="تا تاریخ" value={to} onChange={setTo} />
           </div>
 
           <div className="flex justify-end">
@@ -169,8 +151,9 @@ const ReportsPage = () => {
           )}
 
           {!isLoading && !isError && isFetched && (data?.type === 'gatepass' || data?.type === 'requests') && (
+            <ResponsiveTable>
             <Table>
-              <TableContent aria-label="جدول خلاصه آمار" className="min-w-[300px]">
+              <TableContent aria-label="جدول خلاصه آمار">
               <TableHeader>
                 <TableColumn className="font-bold text-right" isRowHeader>وضعیت</TableColumn>
                 <TableColumn className="font-bold text-left">تعداد</TableColumn>
@@ -193,6 +176,7 @@ const ReportsPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
 
           <p className="mt-4 text-xs text-foreground-400">

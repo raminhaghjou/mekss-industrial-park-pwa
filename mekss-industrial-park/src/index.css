@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@heroui/theme/dist/style.css";
+@import "@heroui/react/styles";
 
 @theme {
   --font-family-sans: "Vazirmatn", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -64,12 +64,21 @@
     font-family: var(--font-family-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: clip;
   }
   
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "ss01" on, "cv01" on;
-    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  #root {
+    min-height: 100dvh;
+    min-height: 100svh;
   }
 }
 
@@ -88,6 +97,26 @@
 
   .animate-pulse-slow {
     animation: pulseSlow 8s ease-in-out infinite;
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pb-app {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .page-toolbar {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .touch-target {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center;
   }
 
   .glass-card {

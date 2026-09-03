@@ -99,8 +99,8 @@ export const DashboardPage = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">{roleTitles[user?.role] || 'داشبورد'}</h1>
+      <div className="page-toolbar">
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{roleTitles[user?.role] || 'داشبورد'}</h1>
         {user?.name && (
           <span className="text-sm text-foreground-500">خوش آمدید، {user.name}</span>
         )}

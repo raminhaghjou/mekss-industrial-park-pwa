@@ -14,7 +14,7 @@ export const OfflineBanner = () => {
   if (isOnline && !wasOffline) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up">
+    <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] left-4 right-4 z-50 animate-slide-up lg:bottom-4">
       {!isOnline ? (
         <div className="rounded-lg bg-danger-500 px-4 py-3 text-white shadow-lg">
           <p className="font-medium">اتصال به اینترنت قطع شد</p>

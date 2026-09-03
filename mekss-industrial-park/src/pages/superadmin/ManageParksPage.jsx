@@ -7,6 +7,9 @@ import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
+import IranProvinceCityFields from '../../components/common/IranProvinceCityFields';
+import { toPersistedLocation } from '../../utils/iranLocations';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 export const ManageParksPage = () => {
   const [formOpen, setFormOpen] = useState(false);
@@ -74,10 +77,12 @@ export const ManageParksPage = () => {
   };
 
   const handleSubmit = () => {
+    const location = toPersistedLocation(formData.province, formData.city);
+    const payload = { ...formData, province: location.province, city: location.city };
     if (editTarget) {
-      updateMutation.mutate({ id: editTarget, data: formData });
+      updateMutation.mutate({ id: editTarget, data: payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload);
     }
   };
 
@@ -85,9 +90,9 @@ export const ManageParksPage = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">مدیریت شهرک‌های صنعتی</h1>
-        <Button variant="primary" onPress={() => { resetForm(); setFormOpen(true); }} className="flex items-center gap-2">
+      <div className="page-toolbar">
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">مدیریت شهرک‌های صنعتی</h1>
+        <Button variant="primary" onPress={() => { resetForm(); setFormOpen(true); }} className="flex w-full items-center justify-center gap-2 sm:w-auto">
           <Plus className="h-4 w-4" />
           افزودن شهرک جدید
         </Button>
@@ -115,6 +120,7 @@ export const ManageParksPage = () => {
               description="با دکمه «افزودن شهرک جدید» می‌توانید اولین شهرک صنعتی را ثبت کنید."
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="شهرک‌های صنعتی">
               <TableHeader>
@@ -150,6 +156,7 @@ export const ManageParksPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>
@@ -157,7 +164,7 @@ export const ManageParksPage = () => {
       {formOpen && (
         <ModalBackdrop isOpen={formOpen} onOpenChange={(open) => !open && setFormOpen(false)} variant="blur">
           <ModalContainer size="lg">
-            <ModalDialog className="rounded-2xl border border-default-200 dark:border-white/10 p-6 bg-background">
+            <ModalDialog className="max-h-[min(92dvh,44rem)] overflow-y-auto rounded-2xl border border-default-200 bg-background p-4 sm:p-6 dark:border-white/10">
               <ModalHeader className="text-lg font-bold">{editTarget ? 'ویرایش شهرک صنعتی' : 'افزودن شهرک صنعتی جدید'}</ModalHeader>
               <ModalBody>
                 <div className="flex flex-col gap-4">
@@ -169,14 +176,12 @@ export const ManageParksPage = () => {
                     <label className="text-xs font-medium text-foreground-600">نام شهرک</label>
                     <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="primary" required />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">استان</label>
-                    <Input value={formData.province} onChange={(e) => setFormData({ ...formData, province: e.target.value })} variant="primary" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">شهر</label>
-                    <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} variant="primary" />
-                  </div>
+                  <IranProvinceCityFields
+                    province={formData.province}
+                    city={formData.city}
+                    onProvinceChange={(province) => setFormData((current) => ({ ...current, province }))}
+                    onCityChange={(city) => setFormData((current) => ({ ...current, city }))}
+                  />
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-foreground-600">آدرس</label>
                     <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} variant="primary" />

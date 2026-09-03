@@ -28,6 +28,7 @@ import {
   Users,
   MapPin,
   ChevronLeft,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
 import { useNotification } from '../providers/NotificationProvider';
@@ -52,9 +53,38 @@ const navigationItems = [
   { path: '/admin/reports', text: 'گزارش‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'GOVERNMENT_OFFICIAL'] },
 ];
 
+const bottomNavPathsByRole = {
+  SUPER_ADMIN: ['/dashboard', '/superadmin/parks', '/superadmin/users', '/admin/reports'],
+  PARK_MANAGER: ['/dashboard', '/admin/factories', '/admin/requests', '/admin/invoices'],
+  FACTORY_OWNER: ['/dashboard', '/invoices', '/requests', '/gate-passes'],
+  SECURITY_GUARD: ['/dashboard', '/guard/gate-passes', '/emergency', '/announcements'],
+  GOVERNMENT_OFFICIAL: ['/dashboard', '/admin/reports', '/announcements', '/messages'],
+  EMPLOYEE: ['/dashboard', '/announcements', '/messages', '/profile'],
+};
+
+const bottomShortLabels = {
+  '/dashboard': 'خانه',
+  '/invoices': 'قبض',
+  '/requests': 'درخواست',
+  '/gate-passes': 'خروج',
+  '/admin/factories': 'واحدها',
+  '/admin/requests': 'درخواست',
+  '/admin/invoices': 'قبض',
+  '/guard/gate-passes': 'خروج',
+  '/emergency': 'اضطراری',
+  '/announcements': 'اطلاعیه',
+  '/superadmin/parks': 'شهرک',
+  '/superadmin/users': 'کاربر',
+  '/admin/reports': 'گزارش',
+  '/messages': 'پیام',
+  '/profile': 'پروفایل',
+};
+
+const profileShortcut = { path: '/profile', text: 'پروفایل', icon: User, roles: ['EMPLOYEE'] };
+
 const SidebarBrand = () => (
   <div className="flex items-center gap-2 px-4 py-6">
-    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-lg font-bold text-white">
+    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f4c81] text-lg font-bold text-white">
       M
     </div>
     <div className="flex flex-col">
@@ -75,6 +105,10 @@ const NavButton = ({ item, isActive, onPress }) => (
   </Button>
 );
 
+const isPathActive = (pathname, path) => (
+  pathname === path || (path !== '/dashboard' && pathname.startsWith(`${path}/`))
+);
+
 export const DashboardLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,10 +117,20 @@ export const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const filteredNavItems = useMemo(() => {
-    return navigationItems.filter(item => item.roles.includes(user?.role));
+    return navigationItems.filter((item) => item.roles.includes(user?.role));
   }, [user?.role]);
 
-  const activeItem = filteredNavItems.find(item => location.pathname === item.path);
+  const bottomItems = useMemo(() => {
+    const paths = bottomNavPathsByRole[user?.role] || ['/dashboard'];
+    return paths.map((path) => {
+      if (path === '/profile') return profileShortcut;
+      return filteredNavItems.find((item) => item.path === path);
+    }).filter(Boolean);
+  }, [filteredNavItems, user?.role]);
+
+  const activeItem = [...filteredNavItems]
+    .reverse()
+    .find((item) => isPathActive(location.pathname, item.path));
 
   const handleLogout = async () => {
     await logout();
@@ -100,8 +144,7 @@ export const DashboardLayout = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop Sidebar */}
+    <div className="flex min-h-dvh bg-background">
       <aside className="hidden w-64 shrink-0 flex-col border-e border-default-200 bg-background lg:flex">
         <SidebarBrand />
         <Separator />
@@ -111,78 +154,86 @@ export const DashboardLayout = () => {
             <NavButton
               key={item.path}
               item={item}
-              isActive={location.pathname === item.path}
+              isActive={isPathActive(location.pathname, item.path)}
               onPress={() => navigate(item.path)}
             />
           ))}
         </nav>
       </aside>
 
-      {/* Mobile Drawer */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute right-0 top-0 flex h-full w-72 flex-col bg-background shadow-2xl">
-            <div className="flex items-center justify-between border-b border-default-200 px-4 py-4">
+          <aside className="absolute inset-y-0 right-0 flex h-full w-[min(20rem,88vw)] flex-col bg-background pb-safe shadow-2xl">
+            <div className="flex items-center justify-between border-b border-default-200 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
               <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-lg font-bold text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f4c81] text-lg font-bold text-white">
                   M
                 </div>
-                <span className="font-bold">MEKSS</span>
+                <div>
+                  <p className="font-bold">MEKSS</p>
+                  <p className="text-xs text-foreground-500">{roleLabels[user?.role] || user?.role}</p>
+                </div>
               </div>
-              <Button variant="ghost" isIconOnly onPress={() => setSidebarOpen(false)}>
+              <Button variant="ghost" isIconOnly className="touch-target" onPress={() => setSidebarOpen(false)} aria-label="بستن منو">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
             </div>
-            <nav className="flex flex-col gap-1 overflow-y-auto p-2">
+            <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
               {filteredNavItems.map((item) => (
                 <NavButton
                   key={item.path}
                   item={item}
-                  isActive={location.pathname === item.path}
+                  isActive={isPathActive(location.pathname, item.path)}
                   onPress={() => navigateTo(item.path)}
                 />
               ))}
             </nav>
+            <div className="space-y-1 border-t border-default-200 p-2">
+              <NavButton item={{ path: '/profile', text: 'پروفایل', icon: User }} isActive={location.pathname === '/profile'} onPress={() => navigateTo('/profile')} />
+              <NavButton item={{ path: '/settings', text: 'تنظیمات', icon: Settings }} isActive={location.pathname === '/settings'} onPress={() => navigateTo('/settings')} />
+              <Button variant="ghost" className="w-full justify-start gap-2 text-danger" onPress={handleLogout}>
+                <LogOut className="h-5 w-5 shrink-0" />
+                خروج از حساب
+              </Button>
+            </div>
           </aside>
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex flex-1 flex-col">
-        {/* Top Header */}
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-4 border-b border-default-200 bg-background px-4 shadow-sm">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-default-200 bg-background/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-sm backdrop-blur lg:h-16 lg:px-4 lg:py-0 lg:pt-0">
           <div className="flex min-w-0 items-center gap-2">
             <Button
               variant="ghost"
               isIconOnly
-              className="lg:hidden"
+              className="touch-target lg:hidden"
               onPress={() => setSidebarOpen(true)}
               aria-label="باز کردن منو"
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="truncate text-lg font-bold text-foreground">
+            <h1 className="truncate text-base font-bold text-foreground lg:text-lg">
               {activeItem?.text || 'سامانه مدیریت شهرک صنعتی'}
             </h1>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="ghost" isIconOnly aria-label="اعلان‌ها">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button variant="ghost" isIconOnly aria-label="اعلان‌ها" className="hidden sm:inline-flex">
               <Bell className="h-5 w-5" />
             </Button>
 
             <Dropdown>
               <DropdownTrigger>
-                <Button variant="ghost" className="flex items-center gap-2">
-                  <Avatar size="sm" className="bg-gradient-to-br from-primary-500 to-primary-700 text-white">
+                <div className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1.5 hover:bg-default-100">
+                  <Avatar size="sm" className="bg-[#0f4c81] text-white">
                     <Avatar.Fallback>{user?.name?.charAt(0) || 'U'}</Avatar.Fallback>
                   </Avatar>
                   <div className="hidden flex-col items-start md:flex">
                     <span className="text-sm font-medium">{user?.name || 'کاربر'}</span>
                     <span className="text-xs text-foreground-500">{roleLabels[user?.role] || user?.role}</span>
                   </div>
-                </Button>
+                </div>
               </DropdownTrigger>
               <DropdownPopover placement="bottom end">
                 <DropdownMenu aria-label="Profile actions">
@@ -217,12 +268,43 @@ export const DashboardLayout = () => {
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-3 pb-app sm:p-4 md:p-6 lg:p-8 lg:pb-8">
           <div className="mx-auto max-w-7xl animate-fade-in">
             <Outlet />
           </div>
         </main>
+
+        <nav
+          aria-label="ناوبری موبایل"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-default-200 bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden"
+        >
+          <div className="grid grid-cols-5">
+            {bottomItems.map((item) => {
+              const active = isPathActive(location.pathname, item.path);
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => navigate(item.path)}
+                  className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium transition ${
+                    active ? 'text-[#0f4c81]' : 'text-foreground-500'
+                  }`}
+                >
+                  <item.icon className={`h-5 w-5 ${active ? 'stroke-[2.25]' : ''}`} />
+                  <span className="max-w-full truncate">{bottomShortLabels[item.path] || item.text}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium text-foreground-500"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+              <span>منو</span>
+            </button>
+          </div>
+        </nav>
       </div>
     </div>
   );

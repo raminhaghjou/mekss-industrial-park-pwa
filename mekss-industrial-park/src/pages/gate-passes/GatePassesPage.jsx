@@ -5,6 +5,7 @@ import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', USED: 'accent', CANCELLED: 'default' };
 
@@ -42,6 +43,7 @@ export const GatePassesPage = () => {
               description="برگ‌های خروج صادر شده برای واحد صنعتی شما در اینجا نمایش داده می‌شوند."
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="برگ‌های خروج">
               <TableHeader>
@@ -66,6 +68,7 @@ export const GatePassesPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

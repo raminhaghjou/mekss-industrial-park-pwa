@@ -133,12 +133,18 @@ describe('ManageAnnouncementsPage', () => {
     await click(checkbox('نمایش سراسری'));
     await click(checkbox('سنجاق‌شده'));
     await setValue(field('اولویت'), '5');
+    await setValue(field('تاریخ انقضا (اختیاری)'), '2026-04-04');
 
     await click(button('ثبت اطلاعیه'));
 
     await waitFor(() => expect(mocks.createAnnouncement).toHaveBeenCalled());
     expect(mocks.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'اطلاعیه جدید', content: 'متن جدید', isGlobal: true, isPinned: true, priority: 5,
+      title: 'اطلاعیه جدید',
+      content: 'متن جدید',
+      isGlobal: true,
+      isPinned: true,
+      priority: 5,
+      expiresAt: new Date('2026-04-04').toISOString(),
     }));
   });
 

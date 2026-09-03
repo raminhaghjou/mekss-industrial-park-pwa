@@ -22,6 +22,7 @@ import {
 import { Search, ShieldCheck } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const GuardGatePassesPage = () => {
   const navigate = useNavigate();
@@ -80,7 +81,8 @@ const GuardGatePassesPage = () => {
 
       {!isLoading && !isError && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
-          <Table>
+          <ResponsiveTable>
+            <Table>
               <TableContent aria-label="جدول برگ خروج نگهبانی">
               <TableHeader>
               <TableColumn className="text-right font-bold" isRowHeader>واحد صنعتی</TableColumn>
@@ -110,6 +112,7 @@ const GuardGatePassesPage = () => {
             </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
         </Card>
       )}
     </div>

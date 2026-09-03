@@ -48,6 +48,7 @@ import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const PAGE_SIZE = 12;
 const statusMeta = {
@@ -524,7 +525,8 @@ const ManageFactoriesPage = () => {
 
       {!factoriesQuery.isLoading && !factoriesQuery.isError && factories.length > 0 && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
-          <Table>
+          <ResponsiveTable minWidth="720px">
+            <Table>
               <TableContent aria-label="فهرست واحدهای صنعتی" className="p-0 shadow-none">
               <TableHeader>
               <TableColumn className="text-right font-bold" isRowHeader>واحد صنعتی</TableColumn>
@@ -599,6 +601,7 @@ const ManageFactoriesPage = () => {
             </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
         </Card>
       )}
 

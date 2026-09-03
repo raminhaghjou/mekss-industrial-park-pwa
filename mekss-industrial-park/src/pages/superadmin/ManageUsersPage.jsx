@@ -45,6 +45,7 @@ import { userApi } from '../../services/api/user.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const roleLabels = {
   SUPER_ADMIN: 'ادمین کل',
@@ -174,7 +175,8 @@ const ManageUsersPage = () => {
 
       {!isLoading && !isError && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 overflow-hidden">
-          <Table>
+          <ResponsiveTable>
+            <Table>
               <TableContent aria-label="جدول مدیریت کاربران" className="p-0 shadow-none">
               <TableHeader>
               <TableColumn className="text-right font-bold" isRowHeader>نام کاربر</TableColumn>
@@ -225,6 +227,7 @@ const ManageUsersPage = () => {
             </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
         </Card>
       )}
 

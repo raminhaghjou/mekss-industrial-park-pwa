@@ -6,6 +6,7 @@ import { requestApi } from '../../services/api/request.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'default' };
 
@@ -21,9 +22,9 @@ export const RequestsPage = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">درخواست‌های من</h1>
-        <Button variant="primary" onPress={() => navigate('/requests/new/general')} className="flex items-center gap-2">
+      <div className="page-toolbar">
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">درخواست‌های من</h1>
+        <Button variant="primary" onPress={() => navigate('/requests/new/general')} className="flex w-full items-center justify-center gap-2 sm:w-auto">
           <Plus className="h-4 w-4" />
           ثبت درخواست جدید
         </Button>
@@ -51,6 +52,7 @@ export const RequestsPage = () => {
               description="با دکمه «ثبت درخواست جدید» می‌توانید اولین درخواست خود را ارسال کنید."
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="درخواست‌ها">
               <TableHeader>
@@ -75,6 +77,7 @@ export const RequestsPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

@@ -25,6 +25,7 @@ import { factoryApi } from '../../services/api/factory.api';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import JalaliDatePicker from '../common/JalaliDatePicker';
 
 const cargoTypes = [
   { value: 'RAW_MATERIALS', label: 'مواد اولیه' },
@@ -199,12 +200,12 @@ const CreateGatePassForm = ({ handleBack }) => {
               isRequired
             />
 
-            <FormInput
-              type="datetime-local"
+            <JalaliDatePicker
               label="تاریخ و ساعت خروج"
               value={form.exitDate}
-              onChange={(e) => handleChange('exitDate', e.target.value)}
-              isRequired
+              onChange={(value) => handleChange('exitDate', value)}
+              includeTime
+              required
             />
           </div>
 

@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../utils/apiError';
 import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'default' };
 
@@ -87,6 +88,7 @@ export const ApproveRequestsPage = () => {
               description={tab === 'pending' ? 'درخواست‌های جدید واحدهای صنعتی برای بررسی در این بخش نمایش داده می‌شوند.' : undefined}
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="درخواست‌ها">
               <TableHeader>
@@ -139,6 +141,7 @@ export const ApproveRequestsPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

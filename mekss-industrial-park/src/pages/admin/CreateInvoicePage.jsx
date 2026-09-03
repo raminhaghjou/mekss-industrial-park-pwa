@@ -26,6 +26,7 @@ import { factoryApi } from '../../services/api/factory.api';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
 
 const CreateInvoicePage = () => {
   const navigate = useNavigate();
@@ -163,16 +164,12 @@ const CreateInvoicePage = () => {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs font-medium text-foreground-600">مهلت پرداخت</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                variant="primary"
-                className="rounded-xl"
-              />
-            </div>
+            <JalaliDatePicker
+              label="مهلت پرداخت"
+              value={dueDate}
+              onChange={setDueDate}
+              required
+            />
 
             <div className="flex items-center justify-end gap-3 mt-2">
               <Button variant="tertiary" onPress={() => navigate('/admin/invoices')} isDisabled={createMutation.isPending} className="rounded-xl font-medium">

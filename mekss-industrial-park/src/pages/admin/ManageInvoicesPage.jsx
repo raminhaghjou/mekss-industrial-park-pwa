@@ -6,6 +6,7 @@ import { Plus, Receipt } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
 const statusColors = { PENDING: 'warning', PAID: 'success', OVERDUE: 'danger', CANCELLED: 'default' };
 const statusLabels = { PENDING: 'پرداخت نشده', PAID: 'پرداخت شده', OVERDUE: 'سررسید گذشته', CANCELLED: 'لغو شده' };
@@ -29,9 +30,9 @@ export const ManageInvoicesPage = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">مدیریت قبض‌ها</h1>
-        <Button variant="primary" onPress={() => navigate('/admin/invoices/create')} className="flex items-center gap-2">
+      <div className="page-toolbar">
+        <h1 className="text-xl font-bold text-foreground sm:text-2xl">مدیریت قبض‌ها</h1>
+        <Button variant="primary" onPress={() => navigate('/admin/invoices/create')} className="flex w-full items-center justify-center gap-2 sm:w-auto">
           <Plus className="h-4 w-4" />
           صدور قبض جدید
         </Button>
@@ -80,6 +81,7 @@ export const ManageInvoicesPage = () => {
               description="قبض‌های صادرشده برای واحدهای صنعتی در این فهرست نمایش داده می‌شوند."
             />
           ) : (
+            <ResponsiveTable>
             <Table>
               <TableContent aria-label="قبض‌ها">
               <TableHeader>
@@ -106,6 +108,7 @@ export const ManageInvoicesPage = () => {
               </TableBody>
               </TableContent>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

@@ -25,6 +25,8 @@ import { ArrowRight, Megaphone, RotateCw } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import IranProvinceCityFields from '../../components/common/IranProvinceCityFields';
+import { toPersistedLocation } from '../../utils/iranLocations';
 
 const categories = [
   { value: 'EQUIPMENT', label: 'تجهیزات' },
@@ -76,11 +78,12 @@ const NewAdvertisementPage = () => {
       showNotification('لطفاً همه فیلدهای الزامی و شهرک صنعتی را تکمیل کنید.', 'error');
       return;
     }
+    const location = toPersistedLocation(form.province, form.city);
     createMutation.mutate({
       title: form.title,
       category: form.category,
-      province: form.province,
-      city: form.city,
+      province: location.province,
+      city: location.city,
       content: form.content,
       contactInfo: { phone: form.contact },
       parkId: form.parkId,
@@ -203,30 +206,12 @@ const NewAdvertisementPage = () => {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs font-medium text-foreground-600">استان</Label>
-                  <Input
-                    required
-                    placeholder="استان..."
-                    value={form.province}
-                    onChange={(e) => update('province', e.target.value)}
-                    variant="primary"
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs font-medium text-foreground-600">شهر</Label>
-                  <Input
-                    required
-                    placeholder="شهر..."
-                    value={form.city}
-                    onChange={(e) => update('city', e.target.value)}
-                    variant="primary"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
+              <IranProvinceCityFields
+                province={form.province}
+                city={form.city}
+                onProvinceChange={(province) => update('province', province)}
+                onCityChange={(city) => update('city', city)}
+              />
 
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-medium text-foreground-600">شرح آگهی</Label>

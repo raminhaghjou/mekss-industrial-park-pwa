@@ -11,7 +11,18 @@ import { DashboardLayout } from './layouts/DashboardLayout';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const LandingPage = lazy(() => import('./pages/public/LandingPage'));
+const FactoryDirectoryPage = lazy(() => import('./pages/public/FactoryDirectoryPage'));
+const FactoryPublicDetailPage = lazy(() => import('./pages/public/FactoryPublicDetailPage'));
+const ShopsPage = lazy(() => import('./pages/public/ShopsPage'));
+const SmsRequestDemoPage = lazy(() => import('./pages/public/SmsRequestDemoPage'));
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+const RegisterFactoryPage = lazy(() => import('./pages/factory/RegisterFactoryPage'));
+const FactoryStaffPage = lazy(() => import('./pages/factory/FactoryStaffPage'));
+const FactoryWalletPage = lazy(() => import('./pages/factory/FactoryWalletPage'));
+const MarketRatesPage = lazy(() => import('./pages/market/MarketRatesPage'));
+const ScanQrPage = lazy(() => import('./pages/guard/ScanQrPage'));
 const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'));
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));

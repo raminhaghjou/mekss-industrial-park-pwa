@@ -304,6 +304,8 @@ model Factory {
   shopUrl        String?
   latitude       Float?
   longitude      Float?
+  // Prepaid balance deducted when creating gate passes.
+  gatePassWalletBalance Decimal @default(0) @db.Decimal(15, 2)
   // Sensitive-field edits are staged here until the managing park manager approves them.
   pendingChanges Json?
 

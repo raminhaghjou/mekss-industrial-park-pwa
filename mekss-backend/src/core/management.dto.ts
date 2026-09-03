@@ -22,7 +22,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { AdvertisementStatus, CargoType, EmergencySeverity, FactoryStatus, ParkStatus, RequestPriority, RequestType, Role, VehicleType } from '@prisma/client';
+import { AdvertisementStatus, CargoType, EmergencySeverity, FactoryStatus, MarketRateKey, ParkStatus, RequestPriority, RequestType, Role, VehicleType } from '@prisma/client';
 
 const iranianPhone = /^09\d{9}$/;
 const opaqueId = /^[A-Za-z0-9_-]{1,128}$/;
@@ -48,6 +48,19 @@ const normalizeIranianPhone = ({ value }: TransformFnParams) => {
 
 export class OpaqueIdParamDto {
   @IsString() @Matches(opaqueId) id!: string;
+}
+
+export class OpaqueUserIdParamDto {
+  @IsString() @Matches(opaqueId) id!: string;
+  @IsString() @Matches(opaqueId) userId!: string;
+}
+
+export class MarketRateKeyParamDto {
+  @IsEnum(MarketRateKey) key!: MarketRateKey;
+}
+
+export class QrCodeParamDto {
+  @IsString() @Length(8, 128) @Matches(/^[A-Za-z0-9_-]+$/) code!: string;
 }
 
 export class CreateParkDto {
@@ -140,8 +153,38 @@ export class CreateFactoryDto {
   @Transform(trimNullableString) @IsOptional() @IsDateString() licenseExpiry?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsDateString() establishedDate?: string | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1_000_000) employees?: number;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(120) ceoName?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(500) shopUrl?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(1000) logo?: string | null;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) longitude?: number;
   @IsString() @Matches(opaqueId) parkId!: string;
   @IsString() @Matches(opaqueId) managerId!: string;
+}
+
+/** Factory self-registration by FACTORY_OWNER — managerId is the authenticated actor. */
+export class RegisterFactoryDto {
+  @Transform(trimString) @IsString() @Length(2, 160) name!: string;
+  @Transform(trimString) @IsString() @Length(2, 80) licenseNumber!: string;
+  @Transform(trimString) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
+  @Transform(trimString) @IsString() @Length(2, 120) activityType!: string;
+  @Transform(trimString) @IsString() @Length(2, 240) address!: string;
+  @Transform(trimString) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber!: string;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
+  @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsDateString() licenseExpiry?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsDateString() establishedDate?: string | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1_000_000) employees?: number;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(120) ceoName?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(500) shopUrl?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(1000) logo?: string | null;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) longitude?: number;
+  @IsString() @Matches(opaqueId) parkId!: string;
 }
 
 export class UpdateFactoryDto {
@@ -160,6 +203,45 @@ export class UpdateFactoryDto {
   @Transform(trimNullableString) @IsOptional() @IsDateString() licenseExpiry?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsDateString() establishedDate?: string | null;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(1_000_000) employees?: number;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(120) ceoName?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(500) shopUrl?: string | null;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(1000) logo?: string | null;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) longitude?: number;
+}
+
+export class CreateFactoryStaffDto {
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
+  @Transform(trimString) @IsString() @Length(2, 120) name!: string;
+  @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password!: string;
+  @IsArray() @ArrayMaxSize(20) @ArrayUnique() @IsEnum(RequestType, { each: true }) canApproveRequestTypes!: RequestType[];
+}
+
+export class UpdateFactoryStaffDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ArrayUnique() @IsEnum(RequestType, { each: true }) canApproveRequestTypes?: RequestType[];
+  @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class WalletTopUpDto {
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
+}
+
+export class UpdateMarketRateDto {
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) @Max(9_999_999_999_999.9999) value!: number;
+  @Transform(trimString) @IsOptional() @IsString() @Length(1, 80) label?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(1, 40) unit?: string;
+}
+
+export class SendDirectMessageDto {
+  @IsString() @Matches(opaqueId) receiverId!: string;
+  @IsString() @Length(2, 200) subject!: string;
+  @IsString() @Length(2, 4000) body!: string;
+}
+
+export class PublicSmsRequestDto {
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
+  @Transform(trimString) @IsString() @Length(1, 8) code!: string;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) text?: string | null;
 }
 
 export class CreateGatePassDto {
@@ -189,6 +271,7 @@ export class CreateRequestDto {
   @IsString() @Length(2, 200) title!: string;
   @IsString() @Length(2, 8000) description!: string;
   @IsOptional() @IsObject() data?: Record<string, unknown>;
+  @IsOptional() @IsBoolean() isToParkManager?: boolean;
   @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) @MaxLength(500, { each: true }) attachments?: string[];
   @IsOptional() @IsEnum(RequestPriority) priority?: RequestPriority;
 }

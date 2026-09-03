@@ -153,7 +153,7 @@ describe('ManagementService transactional foundation', () => {
       factory: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       industrialPark: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       gatePass: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
-      invoice: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+      invoice: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 } }) },
       request: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
       emergencyAlert: { count: jest.fn().mockResolvedValue(2) },
       advertisement: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -166,6 +166,8 @@ describe('ManagementService transactional foundation', () => {
       invoices: 0,
       requests: 0,
       openEmergencies: 2,
+      unpaidInvoiceCount: 0,
+      unpaidInvoiceTotal: 0,
       pendingWork: { gatePasses: 0, requests: 0, advertisements: 0 },
       capabilities: ['view_dashboard', 'view_reports'],
       recentPriorityItems: [],
@@ -201,7 +203,7 @@ describe('ManagementService transactional foundation', () => {
           factory: { name: 'Scoped factory' }, driverNationalId: 'must-not-leak',
         }]),
       },
-      invoice: { count: jest.fn().mockResolvedValue(3) },
+      invoice: { count: jest.fn().mockResolvedValue(3), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 1500 } }) },
       request: {
         count: jest.fn().mockResolvedValueOnce(5).mockResolvedValueOnce(2),
         findMany: jest.fn().mockResolvedValue([
@@ -228,6 +230,8 @@ describe('ManagementService transactional foundation', () => {
       invoices: 3,
       requests: 5,
       openEmergencies: 1,
+      unpaidInvoiceCount: 3,
+      unpaidInvoiceTotal: 1500,
       pendingWork: { gatePasses: 1, requests: 2, advertisements: 1 },
     });
     expect(result.capabilities).toEqual(expect.arrayContaining(['manage_factories', 'approve_gate_passes', 'approve_requests', 'moderate_advertisements']));
@@ -261,7 +265,7 @@ describe('ManagementService transactional foundation', () => {
       industrialPark: { findMany: jest.fn() },
       factory: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(2) },
       gatePass: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      invoice: { count: jest.fn().mockResolvedValue(0) },
+      invoice: { count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: null } }) },
       request: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
       emergencyAlert: { count: jest.fn().mockResolvedValue(0) },
       advertisement: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -286,7 +290,7 @@ describe('ManagementService transactional foundation', () => {
       industrialPark: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       factory: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockRejectedValue(databaseFailure) },
       gatePass: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      invoice: { count: jest.fn().mockResolvedValue(0) },
+      invoice: { count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 } }) },
       request: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
       emergencyAlert: { count: jest.fn().mockResolvedValue(0) },
       advertisement: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -671,9 +675,12 @@ describe('ManagementService invoice and payment contract', () => {
   });
 
   it('creates a canonical invoice only for an in-scope factory and audits it once', async () => {
-    const factory = { count: jest.fn().mockResolvedValue(1) };
+    const factory = {
+      count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ name: 'Factory', manager: { phoneNumber: '09120000000' } }),
+    };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
-    const created = { id: 'invoice-1' };
+    const created = { id: 'invoice-1', totalAmount: 1090 };
     const invoice = { create: jest.fn().mockResolvedValue(created) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
     const prisma = { factory, industrialPark, invoice } as any;
@@ -744,15 +751,26 @@ describe('ManagementService invoice and payment contract', () => {
 
 describe('ManagementService gate-pass state machine contract', () => {
   it('creates a gate pass only within factory scope and audits it once', async () => {
-    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const factory = {
+      findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
+      count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', gatePassWalletBalance: 100_000 }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    };
     const gatePass = { create: jest.fn().mockResolvedValue({ id: 'pass-1' }) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ factory, gatePass } as any, audit, config);
+    const prisma = {
+      factory,
+      gatePass,
+      $transaction: jest.fn(async (callback) => callback({ factory, gatePass })),
+    } as any;
+    const service = new ManagementService(prisma, audit, config);
 
     await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
       factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
       driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
     })).resolves.toEqual({ id: 'pass-1' });
+    expect(factory.updateMany).toHaveBeenCalled();
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'GATE_PASS_CREATED', entityId: 'pass-1' }));
   });
 
@@ -764,7 +782,16 @@ describe('ManagementService gate-pass state machine contract', () => {
   ] as const)('commits a valid %s transition from the required source state', async (action, sourceStatus, reason, expectedData) => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
     const gatePass = {
-      findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'factory-1', status: sourceStatus }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'pass-1',
+        factoryId: 'factory-1',
+        status: sourceStatus,
+        driverName: 'Driver',
+        licensePlate: '12A34567',
+        exitDate: new Date('2027-01-01T00:00:00.000Z'),
+        createdBy: { phoneNumber: '09121111111' },
+        factory: { name: 'Factory', manager: { phoneNumber: '09122222222' } },
+      }),
       update: jest.fn().mockResolvedValue({ id: 'pass-1', status: 'updated' }),
     };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
@@ -778,7 +805,16 @@ describe('ManagementService gate-pass state machine contract', () => {
   it('rejects approving a gate pass that is not pending, without mutating it', async () => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
     const gatePass = {
-      findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'factory-1', status: GatePassStatus.APPROVED }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'pass-1',
+        factoryId: 'factory-1',
+        status: GatePassStatus.APPROVED,
+        driverName: 'Driver',
+        licensePlate: '12A34567',
+        exitDate: new Date(),
+        createdBy: null,
+        factory: { name: 'Factory', manager: null },
+      }),
       update: jest.fn(),
     };
     const service = new ManagementService({ factory, gatePass } as any, { record: jest.fn() } as any, config);
@@ -856,7 +892,16 @@ describe('ManagementService request review contract', () => {
   it('rejects deciding on an out-of-scope request', async () => {
     const factory = { count: jest.fn().mockResolvedValue(0) };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([]) };
-    const request = { findUnique: jest.fn().mockResolvedValue({ id: 'request-1', factoryId: 'out-of-scope', status: RequestStatus.PENDING }), update: jest.fn() };
+    const request = {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'request-1',
+        factoryId: 'out-of-scope',
+        status: RequestStatus.PENDING,
+        type: 'OTHER',
+        isToParkManager: true,
+      }),
+      update: jest.fn(),
+    };
     const service = new ManagementService({ factory, industrialPark, request } as any, { record: jest.fn() } as any, config);
 
     await expect(service.requestAction(actor(Role.PARK_MANAGER), 'request-1', 'approve')).rejects.toBeInstanceOf(ForbiddenException);

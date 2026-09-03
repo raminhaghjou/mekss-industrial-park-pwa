@@ -4,9 +4,12 @@ import {
   AdvertisementAdminQueryDto,
   AdvertisementModerationDto,
   CreateAdvertisementDto,
+  CreateAnnouncementDto,
   CreateFactoryDto,
   CreateGatePassDto,
+  CreateInvoiceDto,
   CreateManagedUserDto,
+  CreateParkDto,
   FactoryAdminQueryDto,
   PaginationQueryDto,
   ResetPasswordAdminDto,
@@ -157,5 +160,44 @@ describe('management DTO validation', () => {
     await expect(validate(PaginationQueryDto, { page: '2', pageSize: '100' }, 'query')).resolves.toMatchObject({ page: 2, pageSize: 100 });
     await expect(validate(PaginationQueryDto, { page: '1.5' }, 'query')).rejects.toBeInstanceOf(BadRequestException);
     await expect(validate(PaginationQueryDto, { pageSize: '101' }, 'query')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts Persian Iran locations and Shamsi-derived Gregorian ISO dates for persistence', async () => {
+    await expect(validate(CreateParkDto, {
+      code: 'PARK-ISF',
+      name: 'شهرک صنعتی کاشان',
+      province: 'اصفهان',
+      city: 'کاشان',
+      address: 'کاشان، شهرک صنعتی',
+      phoneNumber: '03112345678',
+      guardPhone: '09121234567',
+    })).resolves.toMatchObject({ province: 'اصفهان', city: 'کاشان' });
+
+    await expect(validate(CreateAdvertisementDto, {
+      title: 'فروش تجهیزات',
+      category: 'EQUIPMENT',
+      province: 'تهران',
+      city: 'تهران',
+      content: 'توضیحات آگهی صنعتی',
+      contactInfo: { phone: '09121234567' },
+    })).resolves.toMatchObject({ province: 'تهران', city: 'تهران' });
+
+    await expect(validate(CreateInvoiceDto, {
+      factoryId: 'cm12345678901234567890123',
+      description: 'هزینه خدمات ماهانه',
+      amount: 1500000,
+      dueDate: '2026-04-04',
+    })).resolves.toMatchObject({ dueDate: '2026-04-04' });
+
+    await expect(validate(CreateGatePassDto, {
+      ...validGatePass,
+      exitDate: '2026-09-03T10:30:00.000Z',
+    })).resolves.toMatchObject({ exitDate: '2026-09-03T10:30:00.000Z' });
+
+    await expect(validate(CreateAnnouncementDto, {
+      title: 'اطلاعیه تست',
+      content: 'متن اطلاعیه برای ثبت تاریخ انقضا',
+      expiresAt: '2026-04-04T00:00:00.000Z',
+    })).resolves.toMatchObject({ expiresAt: '2026-04-04T00:00:00.000Z' });
   });
 });

@@ -56,7 +56,7 @@ export const ManageParksPage = () => {
     onError: (err) => showNotification(getErrorMessage(err, 'حذف شهرک ناموفق بود'), 'error'),
   });
 
-  const parks = data || [];
+  const parks = Array.isArray(data) ? data : data?.items || [];
 
   const resetForm = () => {
     setFormData({ code: '', name: '', province: '', city: '', address: '', phoneNumber: '' });

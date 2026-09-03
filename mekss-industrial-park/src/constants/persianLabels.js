@@ -78,6 +78,23 @@ export const parkStatusLabels = {
   INACTIVE: 'غیرفعال',
 };
 
+export const messageStatusLabels = {
+  UNREAD: 'خوانده‌نشده',
+  READ: 'خوانده‌شده',
+  ARCHIVED: 'بایگانی',
+};
+
+export const marketRateKeyLabels = {
+  USD: 'دلار آمریکا',
+  EUR: 'یورو',
+  CNY: 'یوان چین',
+  IRON: 'آهن',
+  GOLD: 'طلا',
+  SILVER: 'نقره',
+  PLATINUM: 'پلاتین',
+  COIN: 'سکه',
+};
+
 /**
  * Looks up a label by enum value, falling back to the raw value (rather than
  * a hidden empty string) so an unmapped enum value stays visible/debuggable

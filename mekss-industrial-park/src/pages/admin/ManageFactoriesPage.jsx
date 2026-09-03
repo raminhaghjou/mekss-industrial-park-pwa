@@ -42,6 +42,7 @@ import {
   Eye,
   Search,
   X,
+  Wallet,
 } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -559,6 +560,13 @@ const ManageFactoriesPage = () => {
                           <Eye className="h-4 w-4" />
                           جزئیات
                         </Button>
+                        <a
+                          href={`/factory/wallet?factoryId=${factory.id}`}
+                          className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-sm font-medium text-foreground-700 hover:bg-default-100"
+                        >
+                          <Wallet className="h-4 w-4" />
+                          کیف پول
+                        </a>
                         <Button
                           size="sm"
                           variant="tertiary"

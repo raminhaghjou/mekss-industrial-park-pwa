@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   Button,
   Avatar,
@@ -29,22 +30,34 @@ import {
   MapPin,
   ChevronLeft,
   MoreHorizontal,
+  Wallet,
+  UserPlus,
+  LineChart,
+  ScanLine,
+  Factory,
 } from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
+import { useActiveFactory } from '../providers/ActiveFactoryProvider';
 import { useNotification } from '../providers/NotificationProvider';
+import { messageApi } from '../services/api/message.api';
 import { roleLabels } from '../constants/persianLabels';
 
 const navigationItems = [
   { path: '/dashboard', text: 'داشبورد', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
   { path: '/admin/factories', text: 'واحدهای صنعتی', icon: Building2, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
+  { path: '/factory/register', text: 'ثبت واحد صنعتی', icon: Factory, roles: ['FACTORY_OWNER'] },
+  { path: '/factory/staff', text: 'پرسنل واحد', icon: UserPlus, roles: ['FACTORY_OWNER'] },
+  { path: '/factory/wallet', text: 'کیف پول', icon: Wallet, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
   { path: '/admin/invoices', text: 'قبض‌ها', icon: Receipt, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
   { path: '/invoices', text: 'قبض‌های من', icon: Receipt, roles: ['FACTORY_OWNER'] },
   { path: '/admin/gate-passes', text: 'برگ‌های خروج', icon: Ticket, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
   { path: '/gate-passes', text: 'برگ‌های خروج من', icon: Ticket, roles: ['FACTORY_OWNER'] },
   { path: '/guard/gate-passes', text: 'تایید خروج', icon: ShieldCheck, roles: ['SECURITY_GUARD'] },
+  { path: '/guard/scan', text: 'اسکن QR', icon: ScanLine, roles: ['SUPER_ADMIN', 'SECURITY_GUARD'] },
   { path: '/admin/requests', text: 'درخواست‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
   { path: '/requests', text: 'درخواست‌های من', icon: FileText, roles: ['FACTORY_OWNER'] },
   { path: '/messages', text: 'پیام‌ها', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
+  { path: '/market-rates', text: 'نرخ بازار', icon: LineChart, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL'] },
   { path: '/announcements', text: 'اطلاعیه‌ها', icon: Bell, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'SECURITY_GUARD', 'EMPLOYEE'] },
   { path: '/advertisements', text: 'آگهی‌ها', icon: Megaphone, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
   { path: '/emergency', text: 'هشدار اضطراری', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'SECURITY_GUARD'] },
@@ -57,7 +70,7 @@ const bottomNavPathsByRole = {
   SUPER_ADMIN: ['/dashboard', '/superadmin/parks', '/superadmin/users', '/admin/reports'],
   PARK_MANAGER: ['/dashboard', '/admin/factories', '/admin/requests', '/admin/invoices'],
   FACTORY_OWNER: ['/dashboard', '/invoices', '/requests', '/gate-passes'],
-  SECURITY_GUARD: ['/dashboard', '/guard/gate-passes', '/emergency', '/announcements'],
+  SECURITY_GUARD: ['/dashboard', '/guard/gate-passes', '/guard/scan', '/emergency'],
   GOVERNMENT_OFFICIAL: ['/dashboard', '/admin/reports', '/announcements', '/messages'],
   EMPLOYEE: ['/dashboard', '/announcements', '/messages', '/profile'],
 };
@@ -71,6 +84,7 @@ const bottomShortLabels = {
   '/admin/requests': 'درخواست',
   '/admin/invoices': 'قبض',
   '/guard/gate-passes': 'خروج',
+  '/guard/scan': 'اسکن',
   '/emergency': 'اضطراری',
   '/announcements': 'اطلاعیه',
   '/superadmin/parks': 'شهرک',
@@ -94,14 +108,19 @@ const SidebarBrand = () => (
   </div>
 );
 
-const NavButton = ({ item, isActive, onPress }) => (
+const NavButton = ({ item, isActive, onPress, badge }) => (
   <Button
     variant={isActive ? 'secondary' : 'ghost'}
     className={`w-full justify-start gap-2 ${isActive ? 'bg-primary/10 font-medium text-primary' : ''}`}
     onPress={onPress}
   >
     <item.icon className="h-5 w-5 shrink-0" />
-    {item.text}
+    <span className="flex-1 text-start">{item.text}</span>
+    {badge > 0 && (
+      <span className="rounded-full bg-[#0f4c81] px-1.5 py-0.5 text-[10px] font-bold text-white">
+        {badge > 99 ? '99+' : badge}
+      </span>
+    )}
   </Button>
 );
 
@@ -114,7 +133,16 @@ export const DashboardLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { showNotification } = useNotification();
+  const { factories, activeFactory, setActiveFactoryId } = useActiveFactory();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const { data: unreadData } = useQuery({
+    queryKey: ['messages', 'unread-count'],
+    queryFn: () => messageApi.getUnreadCount().then((res) => res.data),
+    refetchInterval: 60_000,
+    enabled: Boolean(user),
+  });
+  const unreadCount = Number(unreadData?.count || 0);
 
   const filteredNavItems = useMemo(() => {
     return navigationItems.filter((item) => item.roles.includes(user?.role));
@@ -143,6 +171,8 @@ export const DashboardLayout = () => {
     setSidebarOpen(false);
   };
 
+  const showFactorySwitcher = user?.role === 'FACTORY_OWNER' && factories.length > 1;
+
   return (
     <div className="flex min-h-dvh bg-background">
       <aside className="hidden w-64 shrink-0 flex-col border-e border-default-200 bg-background lg:flex">
@@ -156,6 +186,7 @@ export const DashboardLayout = () => {
               item={item}
               isActive={isPathActive(location.pathname, item.path)}
               onPress={() => navigate(item.path)}
+              badge={item.path === '/messages' ? unreadCount : 0}
             />
           ))}
         </nav>
@@ -186,6 +217,7 @@ export const DashboardLayout = () => {
                   item={item}
                   isActive={isPathActive(location.pathname, item.path)}
                   onPress={() => navigateTo(item.path)}
+                  badge={item.path === '/messages' ? unreadCount : 0}
                 />
               ))}
             </nav>
@@ -219,8 +251,42 @@ export const DashboardLayout = () => {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button variant="ghost" isIconOnly aria-label="اعلان‌ها" className="hidden sm:inline-flex">
+            {showFactorySwitcher && (
+              <Dropdown>
+                <DropdownTrigger>
+                  <Button variant="tertiary" size="sm" className="max-w-[10rem] truncate text-xs">
+                    {activeFactory?.name || 'انتخاب واحد'}
+                  </Button>
+                </DropdownTrigger>
+                <DropdownPopover placement="bottom end">
+                  <DropdownMenu aria-label="انتخاب واحد فعال">
+                    {factories.map((factory) => (
+                      <DropdownItem
+                        key={factory.id}
+                        id={factory.id}
+                        onPress={() => setActiveFactoryId(factory.id)}
+                      >
+                        {factory.name}
+                      </DropdownItem>
+                    ))}
+                  </DropdownMenu>
+                </DropdownPopover>
+              </Dropdown>
+            )}
+
+            <Button
+              variant="ghost"
+              isIconOnly
+              aria-label="پیام‌ها"
+              className="relative"
+              onPress={() => navigate('/messages')}
+            >
               <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0f4c81] px-1 text-[9px] font-bold text-white">
+                  {unreadCount > 9 ? '۹+' : unreadCount.toLocaleString('fa-IR')}
+                </span>
+              )}
             </Button>
 
             <Dropdown>
@@ -286,12 +352,15 @@ export const DashboardLayout = () => {
                   key={item.path}
                   type="button"
                   onClick={() => navigate(item.path)}
-                  className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium transition ${
+                  className={`relative flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium transition ${
                     active ? 'text-[#0f4c81]' : 'text-foreground-500'
                   }`}
                 >
                   <item.icon className={`h-5 w-5 ${active ? 'stroke-[2.25]' : ''}`} />
                   <span className="max-w-full truncate">{bottomShortLabels[item.path] || item.text}</span>
+                  {item.path === '/messages' && unreadCount > 0 && (
+                    <span className="absolute end-2 top-2 h-1.5 w-1.5 rounded-full bg-[#0f4c81]" />
+                  )}
                 </button>
               );
             })}

@@ -20,7 +20,6 @@ import {
   AlertDescription,
   Label,
   Spinner,
-  Switch,
 } from '@heroui/react';
 import { ArrowRight, FilePlus } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
@@ -227,13 +226,27 @@ const NewRequestPage = () => {
             </div>
 
             {['FACTORY_OWNER', 'EMPLOYEE'].includes(user?.role) && (
-              <div className="flex items-center justify-between rounded-xl bg-default-50 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setIsToParkManager((v) => !v)}
+                className="flex w-full items-center justify-between rounded-xl bg-default-50 px-4 py-3 text-start"
+              >
                 <div>
                   <p className="text-sm font-medium">ارجاع به مدیر شهرک</p>
                   <p className="text-xs text-foreground-500">در صورت نیاز مستقیم برای مدیریت شهرک ارسال شود</p>
                 </div>
-                <Switch isSelected={isToParkManager} onChange={setIsToParkManager} />
-              </div>
+                <span
+                  className={`relative h-6 w-11 rounded-full transition ${
+                    isToParkManager ? 'bg-[#0f4c81]' : 'bg-default-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      isToParkManager ? '-translate-x-0.5 start-0' : 'translate-x-0.5 end-0'
+                    }`}
+                  />
+                </span>
+              </button>
             )}
 
             <div className="mt-2 flex items-center justify-end gap-3">

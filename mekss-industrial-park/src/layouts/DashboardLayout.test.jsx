@@ -11,9 +11,33 @@ vi.mock('../providers/AuthProvider', () => ({
   }),
 }));
 
+vi.mock('../providers/ActiveFactoryProvider', () => ({
+  useActiveFactory: () => ({
+    factories: [{ id: 'f1', name: 'واحد تست' }],
+    activeFactory: { id: 'f1', name: 'واحد تست' },
+    activeFactoryId: 'f1',
+    setActiveFactoryId: vi.fn(),
+    isLoading: false,
+  }),
+}));
+
 vi.mock('../providers/NotificationProvider', () => ({
   useNotification: () => ({ showNotification: vi.fn() }),
 }));
+
+vi.mock('../services/api/message.api', () => ({
+  messageApi: {
+    getUnreadCount: () => Promise.resolve({ data: { count: 0 } }),
+  },
+}));
+
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQuery: () => ({ data: { count: 0 } }),
+  };
+});
 
 import { DashboardLayout } from './DashboardLayout';
 

@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider, useAuth } from './providers/AuthProvider';
+import { ActiveFactoryProvider } from './providers/ActiveFactoryProvider';
 import { NotificationProvider } from './providers/NotificationProvider';
 import { LoadingScreen } from './components/common/LoadingScreen';
 import { OfflineBanner } from './components/common/OfflineBanner';
@@ -80,12 +81,19 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/directory" element={<FactoryDirectoryPage />} />
+      <Route path="/directory/:id" element={<FactoryPublicDetailPage />} />
+      <Route path="/shops" element={<ShopsPage />} />
+      <Route path="/sms-request" element={<SmsRequestDemoPage />} />
       
       <Route path="/" element={
         <ProtectedRoute>
           <AdminHostRoute>
-            <DashboardLayout />
+            <ActiveFactoryProvider>
+              <DashboardLayout />
+            </ActiveFactoryProvider>
           </AdminHostRoute>
         </ProtectedRoute>
       }>
@@ -95,6 +103,27 @@ function AppRoutes() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="about" element={<AboutPage />} />
         
+        <Route path="factory/register" element={
+          <RoleRoute roles={['FACTORY_OWNER']}>
+            <RegisterFactoryPage />
+          </RoleRoute>
+        } />
+        <Route path="factory/staff" element={
+          <RoleRoute roles={['FACTORY_OWNER']}>
+            <FactoryStaffPage />
+          </RoleRoute>
+        } />
+        <Route path="factory/wallet" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER']}>
+            <FactoryWalletPage />
+          </RoleRoute>
+        } />
+        <Route path="market-rates" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL']}>
+            <MarketRatesPage />
+          </RoleRoute>
+        } />
+
         <Route path="gate-passes" element={
           <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD']}>
             <GatePassesPage />
@@ -185,6 +214,11 @@ function AppRoutes() {
         <Route path="guard/gate-passes/:id/verify" element={
           <RoleRoute roles={['SUPER_ADMIN', 'SECURITY_GUARD']}>
             <VerifyGatePassPage />
+          </RoleRoute>
+        } />
+        <Route path="guard/scan" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'SECURITY_GUARD']}>
+            <ScanQrPage />
           </RoleRoute>
         } />
         <Route path="guard/emergency" element={

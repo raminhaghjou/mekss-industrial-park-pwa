@@ -214,6 +214,12 @@ export const LoginPage = () => {
           </Link>
         </div>
 
+        <div className="mt-4 text-center text-sm">
+          <Link to="/welcome" className="text-slate-500 hover:text-[#0f4c81]">
+            بازگشت به صفحه معرفی MEKSS
+          </Link>
+        </div>
+
         <p className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-slate-500">
           <ShieldCheck className="h-4 w-4 text-emerald-600" />
           سامانه مدیریت هوشمند و ایمن شهرک صنعتی MEKSS

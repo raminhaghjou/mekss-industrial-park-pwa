@@ -148,10 +148,13 @@ export const RegisterPage = () => {
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-center text-sm">
+        <div className="mt-6 flex flex-col items-center gap-3 text-sm">
           <Link to="/login" className="flex items-center gap-1.5 font-medium text-[#0f4c81] hover:text-[#0c3d68]">
             قبلاً ثبت‌نام کرده‌اید؟ ورود به حساب
             <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <Link to="/welcome" className="text-slate-500 hover:text-[#0f4c81]">
+            بازگشت به صفحه معرفی MEKSS
           </Link>
         </div>
 

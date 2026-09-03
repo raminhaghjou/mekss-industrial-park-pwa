@@ -91,9 +91,7 @@ const bottomShortLabels = {
   '/superadmin/users': 'کاربر',
   '/admin/reports': 'گزارش',
   '/messages': 'پیام',
-  '/requests': 'درخواست',
   '/profile': 'پروفایل',
-  '/guard/scan': 'QR',
 };
 
 const profileShortcut = { path: '/profile', text: 'پروفایل', icon: User, roles: ['EMPLOYEE'] };

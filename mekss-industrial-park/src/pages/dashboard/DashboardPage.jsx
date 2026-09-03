@@ -1,10 +1,14 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { Building2, Ticket, Receipt, FileText, AlertTriangle, Megaphone, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
+import { announcementApi } from '../../services/api/announcement.api';
+import { advertisementApi } from '../../services/api/advertisement.api';
 import { getErrorMessage } from '../../utils/apiError';
+import { HomeFeedSlider } from '../../components/dashboard/HomeFeedSlider';
 
 const roleTitles = {
   SUPER_ADMIN: 'داشبورد ادمین کل',
@@ -16,11 +20,11 @@ const roleTitles = {
 };
 
 const colorMap = {
-  primary: 'bg-gradient-to-br from-primary-500 to-primary-600',
+  primary: 'bg-gradient-to-br from-[#0f4c81] to-[#1a5f96]',
   success: 'bg-gradient-to-br from-success-500 to-success-600',
   warning: 'bg-gradient-to-br from-warning-500 to-warning-600',
   danger: 'bg-gradient-to-br from-danger-500 to-danger-600',
-  secondary: 'bg-gradient-to-br from-secondary-500 to-secondary-600',
+  secondary: 'bg-gradient-to-br from-slate-500 to-slate-600',
 };
 
 const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge = null, index }) => (
@@ -58,10 +62,39 @@ export const DashboardPage = () => {
     queryFn: () => analyticsApi.getDashboardData().then((res) => res.data),
   });
 
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['announcements', 'feed'],
+    queryFn: () => announcementApi.getAnnouncements().then((res) => res.data),
+  });
+
+  const { data: advertisements = [] } = useQuery({
+    queryKey: ['advertisements', 'feed'],
+    queryFn: () => advertisementApi.getPublicAdvertisements().then((res) => res.data),
+  });
+
+  const feedItems = useMemo(() => {
+    const ann = (announcements || []).slice(0, 8).map((item) => ({
+      id: `a-${item.id}`,
+      kind: 'announcement',
+      title: item.title,
+      body: item.content,
+      href: '/announcements',
+    }));
+    const ads = (advertisements || []).slice(0, 8).map((item) => ({
+      id: `ad-${item.id}`,
+      kind: 'ad',
+      title: item.title,
+      body: item.description || item.content,
+      href: '/advertisements',
+    }));
+    return [...ann, ...ads];
+  }, [announcements, advertisements]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-10 w-48 rounded-lg" />
+        <Skeleton className="h-36 w-full rounded-2xl" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {[...Array(6)].map((_, i) => (
             <Skeleton key={i} className="h-32 rounded-xl" />
@@ -96,6 +129,8 @@ export const DashboardPage = () => {
   const canApproveGatePasses = capabilities.includes('approve_gate_passes');
   const canApproveRequests = capabilities.includes('approve_requests');
   const canModerateAds = capabilities.includes('moderate_advertisements') || capabilities.includes('manage_advertisements');
+  const unpaidTotal = Number(data?.unpaidInvoiceTotal || 0);
+  const unpaidCount = Number(data?.unpaidInvoiceCount || 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,6 +140,25 @@ export const DashboardPage = () => {
           <span className="text-sm text-foreground-500">خوش آمدید، {user.name}</span>
         )}
       </div>
+
+      {unpaidTotal > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate('/invoices')}
+          className="flex w-full items-start gap-3 rounded-2xl border border-danger-200 bg-danger-50 px-4 py-3.5 text-start transition hover:bg-danger-100/80 animate-slide-up"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger-600" />
+          <div>
+            <p className="font-semibold text-danger-800">بدهی معوق دارید</p>
+            <p className="mt-1 text-sm text-danger-700">
+              {unpaidCount.toLocaleString('fa-IR')} قبض پرداخت‌نشده به مجموع{' '}
+              {unpaidTotal.toLocaleString('fa-IR')} ریال. برای پرداخت اینجا کلیک کنید.
+            </p>
+          </div>
+        </button>
+      )}
+
+      <HomeFeedSlider items={feedItems} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <StatCard

@@ -64,6 +64,12 @@ export const LandingPage = () => (
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </div>
+
+        <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/70 animate-slide-up" style={{ animationDelay: '260ms' }}>
+          <Link to="/shops" className="hover:text-white">فروشگاه واحدها</Link>
+          <span className="text-white/30">|</span>
+          <Link to="/sms-request" className="hover:text-white">ثبت درخواست با کد پیامکی</Link>
+        </div>
       </section>
     </div>
   </div>

@@ -62,7 +62,7 @@ const queryClient = new QueryClient({
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  return loading ? <LoadingScreen /> : user ? children : <Navigate to="/login" replace />;
+  return loading ? <LoadingScreen /> : user ? children : <Navigate to="/welcome" replace />;
 };
 
 const RoleRoute = ({ roles, children }) => {
@@ -144,7 +144,7 @@ function AppRoutes() {
         <Route path="messages" element={<MessagesPage />} />
         <Route path="requests" element={<RequestsPage />} />
         <Route path="requests/new/:type" element={
-          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER']}>
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE']}>
             <NewRequestPage />
           </RoleRoute>
         } />

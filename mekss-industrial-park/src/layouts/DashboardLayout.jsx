@@ -55,7 +55,7 @@ const navigationItems = [
   { path: '/guard/gate-passes', text: 'تایید خروج', icon: ShieldCheck, roles: ['SECURITY_GUARD'] },
   { path: '/guard/scan', text: 'اسکن QR', icon: ScanLine, roles: ['SUPER_ADMIN', 'SECURITY_GUARD'] },
   { path: '/admin/requests', text: 'درخواست‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/requests', text: 'درخواست‌های من', icon: FileText, roles: ['FACTORY_OWNER'] },
+  { path: '/requests', text: 'درخواست‌های من', icon: FileText, roles: ['FACTORY_OWNER', 'EMPLOYEE'] },
   { path: '/messages', text: 'پیام‌ها', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
   { path: '/market-rates', text: 'نرخ بازار', icon: LineChart, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL'] },
   { path: '/announcements', text: 'اطلاعیه‌ها', icon: Bell, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'SECURITY_GUARD', 'EMPLOYEE'] },
@@ -72,7 +72,7 @@ const bottomNavPathsByRole = {
   FACTORY_OWNER: ['/dashboard', '/invoices', '/requests', '/gate-passes'],
   SECURITY_GUARD: ['/dashboard', '/guard/gate-passes', '/guard/scan', '/emergency'],
   GOVERNMENT_OFFICIAL: ['/dashboard', '/admin/reports', '/announcements', '/messages'],
-  EMPLOYEE: ['/dashboard', '/announcements', '/messages', '/profile'],
+  EMPLOYEE: ['/dashboard', '/requests', '/messages', '/announcements'],
 };
 
 const bottomShortLabels = {
@@ -91,7 +91,9 @@ const bottomShortLabels = {
   '/superadmin/users': 'کاربر',
   '/admin/reports': 'گزارش',
   '/messages': 'پیام',
+  '/requests': 'درخواست',
   '/profile': 'پروفایل',
+  '/guard/scan': 'QR',
 };
 
 const profileShortcut = { path: '/profile', text: 'پروفایل', icon: User, roles: ['EMPLOYEE'] };

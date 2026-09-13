@@ -41,6 +41,7 @@ import { useActiveFactory } from '../providers/ActiveFactoryProvider';
 import { useNotification } from '../providers/NotificationProvider';
 import { messageApi } from '../services/api/message.api';
 import { roleLabels } from '../constants/persianLabels';
+import { AuthenticatedImage } from '../components/common/AuthenticatedImage';
 
 const navigationItems = [
   { path: '/dashboard', text: 'داشبورد', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
@@ -98,7 +99,7 @@ const profileShortcut = { path: '/profile', text: 'پروفایل', icon: User, 
 
 const SidebarBrand = () => (
   <div className="flex items-center gap-2 px-4 py-6">
-    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f4c81] text-lg font-bold text-white">
+    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-brand)] text-lg font-bold text-white">
       M
     </div>
     <div className="flex flex-col">
@@ -117,7 +118,7 @@ const NavButton = ({ item, isActive, onPress, badge }) => (
     <item.icon className="h-5 w-5 shrink-0" />
     <span className="flex-1 text-start">{item.text}</span>
     {badge > 0 && (
-      <span className="rounded-full bg-[#0f4c81] px-1.5 py-0.5 text-[10px] font-bold text-white">
+      <span className="rounded-full bg-[var(--color-brand)] px-1.5 py-0.5 text-[10px] font-bold text-white">
         {badge > 99 ? '99+' : badge}
       </span>
     )}
@@ -198,7 +199,7 @@ export const DashboardLayout = () => {
           <aside className="absolute inset-y-0 right-0 flex h-full w-[min(20rem,88vw)] flex-col bg-background pb-safe shadow-2xl">
             <div className="flex items-center justify-between border-b border-default-200 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
               <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f4c81] text-lg font-bold text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-brand)] text-lg font-bold text-white">
                   M
                 </div>
                 <div>
@@ -283,7 +284,7 @@ export const DashboardLayout = () => {
             >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
-                <span className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0f4c81] px-1 text-[9px] font-bold text-white">
+                <span className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-brand)] px-1 text-[9px] font-bold text-white">
                   {unreadCount > 9 ? '۹+' : unreadCount.toLocaleString('fa-IR')}
                 </span>
               )}
@@ -292,8 +293,17 @@ export const DashboardLayout = () => {
             <Dropdown>
               <DropdownTrigger>
                 <div className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1.5 hover:bg-default-100">
-                  <Avatar size="sm" className="bg-[#0f4c81] text-white">
-                    <Avatar.Fallback>{user?.name?.charAt(0) || 'U'}</Avatar.Fallback>
+                  <Avatar size="sm" className="overflow-hidden bg-[var(--color-brand)] text-white">
+                    {user?.avatar ? (
+                      <AuthenticatedImage
+                        fileId={user.avatar}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        fallback={<Avatar.Fallback>{user?.name?.charAt(0) || 'U'}</Avatar.Fallback>}
+                      />
+                    ) : (
+                      <Avatar.Fallback>{user?.name?.charAt(0) || 'U'}</Avatar.Fallback>
+                    )}
                   </Avatar>
                   <div className="hidden flex-col items-start md:flex">
                     <span className="text-sm font-medium">{user?.name || 'کاربر'}</span>
@@ -353,13 +363,13 @@ export const DashboardLayout = () => {
                   type="button"
                   onClick={() => navigate(item.path)}
                   className={`relative flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium transition ${
-                    active ? 'text-[#0f4c81]' : 'text-foreground-500'
+                    active ? 'text-[var(--color-brand)]' : 'text-foreground-500'
                   }`}
                 >
                   <item.icon className={`h-5 w-5 ${active ? 'stroke-[2.25]' : ''}`} />
                   <span className="max-w-full truncate">{bottomShortLabels[item.path] || item.text}</span>
                   {item.path === '/messages' && unreadCount > 0 && (
-                    <span className="absolute end-2 top-2 h-1.5 w-1.5 rounded-full bg-[#0f4c81]" />
+                    <span className="absolute end-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--color-brand)]" />
                   )}
                 </button>
               );

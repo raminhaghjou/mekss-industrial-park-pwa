@@ -105,7 +105,7 @@ export const LoginPage = () => {
             onClick={() => setLoginMethod('password')}
             className={`rounded-md px-3 py-2 text-sm font-medium transition ${
               loginMethod === 'password'
-                ? 'bg-white text-[#0f4c81] shadow-sm'
+                ? 'bg-white text-[var(--color-brand)] shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -116,7 +116,7 @@ export const LoginPage = () => {
             onClick={() => setLoginMethod('otp')}
             className={`rounded-md px-3 py-2 text-sm font-medium transition ${
               loginMethod === 'otp'
-                ? 'bg-white text-[#0f4c81] shadow-sm'
+                ? 'bg-white text-[var(--color-brand)] shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -205,7 +205,7 @@ export const LoginPage = () => {
         </form>
 
         <div className="mt-6 flex flex-col-reverse gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <Link to="/register" className="flex items-center justify-center gap-1.5 font-medium text-[#0f4c81] hover:text-[#0c3d68] sm:justify-start">
+          <Link to="/register" className="flex items-center justify-center gap-1.5 font-medium text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] sm:justify-start">
             ثبت‌نام حساب جدید
             <ArrowLeft className="h-4 w-4" />
           </Link>
@@ -215,7 +215,7 @@ export const LoginPage = () => {
         </div>
 
         <div className="mt-4 text-center text-sm">
-          <Link to="/welcome" className="text-slate-500 hover:text-[#0f4c81]">
+          <Link to="/welcome" className="text-slate-500 hover:text-[var(--color-brand)]">
             بازگشت به صفحه معرفی MEKSS
           </Link>
         </div>

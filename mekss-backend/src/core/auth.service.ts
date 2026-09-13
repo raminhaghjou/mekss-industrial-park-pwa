@@ -180,9 +180,17 @@ export class AuthService {
   }
 
   async updateProfile(userId: string, input: { name?: string; email?: string; avatar?: string }): Promise<PublicUser> {
+    if (input.avatar) {
+      const asset = await this.prisma.mediaAsset.findFirst({
+        where: { id: input.avatar, uploadedById: userId, domain: 'avatar' },
+        select: { id: true },
+      });
+      if (!asset) throw new BadRequestException('آواتار معتبر نیست؛ ابتدا فایل را آپلود کنید');
+    }
     const data: Prisma.UserUpdateInput = {
-      ...input,
+      ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.email !== undefined ? { email: this.canonicalNullable(input.email) } : {}),
+      ...(input.avatar !== undefined ? { avatar: input.avatar } : {}),
     };
     const user = await this.prisma.user.update({ where: { id: userId }, data });
     await this.audit.record({ userId, action: 'PROFILE_UPDATED', entity: 'User', entityId: userId, changes: data as Prisma.InputJsonObject });
@@ -241,7 +249,7 @@ export class AuthService {
     if (!user.isApproved) throw new ForbiddenException('Account is awaiting approval');
   }
 
-  private publicUser(user: User): PublicUser {
+  private publicUser(user: User): PublicUser & { avatarUrl?: string | null } {
     return {
       id: user.id,
       phoneNumber: user.phoneNumber,
@@ -254,6 +262,7 @@ export class AuthService {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword,
       avatar: user.avatar,
+      avatarUrl: user.avatar ? `/api/v1/files/${user.avatar}/content` : null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       lastLoginAt: user.lastLoginAt,

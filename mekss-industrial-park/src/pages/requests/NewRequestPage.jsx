@@ -128,7 +128,7 @@ const NewRequestPage = () => {
       <Card className="rounded-3xl border border-default-200 p-2 shadow-sm">
         <CardContent className="gap-6 p-6">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4">
-            <div className="rounded-2xl bg-[#0f4c81]/10 p-2.5 text-[#0f4c81]">
+            <div className="rounded-2xl bg-[var(--color-brand-soft)] p-2.5 text-[var(--color-brand)]">
               <FilePlus className="h-6 w-6" />
             </div>
             <div>
@@ -237,7 +237,7 @@ const NewRequestPage = () => {
                 </div>
                 <span
                   className={`relative h-6 w-11 rounded-full transition ${
-                    isToParkManager ? 'bg-[#0f4c81]' : 'bg-default-300'
+                    isToParkManager ? 'bg-[var(--color-brand)]' : 'bg-default-300'
                   }`}
                 >
                   <span

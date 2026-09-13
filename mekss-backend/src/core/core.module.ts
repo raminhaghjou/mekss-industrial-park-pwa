@@ -12,6 +12,9 @@ import { SmsGateway } from './sms.gateway';
 import { ManagementController, PaymentCallbackController } from './management.controller';
 import { ManagementService } from './management.service';
 import { ApiExceptionFilter } from './api-exception.filter';
+import { FilesController } from './files.controller';
+import { FilesService } from './files.service';
+import { StorageService } from './storage.service';
 
 @Module({
   imports: [
@@ -27,8 +30,19 @@ import { ApiExceptionFilter } from './api-exception.filter';
       },
     }),
   ],
-  controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController],
-  providers: [PrismaService, AuditService, AuthService, SmsGateway, ManagementService, JwtAuthGuard, RolesGuard, { provide: APP_FILTER, useClass: ApiExceptionFilter }],
-  exports: [PrismaService, AuditService, JwtAuthGuard, RolesGuard],
+  controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController, FilesController],
+  providers: [
+    PrismaService,
+    AuditService,
+    AuthService,
+    SmsGateway,
+    ManagementService,
+    StorageService,
+    FilesService,
+    JwtAuthGuard,
+    RolesGuard,
+    { provide: APP_FILTER, useClass: ApiExceptionFilter },
+  ],
+  exports: [PrismaService, AuditService, JwtAuthGuard, RolesGuard, StorageService, FilesService],
 })
 export class CoreModule {}

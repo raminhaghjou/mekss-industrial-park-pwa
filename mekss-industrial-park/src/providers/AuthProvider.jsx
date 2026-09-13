@@ -78,5 +78,11 @@ export const AuthProvider = ({ children }) => {
     try { const { data } = await authApi.verifyOtp({ phoneNumber, otp }); setSession(data); return { success: true, data }; }
     catch (error) { return { success: false, error: error.response?.data?.message || 'رمز یک‌بار مصرف نامعتبر است.' }; }
   };
-  return <AuthContext.Provider value={{ user, loading, login, register, logout, refreshAccessToken, sendOtp, verifyOtp, hasRole: (role) => user?.role === role, checkAuth }}>{children}</AuthContext.Provider>;
+  const refreshProfile = useCallback(async () => {
+    const response = await authApi.getProfile();
+    setUser(response.data);
+    return response.data;
+  }, []);
+
+  return <AuthContext.Provider value={{ user, loading, login, register, logout, refreshAccessToken, sendOtp, verifyOtp, refreshProfile, hasRole: (role) => user?.role === role, checkAuth }}>{children}</AuthContext.Provider>;
 };

@@ -84,7 +84,7 @@ export const InstallPrompt = () => {
           </p>
           <button
             type="button"
-            className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium text-[#0f4c81] hover:bg-primary-50"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium text-[var(--color-brand)] hover:bg-primary-50"
             onClick={handleDismiss}
           >
             <Share className="h-4 w-4" />
@@ -99,7 +99,7 @@ export const InstallPrompt = () => {
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
-              className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[#0f4c81] px-3 text-sm font-semibold text-white hover:bg-[#0c3d68]"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl bg-[var(--color-brand)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-brand-hover)]"
               onClick={handleInstallClick}
             >
               <Download className="h-4 w-4" />

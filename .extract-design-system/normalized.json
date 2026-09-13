@@ -1,0 +1,32 @@
+{
+  "source": {
+    "url": "https://snapp.ir/",
+    "extractedAt": "2026-09-13T07:34:10.429Z",
+    "extractor": "dembrandt"
+  },
+  "colors": {
+    "palette": [],
+    "cssVariables": {}
+  },
+  "typography": {
+    "headingFont": "IRANSansXFaNum",
+    "bodyFont": "IRANSansXFaNum"
+  },
+  "spacing": {
+    "scale": [
+      "4px",
+      "8px",
+      "10px",
+      "12px",
+      "16px",
+      "24px",
+      "32px"
+    ]
+  },
+  "radius": {
+    "scale": []
+  },
+  "shadows": {
+    "scale": []
+  }
+}

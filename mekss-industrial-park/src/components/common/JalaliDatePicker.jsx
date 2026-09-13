@@ -19,7 +19,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
 
 const selectClass =
-  'h-10 rounded-lg bg-slate-50 px-2 text-sm text-slate-800 outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[#0f4c81]';
+  'h-10 rounded-lg bg-slate-50 px-2 text-sm text-slate-800 outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-[var(--color-brand)]';
 
 /**
  * @param {{
@@ -115,12 +115,12 @@ const JalaliDatePicker = ({
         }}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex h-12 w-full items-center justify-between gap-3 rounded-xl bg-background px-3 text-right text-sm ring-1 ring-default-200 transition focus:ring-2 focus:ring-[#0f4c81]"
+        className="flex h-12 w-full items-center justify-between gap-3 rounded-xl bg-background px-3 text-right text-sm ring-1 ring-default-200 transition focus:ring-2 focus:ring-[var(--color-brand)]"
       >
         <span className={display ? 'font-medium text-foreground' : 'text-foreground-400'}>
           {display || placeholder}
         </span>
-        <CalendarDays className="h-4 w-4 shrink-0 text-[#0f4c81]" />
+        <CalendarDays className="h-4 w-4 shrink-0 text-[var(--color-brand)]" />
       </button>
 
       {open ? (
@@ -172,9 +172,9 @@ const JalaliDatePicker = ({
                     onClick={() => emitDay(view.jy, view.jm, day)}
                     className={`h-10 rounded-lg text-sm transition ${
                       isSelected
-                        ? 'bg-[#0f4c81] font-bold text-white'
+                        ? 'bg-[var(--color-brand)] font-bold text-white'
                         : isToday
-                          ? 'font-semibold text-[#0f4c81] ring-1 ring-[#0f4c81]/40'
+                          ? 'font-semibold text-[var(--color-brand)] ring-1 ring-[var(--color-brand)]'
                           : 'text-slate-800 hover:bg-slate-100'
                     }`}
                   >
@@ -230,7 +230,7 @@ const JalaliDatePicker = ({
             <div className="mt-3 flex items-center justify-between gap-2 text-sm">
               <button
                 type="button"
-                className="rounded-lg px-3 py-1.5 font-medium text-[#0f4c81] hover:bg-slate-100"
+                className="rounded-lg px-3 py-1.5 font-medium text-[var(--color-brand)] hover:bg-slate-100"
                 onClick={() => {
                   if (!today) return;
                   setView({ jy: today.jy, jm: today.jm });

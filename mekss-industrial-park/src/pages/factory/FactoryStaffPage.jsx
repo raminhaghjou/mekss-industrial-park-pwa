@@ -106,7 +106,7 @@ export const FactoryStaffPage = () => {
       <Card className="rounded-2xl border border-default-200">
         <CardContent className="gap-4 p-5">
           <div className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-[#0f4c81]" />
+            <UserPlus className="h-5 w-5 text-[var(--color-brand)]" />
             <h2 className="font-semibold">دعوت / افزودن کارمند</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -136,8 +136,8 @@ export const FactoryStaffPage = () => {
                     onClick={() => togglePermission(type)}
                     className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ring-1 ${
                       selected
-                        ? 'bg-[#0f4c81] text-white ring-[#0f4c81]'
-                        : 'bg-default-50 text-foreground-600 ring-default-200 hover:ring-[#0f4c81]/40'
+                        ? 'bg-[var(--color-brand)] text-white ring-[var(--color-brand)]'
+                        : 'bg-default-50 text-foreground-600 ring-default-200 hover:ring-[var(--color-brand)]'
                     }`}
                   >
                     {requestTypeLabels[type]}

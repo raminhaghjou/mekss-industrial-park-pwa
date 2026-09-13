@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
-    <meta name="theme-color" content="#0f4c81" />
+    <meta name="theme-color" content="#21aa58" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="color-scheme" content="light dark" />
     <link rel="manifest" href="/manifest.json" />
@@ -24,6 +24,25 @@
     <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
 
     <title>پارک صنعتی MEKSS</title>
+    <script>
+      // Apply stored theme before paint to avoid light/dark flash
+      (function () {
+        try {
+          var theme = localStorage.getItem('mekss-theme');
+          if (theme !== 'dark' && theme !== 'light') theme = 'light';
+          var root = document.documentElement;
+          if (theme === 'dark') {
+            root.classList.add('dark');
+            root.setAttribute('data-theme', 'dark');
+            root.style.colorScheme = 'dark';
+          } else {
+            root.classList.remove('dark');
+            root.setAttribute('data-theme', 'light');
+            root.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <style>
       :root {
         color-scheme: light dark;
@@ -44,16 +63,14 @@
         overscroll-behavior-y: none;
         -webkit-tap-highlight-color: transparent;
       }
+      html.dark body,
+      html[data-theme="dark"] body {
+        background-color: #0b1622;
+      }
       #root {
         min-height: 100%;
         min-height: 100dvh;
       }
-      @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #0b1622;
-        }
-      }
-      /* Instant app-shell splash shown until React mounts, so first paint feels native. */
       #app-boot-splash {
         position: fixed;
         inset: 0;
@@ -63,7 +80,7 @@
         align-items: center;
         justify-content: center;
         gap: 16px;
-        background: linear-gradient(160deg, #0f4c81 0%, #0b3a63 100%);
+        background: linear-gradient(160deg, #21aa58 0%, #248a4a 100%);
         transition: opacity 0.25s ease;
       }
       #app-boot-splash img {

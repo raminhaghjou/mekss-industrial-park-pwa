@@ -20,7 +20,7 @@ const roleTitles = {
 };
 
 const colorMap = {
-  primary: 'bg-gradient-to-br from-[#0f4c81] to-[#1a5f96]',
+  primary: 'bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-hover)]',
   success: 'bg-gradient-to-br from-success-500 to-success-600',
   warning: 'bg-gradient-to-br from-warning-500 to-warning-600',
   danger: 'bg-gradient-to-br from-danger-500 to-danger-600',

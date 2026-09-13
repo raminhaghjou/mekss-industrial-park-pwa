@@ -9,6 +9,7 @@ import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementD
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 import { SmsGateway } from './sms.gateway';
+import { buildSemanticContainsOr } from '../shared/utils/semantic-search.util';
 
 type AuditPlan<T> = {
   action: string;
@@ -188,18 +189,11 @@ export class ManagementService {
   async users(query?: { page?: number; pageSize?: number; search?: string }) {
     const page = Math.max(1, Number(query?.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(query?.pageSize) || 20));
-    const search = query?.search?.trim();
-    const where: Prisma.UserWhereInput = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { phoneNumber: { contains: search } },
-            { email: { contains: search, mode: 'insensitive' } },
-            { username: { contains: search, mode: 'insensitive' } },
-            { nationalId: { contains: search } },
-          ],
-        }
-      : {};
+    const where: Prisma.UserWhereInput =
+      buildSemanticContainsOr<Prisma.UserWhereInput>(
+        ['name', 'phoneNumber', 'email', 'username', 'nationalId'],
+        query?.search,
+      ) || {};
     return this.prisma.$transaction(async (tx) => {
       const [records, total] = await Promise.all([
         tx.user.findMany({
@@ -437,9 +431,11 @@ export class ManagementService {
     const page = Math.max(1, Number(query?.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(query?.pageSize) || 20));
     const search = query?.search?.trim();
-    const where: Prisma.IndustrialParkWhereInput = search
-      ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { code: { contains: search, mode: 'insensitive' } }, { city: { contains: search, mode: 'insensitive' } }] }
-      : {};
+    const where: Prisma.IndustrialParkWhereInput =
+      buildSemanticContainsOr<Prisma.IndustrialParkWhereInput>(
+        ['name', 'code', 'city', 'province', 'address'],
+        search,
+      ) || {};
     return this.prisma.$transaction(async (tx) => {
       const [items, total] = await Promise.all([
         tx.industrialPark.findMany({
@@ -651,13 +647,10 @@ export class ManagementService {
         ...scope,
         ...(query.status ? { status: query.status } : {}),
         ...(query.parkId ? { parkId: query.parkId } : {}),
-        ...(search ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { licenseNumber: { contains: search, mode: 'insensitive' } },
-            { nationalId: { contains: search } },
-          ],
-        } : {}),
+        ...(buildSemanticContainsOr<Prisma.FactoryWhereInput>(
+          ['name', 'licenseNumber', 'nationalId', 'activityType', 'ceoName', 'address'],
+          search,
+        ) || {}),
       };
       const [items, total] = await Promise.all([
         tx.factory.findMany({
@@ -1221,14 +1214,10 @@ export class ManagementService {
         ...(actor.role === Role.SUPER_ADMIN ? {} : { parkId: { in: parkIds } }),
         ...(query.parkId ? { parkId: query.parkId } : {}),
         ...(query.category ? { category: { is: { key: query.category } } } : {}),
-        ...(search ? {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { content: { contains: search, mode: 'insensitive' } },
-            { province: { contains: search, mode: 'insensitive' } },
-            { city: { contains: search, mode: 'insensitive' } },
-          ],
-        } : {}),
+        ...(buildSemanticContainsOr<Prisma.AdvertisementWhereInput>(
+          ['title', 'content', 'province', 'city'],
+          search,
+        ) || {}),
       };
       const [records, total] = await Promise.all([
         tx.advertisement.findMany({

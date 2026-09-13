@@ -23,6 +23,7 @@ import { Search, ShieldCheck } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
+import { semanticFilter } from '../../utils/semanticSearch';
 
 const GuardGatePassesPage = () => {
   const navigate = useNavigate();
@@ -33,11 +34,18 @@ const GuardGatePassesPage = () => {
     queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
   });
 
-  const approvedPasses = (data || []).filter((pass) => pass.status === 'APPROVED').filter((pass) => {
-    if (!search.trim()) return true;
-    const query = search.trim();
-    return pass.licensePlate.includes(query) || pass.id.includes(query);
-  });
+  const approvedPasses = React.useMemo(() => {
+    const approved = (data || []).filter((pass) => pass.status === 'APPROVED');
+    return semanticFilter(approved, search, (pass) => [
+      pass.licensePlate,
+      pass.id,
+      pass.driverName,
+      pass.factory?.name,
+      pass.cargoType,
+      'مجوز',
+      'پلاک',
+    ]);
+  }, [data, search]);
 
   return (
     <div className="flex flex-col gap-6">

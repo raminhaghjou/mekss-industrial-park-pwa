@@ -28,7 +28,7 @@ export const HomeFeedSlider = ({ items = [], intervalMs = 5500 }) => {
   const Icon = current.kind === 'ad' ? Megaphone : Bell;
 
   const content = (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-[#0f4c81] to-[#1a5f96] p-5 text-white shadow-sm sm:p-6">
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-[var(--color-brand)] to-[var(--color-brand-hover)] p-5 text-white shadow-sm sm:p-6">
       <div className="pointer-events-none absolute -left-8 -top-10 h-36 w-36 rounded-full bg-white/10" />
       <div className="pointer-events-none absolute -bottom-12 right-10 h-40 w-40 rounded-full bg-black/10" />
 

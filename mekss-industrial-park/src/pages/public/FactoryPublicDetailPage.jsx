@@ -16,16 +16,19 @@ export const FactoryPublicDetailPage = () => {
 
   return (
     <PublicShell>
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
-        <Link to="/directory" className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#0f4c81] hover:text-[#0c3d68]">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+        <Link
+          to="/directory"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--color-brand)] transition hover:text-[var(--color-brand-hover)]"
+        >
           <ArrowRight className="h-4 w-4" />
           بازگشت به دایرکتوری
         </Link>
 
         {isLoading ? (
           <div className="space-y-4">
-            <Skeleton className="h-10 w-64 rounded-lg" />
-            <Skeleton className="h-48 w-full rounded-2xl" />
+            <Skeleton className="h-10 w-64 rounded-[var(--radius-sm)]" />
+            <Skeleton className="h-48 w-full rounded-[var(--radius-lg)]" />
           </div>
         ) : isError ? (
           <Alert status="danger">
@@ -37,10 +40,10 @@ export const FactoryPublicDetailPage = () => {
         ) : !factory ? (
           <div className="flex min-h-[200px] items-center justify-center"><Spinner /></div>
         ) : (
-          <article className="animate-fade-in overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/80">
-            <div className="bg-gradient-to-l from-[#0f4c81] to-[#163a5c] px-6 py-8 text-white sm:px-8">
+          <article className="animate-fade-in overflow-hidden rounded-[var(--radius-lg)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
+            <div className="bg-[var(--color-brand)] px-6 py-8 text-[var(--color-on-brand)] sm:px-8">
               <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-white/15">
                   {factory.logo ? (
                     <img src={factory.logo} alt="" className="h-full w-full object-cover" />
                   ) : (
@@ -48,11 +51,11 @@ export const FactoryPublicDetailPage = () => {
                   )}
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold sm:text-3xl">{factory.name}</h1>
-                  <p className="mt-2 text-sm text-white/80">{factory.activityType}</p>
-                  <p className="mt-3 flex items-center gap-1.5 text-sm text-white/75">
-                    <MapPin className="h-4 w-4" />
-                    {[factory.park?.name, factory.park?.city, factory.park?.province].filter(Boolean).join(' · ')}
+                  <h1 className="text-2xl font-bold sm:text-[2rem] sm:leading-[1.4]">{factory.name}</h1>
+                  <p className="mt-2 text-sm text-white/85">{factory.activityType || 'فعالیت ثبت نشده'}</p>
+                  <p className="mt-3 flex items-center gap-1.5 text-sm text-white/80">
+                    <MapPin className="h-4 w-4 shrink-0" />
+                    {[factory.park?.name, factory.park?.city, factory.park?.province].filter(Boolean).join(' · ') || 'موقعیت ثبت نشده'}
                   </p>
                 </div>
               </div>
@@ -61,29 +64,33 @@ export const FactoryPublicDetailPage = () => {
             <div className="space-y-6 px-6 py-7 sm:px-8">
               {factory.description && (
                 <section>
-                  <h2 className="mb-2 text-sm font-semibold text-slate-900">درباره واحد</h2>
-                  <p className="text-sm leading-7 text-slate-600">{factory.description}</p>
+                  <h2 className="mb-2 text-sm font-semibold text-[var(--color-ink)]">درباره واحد</h2>
+                  <p className="text-sm leading-7 text-[var(--color-muted)]">{factory.description}</p>
                 </section>
               )}
 
               <dl className="grid gap-4 sm:grid-cols-2">
                 {factory.ceoName && (
-                  <div>
-                    <dt className="text-xs text-slate-500">مدیرعامل</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{factory.ceoName}</dd>
+                  <div className="rounded-[var(--radius-sm)] bg-[var(--color-surface-soft)] p-4">
+                    <dt className="text-xs text-[var(--color-muted)]">مدیرعامل</dt>
+                    <dd className="mt-1 text-sm font-medium text-[var(--color-ink)]">{factory.ceoName}</dd>
                   </div>
                 )}
                 {factory.address && (
-                  <div>
-                    <dt className="text-xs text-slate-500">آدرس</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{factory.address}</dd>
+                  <div className="rounded-[var(--radius-sm)] bg-[var(--color-surface-soft)] p-4">
+                    <dt className="text-xs text-[var(--color-muted)]">آدرس</dt>
+                    <dd className="mt-1 text-sm font-medium text-[var(--color-ink)]">{factory.address}</dd>
                   </div>
                 )}
                 {factory.phoneNumber && (
-                  <div>
-                    <dt className="text-xs text-slate-500">تلفن</dt>
+                  <div className="rounded-[var(--radius-sm)] bg-[var(--color-surface-soft)] p-4">
+                    <dt className="text-xs text-[var(--color-muted)]">تلفن</dt>
                     <dd className="mt-1">
-                      <a dir="ltr" href={`tel:${factory.phoneNumber}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-[#0f4c81]">
+                      <a
+                        dir="ltr"
+                        href={`tel:${factory.phoneNumber}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brand)]"
+                      >
                         <Phone className="h-4 w-4" />
                         {factory.phoneNumber}
                       </a>
@@ -98,7 +105,7 @@ export const FactoryPublicDetailPage = () => {
                     href={factory.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-slate-100 px-4 text-sm font-medium text-slate-800 hover:bg-slate-200"
+                    className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-surface-soft)]"
                   >
                     <Globe className="h-4 w-4" />
                     وب‌سایت
@@ -110,7 +117,7 @@ export const FactoryPublicDetailPage = () => {
                     href={factory.shopUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0f4c81] px-4 text-sm font-bold text-white hover:bg-[#0c3d68]"
+                    className="inline-flex h-11 items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-brand)] px-4 text-sm font-bold text-[var(--color-on-brand)] transition hover:bg-[var(--color-brand-hover)]"
                   >
                     فروشگاه آنلاین
                     <ExternalLink className="h-3.5 w-3.5" />

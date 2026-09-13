@@ -42,7 +42,7 @@ export const ScanQrPage = () => {
       <Card className="rounded-3xl border border-default-200 shadow-sm">
         <CardContent className="gap-6 p-6 sm:p-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f4c81]/10 text-[#0f4c81]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-brand-soft)] text-[var(--color-brand)]">
               <ScanLine className="h-6 w-6" />
             </div>
             <div>

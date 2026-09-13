@@ -54,7 +54,7 @@ export const MarketRatesPage = () => {
           <h1 className="text-xl font-bold sm:text-2xl">نرخ‌های بازار</h1>
           <p className="mt-1 text-sm text-foreground-500">نرخ‌های مرجع ارز، فلزات و شاخص‌های مرتبط</p>
         </div>
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#0f4c81]/10 text-[#0f4c81]">
+        <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand)]">
           <LineChart className="h-5 w-5" />
         </div>
       </div>

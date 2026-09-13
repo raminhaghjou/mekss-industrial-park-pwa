@@ -98,7 +98,7 @@ export const RegisterPage = () => {
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="h-12 w-full rounded-lg bg-slate-50 px-3 text-sm text-slate-900 outline-none ring-1 ring-slate-300 focus:bg-white focus:ring-2 focus:ring-[#0f4c81]"
+              className="h-12 w-full rounded-lg bg-slate-50 px-3 text-sm text-slate-900 outline-none ring-1 ring-slate-300 focus:bg-white focus:ring-2 focus:ring-[var(--color-brand)]"
             >
               <option value="FACTORY_OWNER">مالک واحد صنعتی / کارخانه</option>
               <option value="EMPLOYEE">کارمند / پرسنل واحد</option>
@@ -149,11 +149,11 @@ export const RegisterPage = () => {
         </form>
 
         <div className="mt-6 flex flex-col items-center gap-3 text-sm">
-          <Link to="/login" className="flex items-center gap-1.5 font-medium text-[#0f4c81] hover:text-[#0c3d68]">
+          <Link to="/login" className="flex items-center gap-1.5 font-medium text-[var(--color-brand)] hover:text-[var(--color-brand-hover)]">
             قبلاً ثبت‌نام کرده‌اید؟ ورود به حساب
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <Link to="/welcome" className="text-slate-500 hover:text-[#0f4c81]">
+          <Link to="/welcome" className="text-slate-500 hover:text-[var(--color-brand)]">
             بازگشت به صفحه معرفی MEKSS
           </Link>
         </div>

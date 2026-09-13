@@ -99,7 +99,7 @@ export const RegisterFactoryPage = () => {
       <Card className="rounded-3xl border border-default-200 shadow-sm">
         <CardContent className="gap-6 p-5 sm:p-7">
           <div className="flex items-center gap-3 border-b border-default-100 pb-4">
-            <div className="rounded-2xl bg-[#0f4c81]/10 p-2.5 text-[#0f4c81]">
+            <div className="rounded-2xl bg-[var(--color-brand-soft)] p-2.5 text-[var(--color-brand)]">
               <Building2 className="h-6 w-6" />
             </div>
             <div>
@@ -110,7 +110,7 @@ export const RegisterFactoryPage = () => {
 
           <form onSubmit={submit} className="flex flex-col gap-6">
             <section className="grid gap-4 sm:grid-cols-2">
-              <h2 className="sm:col-span-2 text-sm font-semibold text-[#0f4c81]">اطلاعات اصلی</h2>
+              <h2 className="sm:col-span-2 text-sm font-semibold text-[var(--color-brand)]">اطلاعات اصلی</h2>
               <Field label="نام واحد" required>
                 <Input value={form.name} onChange={(e) => update('name', e.target.value)} required className="rounded-xl" />
               </Field>
@@ -150,7 +150,7 @@ export const RegisterFactoryPage = () => {
             </section>
 
             <section className="grid gap-4 sm:grid-cols-2">
-              <h2 className="sm:col-span-2 text-sm font-semibold text-[#0f4c81]">تماس و آدرس</h2>
+              <h2 className="sm:col-span-2 text-sm font-semibold text-[var(--color-brand)]">تماس و آدرس</h2>
               <Field label="آدرس" required className="sm:col-span-2">
                 <TextArea value={form.address} onChange={(e) => update('address', e.target.value)} required rows={2} className="rounded-xl" />
               </Field>
@@ -175,7 +175,7 @@ export const RegisterFactoryPage = () => {
             </section>
 
             <section className="grid gap-4">
-              <h2 className="text-sm font-semibold text-[#0f4c81]">اطلاعات تکمیلی</h2>
+              <h2 className="text-sm font-semibold text-[var(--color-brand)]">اطلاعات تکمیلی</h2>
               <Field label="وب‌سایت">
                 <Input dir="ltr" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://" className="rounded-xl" />
               </Field>

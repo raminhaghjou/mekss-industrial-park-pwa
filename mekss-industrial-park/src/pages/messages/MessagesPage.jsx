@@ -109,7 +109,7 @@ export const MessagesPage = () => {
             type="button"
             onClick={() => { setTab(item.id); setSelectedId(null); setComposeOpen(false); }}
             className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-              tab === item.id ? 'bg-white text-[#0f4c81] shadow-sm' : 'text-foreground-600'
+              tab === item.id ? 'bg-white text-[var(--color-brand)] shadow-sm' : 'text-foreground-600'
             }`}
           >
             {item.label}
@@ -148,10 +148,10 @@ export const MessagesPage = () => {
                         type="button"
                         onClick={() => openMessage(msg)}
                         className={`flex w-full items-start gap-3 px-4 py-3.5 text-start transition hover:bg-default-50 ${
-                          selectedId === msg.id ? 'bg-[#0f4c81]/5' : ''
+                          selectedId === msg.id ? 'bg-[var(--color-brand-soft)]' : ''
                         }`}
                       >
-                        <Avatar size="sm" className="bg-[#0f4c81]/10 text-[#0f4c81] shrink-0">
+                        <Avatar size="sm" className="bg-[var(--color-brand-soft)] text-[var(--color-brand)] shrink-0">
                           <Avatar.Fallback>{peer?.name?.charAt(0) || 'M'}</Avatar.Fallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
@@ -170,7 +170,7 @@ export const MessagesPage = () => {
                             {(msg.body || msg.content || '').slice(0, 100)}
                           </p>
                         </div>
-                        {unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#0f4c81]" />}
+                        {unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]" />}
                       </button>
                     </li>
                   );

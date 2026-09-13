@@ -31,16 +31,16 @@ export const AuthBrand = ({ title, subtitle }) => (
       alt=""
       className="mx-auto mb-4 h-12 w-12 rounded-[14px] shadow-sm sm:h-14 sm:w-14"
     />
-    <p className="text-2xl font-bold leading-none tracking-[0.18em] text-[#0f4c81] sm:text-[28px]">MEKSS</p>
+    <p className="text-2xl font-bold leading-none tracking-[0.18em] text-[var(--color-brand)] sm:text-[28px]">MEKSS</p>
     <h1 className="mt-3 text-base font-semibold text-slate-900 sm:mt-4 sm:text-lg">{title}</h1>
     <p className="mt-1.5 text-sm leading-6 text-slate-600">{subtitle}</p>
   </header>
 );
 
 export const authFieldClass =
-  'h-12 w-full rounded-lg bg-slate-50 px-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none ring-1 ring-slate-300 transition focus:bg-white focus:ring-2 focus:ring-[#0f4c81]';
+  'h-12 w-full rounded-lg bg-slate-50 px-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none ring-1 ring-slate-300 transition focus:bg-white focus:ring-2 focus:ring-[var(--color-brand)]';
 
 export const authLabelClass = 'text-sm font-medium text-slate-700';
 
 export const authPrimaryButtonClass =
-  'mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#0f4c81] text-sm font-bold text-white transition hover:bg-[#0c3d68] disabled:cursor-not-allowed disabled:opacity-55';
+  'mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-brand)] text-sm font-bold text-white transition hover:bg-[var(--color-brand-hover)] disabled:cursor-not-allowed disabled:opacity-55';

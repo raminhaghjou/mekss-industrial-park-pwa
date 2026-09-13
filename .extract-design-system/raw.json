@@ -1,0 +1,660 @@
+{
+  "url": "https://snapp.ir/",
+  "extractedAt": "2026-09-13T07:34:10.429Z",
+  "siteName": "سوپر اپلیکیشن اسنپ",
+  "logo": {
+    "source": "img",
+    "url": "https://web-cdn.snapp.ir/snapp-website/icons/snappTextLogo.svg",
+    "width": 90,
+    "height": 26,
+    "alt": "snapp-logo",
+    "safeZone": {
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+    },
+    "background": "rgb(255, 255, 255)"
+  },
+  "favicons": [
+    {
+      "type": "icon",
+      "url": "https://snapp.ir/favicon.ico",
+      "sizes": null
+    },
+    {
+      "type": "apple-touch-icon",
+      "url": "https://snapp.ir/apple-touch-icon.png",
+      "sizes": null
+    },
+    {
+      "type": "apple-touch-icon",
+      "url": "https://snapp.ir/apple-touch-icon.png",
+      "sizes": null
+    },
+    {
+      "type": "og:image",
+      "url": "https://web-cdn.snapp.ir/snapp-website/images/white-exclamitation-mark-logo-bg-green.png",
+      "sizes": null
+    },
+    {
+      "type": "twitter:image",
+      "url": "https://web-cdn.snapp.ir/snapp-website/images/white-exclamitation-mark-logo-bg-green.png",
+      "sizes": null
+    }
+  ],
+  "colors": {
+    "semantic": {},
+    "palette": [
+      {
+        "color": "rgb(104, 108, 121)",
+        "normalized": "#686c79",
+        "count": 56,
+        "confidence": "high",
+        "sources": [
+          "klerfs"
+        ],
+        "lch": "lch(45.7% 7.85 279.9)",
+        "oklch": "oklch(53.24% 0.021 272.07)"
+      },
+      {
+        "color": "rgb(255, 255, 255)",
+        "normalized": "#ffffff",
+        "count": 44,
+        "confidence": "high",
+        "sources": [
+          "fbrtty",
+          "klerfs"
+        ],
+        "lch": "lch(100% 0 158.2)",
+        "oklch": "oklch(100% 0 89.88)"
+      },
+      {
+        "color": "rgb(33, 170, 88)",
+        "normalized": "#21aa58",
+        "count": 10,
+        "confidence": "high",
+        "sources": [
+          "bnplxb",
+          "klerfs"
+        ],
+        "lch": "lch(61.46% 62.52 148.81)",
+        "oklch": "oklch(64.98% 0.164 151.16)"
+      }
+    ],
+    "cssVariables": {},
+    "_raw": [
+      {
+        "color": "rgb(0, 0, 0)",
+        "normalized": "#000000",
+        "count": 677
+      },
+      {
+        "color": "rgb(255, 255, 255)",
+        "normalized": "#ffffff",
+        "count": 44
+      },
+      {
+        "color": "rgb(37, 42, 60)",
+        "normalized": "#252a3c",
+        "count": 222
+      },
+      {
+        "color": "rgb(104, 108, 121)",
+        "normalized": "#686c79",
+        "count": 56
+      },
+      {
+        "color": "rgb(33, 170, 88)",
+        "normalized": "#21aa58",
+        "count": 10
+      },
+      {
+        "color": "rgb(248, 249, 255)",
+        "normalized": "#f8f9ff",
+        "count": 9
+      },
+      {
+        "color": "rgb(34, 169, 88)",
+        "normalized": "#22a958",
+        "count": 72
+      },
+      {
+        "color": "rgb(36, 138, 74)",
+        "normalized": "#248a4a",
+        "count": 10
+      }
+    ]
+  },
+  "typography": {
+    "styles": [
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "33px (2.06rem)",
+        "weight": 700,
+        "lineHeight": "1.40",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "32px (2.00rem)",
+        "weight": 700,
+        "lineHeight": "1.63",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "20.3px (1.27rem)",
+        "weight": 400,
+        "lineHeight": "1.70",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "19px (1.19rem)",
+        "weight": 500,
+        "lineHeight": "1.26",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "button",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "17.08px (1.07rem)",
+        "weight": 700,
+        "lineHeight": "0.94",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "17.08px (1.07rem)",
+        "weight": 700,
+        "lineHeight": "0.94",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "link",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "16px (1.00rem)",
+        "weight": 400,
+        "lineHeight": "1.70",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "link",
+        "family": "ui-sans-serif",
+        "fallbacks": "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji",
+        "size": "16px (1.00rem)",
+        "weight": 400,
+        "lineHeight": "1.50",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "16px (1.00rem)",
+        "weight": 400,
+        "lineHeight": "1.70",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "link",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "16px (1.00rem)",
+        "weight": 500,
+        "lineHeight": "1.50",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "16px (1.00rem)",
+        "weight": 500,
+        "lineHeight": "1.50",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "button",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "16px (1.00rem)",
+        "weight": 500,
+        "lineHeight": "1.50",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "heading-1",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "16px (1.00rem)",
+        "weight": 700,
+        "lineHeight": "1.70",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "button",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "14px (0.88rem)",
+        "weight": 500,
+        "lineHeight": "1.14",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "caption",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "14px (0.88rem)",
+        "weight": 500,
+        "lineHeight": "1.14",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "caption",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "14px (0.88rem)",
+        "weight": 400,
+        "lineHeight": "1.71",
+        "spacing": null,
+        "transform": null
+      },
+      {
+        "context": "caption",
+        "family": "IRANSansXFaNum",
+        "fallbacks": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue",
+        "size": "12px (0.75rem)",
+        "weight": 400,
+        "lineHeight": "1.33",
+        "spacing": null,
+        "transform": null
+      }
+    ],
+    "sources": {
+      "googleFonts": [],
+      "adobeFonts": false,
+      "variableFonts": false
+    }
+  },
+  "spacing": {
+    "scaleType": "8px",
+    "commonValues": [
+      {
+        "px": "4px",
+        "rem": "0.25rem",
+        "count": 2,
+        "numericValue": 4
+      },
+      {
+        "px": "8px",
+        "rem": "0.50rem",
+        "count": 68,
+        "numericValue": 8
+      },
+      {
+        "px": "10px",
+        "rem": "0.63rem",
+        "count": 4,
+        "numericValue": 10
+      },
+      {
+        "px": "12px",
+        "rem": "0.75rem",
+        "count": 4,
+        "numericValue": 12
+      },
+      {
+        "px": "16px",
+        "rem": "1.00rem",
+        "count": 12,
+        "numericValue": 16
+      },
+      {
+        "px": "24px",
+        "rem": "1.50rem",
+        "count": 19,
+        "numericValue": 24
+      },
+      {
+        "px": "32px",
+        "rem": "2.00rem",
+        "count": 7,
+        "numericValue": 32
+      }
+    ]
+  },
+  "borderRadius": {
+    "values": [
+      {
+        "value": "0px 0px 8px 8px",
+        "count": 12,
+        "elements": [
+          "div"
+        ],
+        "confidence": "high",
+        "numericValue": 0
+      },
+      {
+        "value": "8px",
+        "count": 109,
+        "elements": [
+          "button",
+          "span",
+          "a",
+          "div",
+          "tab"
+        ],
+        "confidence": "high",
+        "numericValue": 8
+      },
+      {
+        "value": "10px",
+        "count": 2,
+        "elements": [
+          "div"
+        ],
+        "confidence": "low",
+        "numericValue": 10
+      },
+      {
+        "value": "12px",
+        "count": 14,
+        "elements": [
+          "div",
+          "video"
+        ],
+        "confidence": "high",
+        "numericValue": 12
+      },
+      {
+        "value": "16px",
+        "count": 10,
+        "elements": [
+          "div",
+          "img"
+        ],
+        "confidence": "medium",
+        "numericValue": 16
+      },
+      {
+        "value": "32px",
+        "count": 12,
+        "elements": [
+          "button",
+          "span"
+        ],
+        "confidence": "high",
+        "numericValue": 32
+      },
+      {
+        "value": "9999px",
+        "count": 13,
+        "elements": [
+          "ul",
+          "page 0",
+          "div",
+          "page 1",
+          "page 2"
+        ],
+        "confidence": "high",
+        "numericValue": 9999
+      }
+    ]
+  },
+  "borders": {
+    "combinations": [
+      {
+        "width": "1px",
+        "style": "solid",
+        "color": "rgb(34, 169, 88)",
+        "count": 12,
+        "elements": [
+          "button"
+        ],
+        "confidence": "high"
+      },
+      {
+        "width": "1px",
+        "style": "solid",
+        "color": "rgb(235, 236, 242)",
+        "count": 6,
+        "elements": [
+          "a"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "width": "1px",
+        "style": "solid",
+        "color": "rgb(222, 222, 222)",
+        "count": 2,
+        "elements": [
+          "div"
+        ],
+        "confidence": "low"
+      },
+      {
+        "width": "1px",
+        "style": "solid",
+        "color": "rgb(33, 170, 88)",
+        "count": 1,
+        "elements": [
+          "button"
+        ],
+        "confidence": "low"
+      },
+      {
+        "width": "0px 0px 1px",
+        "style": "solid",
+        "color": "rgb(235, 236, 242)",
+        "count": 1,
+        "elements": [
+          "div"
+        ],
+        "confidence": "low"
+      }
+    ]
+  },
+  "shadows": [
+    {
+      "shadow": "rgba(97, 100, 117, 0.06) 0px 3px 4px 0px, rgba(97, 100, 117, 0.04) 0px 3px 3px 0px, rgba(97, 100, 117, 0.12) 0px 1px 8px 0px",
+      "count": 12,
+      "confidence": "high"
+    },
+    {
+      "shadow": "rgba(97, 100, 117, 0.06) 0px 8px 10px 0px, rgba(97, 100, 117, 0.04) 0px 3px 14px 0px, rgba(97, 100, 117, 0.12) 0px 5px 5px 0px",
+      "count": 12,
+      "confidence": "high"
+    }
+  ],
+  "components": {
+    "buttons": [
+      {
+        "states": {
+          "default": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(33, 170, 88)",
+            "padding": "0px 12px 0px 16px",
+            "borderRadius": "8px",
+            "border": "1px solid rgb(33, 170, 88)",
+            "boxShadow": "none",
+            "outline": "rgba(0, 0, 0, 0) solid 2px",
+            "transform": "none",
+            "opacity": "1"
+          },
+          "hover": null,
+          "active": null,
+          "focus": null
+        },
+        "fontWeight": "500",
+        "fontSize": "16px",
+        "classes": "bnpLXb iRqZhg fEVEmD kSmiQp legDhJ bZRhvx diIxfU b",
+        "confidence": "high"
+      },
+      {
+        "states": {
+          "default": {
+            "backgroundColor": "rgb(33, 170, 88)",
+            "color": "rgb(255, 255, 255)",
+            "padding": "0px 24px",
+            "borderRadius": "8px",
+            "border": "0px solid rgb(255, 255, 255)",
+            "boxShadow": "none",
+            "outline": "rgba(0, 0, 0, 0) solid 2px",
+            "transform": "matrix(1, 0, 0, 1, 78.5, 0)",
+            "opacity": "1"
+          },
+          "hover": null,
+          "active": null,
+          "focus": null
+        },
+        "fontWeight": "700",
+        "fontSize": "17.08px",
+        "classes": "kLErfs iRqZhg fEVEmD kSmiQp legDhJ bZRhvx diIxfU b",
+        "confidence": "high"
+      },
+      {
+        "states": {
+          "default": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "color": "rgb(34, 169, 88)",
+            "padding": "0px 16px",
+            "borderRadius": "8px",
+            "border": "1px solid rgb(34, 169, 88)",
+            "boxShadow": "none",
+            "outline": "rgba(0, 0, 0, 0) solid 2px",
+            "transform": "none",
+            "opacity": "1"
+          },
+          "hover": null,
+          "active": null,
+          "focus": null
+        },
+        "fontWeight": "500",
+        "fontSize": "14px",
+        "classes": "kLErfs iRqZhg fEVEmD kSmiQp legDhJ bZRhvx diIxfU b",
+        "confidence": "high"
+      },
+      {
+        "states": {
+          "default": {
+            "backgroundColor": "rgb(233, 246, 238)",
+            "color": "rgb(36, 138, 74)",
+            "padding": "0px 16px 0px 12px",
+            "borderRadius": "8px",
+            "border": "0px solid rgb(36, 138, 74)",
+            "boxShadow": "none",
+            "outline": "rgba(0, 0, 0, 0) solid 2px",
+            "transform": "none",
+            "opacity": "1"
+          },
+          "hover": null,
+          "active": null,
+          "focus": null
+        },
+        "fontWeight": "500",
+        "fontSize": "14px",
+        "classes": "kLErfs iRqZhg fEVEmD kSmiQp legDhJ bZRhvx diIxfU b",
+        "confidence": "high"
+      }
+    ],
+    "inputs": {
+      "text": [],
+      "checkbox": [],
+      "radio": [],
+      "select": []
+    },
+    "links": [
+      {
+        "color": "rgb(87, 94, 255)",
+        "textDecoration": "none",
+        "fontWeight": "400",
+        "states": {
+          "default": {
+            "color": "rgb(87, 94, 255)",
+            "textDecoration": "none"
+          },
+          "hover": null
+        }
+      },
+      {
+        "color": "rgb(0, 0, 0)",
+        "textDecoration": "none",
+        "fontWeight": "400",
+        "states": {
+          "default": {
+            "color": "rgb(0, 0, 0)",
+            "textDecoration": "none"
+          },
+          "hover": null
+        }
+      },
+      {
+        "color": "rgb(37, 42, 60)",
+        "textDecoration": "none",
+        "fontWeight": "400",
+        "states": {
+          "default": {
+            "color": "rgb(37, 42, 60)",
+            "textDecoration": "none"
+          },
+          "hover": null
+        }
+      },
+      {
+        "color": "rgb(255, 255, 255)",
+        "textDecoration": "none",
+        "fontWeight": "500",
+        "states": {
+          "default": {
+            "color": "rgb(255, 255, 255)",
+            "textDecoration": "none"
+          },
+          "hover": null
+        }
+      }
+    ],
+    "badges": {
+      "all": [],
+      "byVariant": {
+        "error": [],
+        "warning": [],
+        "success": [],
+        "info": [],
+        "neutral": []
+      }
+    }
+  },
+  "breakpoints": [],
+  "iconSystem": [],
+  "frameworks": []
+}

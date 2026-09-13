@@ -101,13 +101,13 @@ export const ForgotPasswordPage = () => {
               <div key={id} className="flex items-center gap-2">
                 <span
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
-                    reached ? 'bg-[#0f4c81] text-white' : 'bg-slate-100 text-slate-400'
+                    reached ? 'bg-[var(--color-brand)] text-white' : 'bg-slate-100 text-slate-400'
                   }`}
                 >
                   {index + 1}
                 </span>
                 {index < steps.length - 1 && (
-                  <span className={`h-px w-8 ${index < activeIndex ? 'bg-[#0f4c81]' : 'bg-slate-200'}`} />
+                  <span className={`h-px w-8 ${index < activeIndex ? 'bg-[var(--color-brand)]' : 'bg-slate-200'}`} />
                 )}
               </div>
             );
@@ -201,7 +201,7 @@ export const ForgotPasswordPage = () => {
             </button>
             <button
               type="button"
-              className="text-sm text-slate-500 hover:text-[#0f4c81]"
+              className="text-sm text-slate-500 hover:text-[var(--color-brand)]"
               onClick={() => setStep('phone')}
             >
               تغییر شماره موبایل
@@ -224,7 +224,7 @@ export const ForgotPasswordPage = () => {
         )}
 
         <div className="mt-6 flex justify-center">
-          <Link to="/login" className="flex items-center gap-1.5 text-sm font-medium text-[#0f4c81] hover:text-[#0c3d68]">
+          <Link to="/login" className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-brand)] hover:text-[var(--color-brand-hover)]">
             بازگشت به ورود
             <ArrowLeft className="h-4 w-4" />
           </Link>

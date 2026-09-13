@@ -232,6 +232,7 @@ model User {
   auditLogs               AuditLog[]              @relation("AuditActor")
   paymentAttempts         PaymentTransaction[]    @relation("PaymentInitiator")
   uploadedFiles           ScopedFile[]            @relation("ScopedFileUploader")
+  mediaAssets             MediaAsset[]            @relation("MediaAssetUploader")
   feedbackSent            Feedback[]              @relation("FeedbackSender")
   marketRateUpdates       MarketRate[]            @relation("MarketRateUpdater")
 
@@ -689,6 +690,28 @@ model ScopedFile {
   @@index([parkId, factoryId, createdAt])
   @@index([factoryId, createdAt])
   @@index([uploadedById, createdAt])
+}
+
+/// General-purpose media/documents stored in MinIO (avatars, invoices, docs, logos, …).
+/// parkId/factoryId are optional so personal uploads (e.g. avatar) work without a factory scope.
+model MediaAsset {
+  id           String   @id @default(cuid())
+  objectKey    String   @unique
+  bucket       String
+  domain       String
+  originalName String
+  contentType  String
+  byteSize     Int
+  createdAt    DateTime @default(now())
+
+  parkId       String?
+  factoryId    String?
+  uploadedById String
+  uploadedBy   User     @relation("MediaAssetUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([uploadedById, domain, createdAt])
+  @@index([domain, createdAt])
+  @@index([parkId, factoryId, createdAt])
 }
 
 model EmergencyAlert {

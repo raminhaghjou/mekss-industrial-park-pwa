@@ -125,7 +125,7 @@ export const FactoryWalletPage = () => {
           </AlertContent>
         </Alert>
       ) : wallet ? (
-        <Card className="overflow-hidden rounded-3xl border-0 bg-gradient-to-l from-[#0f4c81] to-[#1a5f96] text-white shadow-md">
+        <Card className="overflow-hidden rounded-3xl border-0 bg-gradient-to-l from-[var(--color-brand)] to-[var(--color-brand-hover)] text-white shadow-md">
           <CardContent className="gap-4 p-6 sm:p-8">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">

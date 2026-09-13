@@ -1,8 +1,9 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { listIranCities, listIranProvinces, toPersistedLocation } from '../../utils/iranLocations';
+import { semanticFilter } from '../../utils/semanticSearch';
 
 const selectClass =
-  'h-12 w-full rounded-xl bg-background px-3 text-sm text-foreground outline-none ring-1 ring-default-200 transition focus:ring-2 focus:ring-[#0f4c81] disabled:cursor-not-allowed disabled:opacity-60';
+  'h-12 w-full rounded-xl bg-background px-3 text-sm text-foreground outline-none ring-1 ring-default-200 transition focus:ring-2 focus:ring-[var(--color-brand)] disabled:cursor-not-allowed disabled:opacity-60';
 
 const IranProvinceCityFields = ({
   province,
@@ -15,11 +16,11 @@ const IranProvinceCityFields = ({
   const deferredQuery = useDeferredValue(cityQuery);
   const provinces = listIranProvinces();
   const cities = useMemo(() => listIranCities(province), [province]);
-  const filteredCities = useMemo(() => {
-    const query = deferredQuery.trim();
-    if (!query) return cities;
-    return cities.filter((item) => item.fa.includes(query) || item.en.includes(query.toLowerCase()));
-  }, [cities, deferredQuery]);
+  const filteredCities = useMemo(
+    () =>
+      semanticFilter(cities, deferredQuery, (item) => [item.fa, item.en]),
+    [cities, deferredQuery],
+  );
 
   const cityOptions = useMemo(() => {
     if (city && !filteredCities.some((item) => item.fa === city)) {
@@ -60,7 +61,7 @@ const IranProvinceCityFields = ({
             onChange={(event) => setCityQuery(event.target.value)}
             placeholder="جستجوی شهر..."
             disabled={!province}
-            className="mb-1 h-10 w-full rounded-xl bg-slate-50 px-3 text-sm outline-none ring-1 ring-default-200 focus:ring-2 focus:ring-[#0f4c81] disabled:opacity-50"
+            className="mb-1 h-10 w-full rounded-xl bg-slate-50 px-3 text-sm outline-none ring-1 ring-default-200 focus:ring-2 focus:ring-[var(--color-brand)] disabled:opacity-50"
           />
         ) : null}
         <select

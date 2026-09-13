@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider, useAuth } from './providers/AuthProvider';
 import { ActiveFactoryProvider } from './providers/ActiveFactoryProvider';
 import { NotificationProvider } from './providers/NotificationProvider';
+import { ThemeProvider } from './providers/ThemeProvider';
 import { LoadingScreen } from './components/common/LoadingScreen';
 import { OfflineBanner } from './components/common/OfflineBanner';
 import { InstallPrompt } from './components/common/InstallPrompt';
@@ -258,17 +259,19 @@ function AppRoutes() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <NotificationProvider>
-        <OfflineBanner />
-        <Router>
-          <AuthProvider>
-            <Suspense fallback={<LoadingScreen />}>
-              <AppRoutes />
-            </Suspense>
-          </AuthProvider>
-        </Router>
-        <InstallPrompt />
-      </NotificationProvider>
+      <ThemeProvider>
+        <NotificationProvider>
+          <OfflineBanner />
+          <Router>
+            <AuthProvider>
+              <Suspense fallback={<LoadingScreen />}>
+                <AppRoutes />
+              </Suspense>
+            </AuthProvider>
+          </Router>
+          <InstallPrompt />
+        </NotificationProvider>
+      </ThemeProvider>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );

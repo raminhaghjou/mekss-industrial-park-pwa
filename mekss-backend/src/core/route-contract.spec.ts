@@ -11,6 +11,7 @@ import { AuthController } from './auth.controller';
 import { CoreModule } from './core.module';
 import { HealthController } from './health.controller';
 import { ManagementController, PaymentCallbackController } from './management.controller';
+import { FilesController } from './files.controller';
 
 type ControllerType = {
   name: string;
@@ -76,6 +77,7 @@ describe('active backend route contract', () => {
       HealthController,
       ManagementController,
       PaymentCallbackController,
+      FilesController,
     ]);
   });
 
@@ -103,6 +105,8 @@ describe('active backend route contract', () => {
         'GET /api/v1/factories/managed',
         'GET /api/v1/factories/managed/:id',
         'GET /api/v1/factories/management-scope',
+        'GET /api/v1/files/:id',
+        'GET /api/v1/files/:id/content',
         'GET /api/v1/gate-passes',
         'GET /api/v1/gate-passes/:id',
         'GET /api/v1/gate-passes/by-qr/:code',
@@ -126,6 +130,7 @@ describe('active backend route contract', () => {
         'GET /health',
         'GET /ready',
         'DELETE /api/v1/announcements/:id',
+        'DELETE /api/v1/files/:id',
         'DELETE /api/v1/industrial-parks/:id',
         'DELETE /api/v1/users/:id',
         'PATCH /api/v1/factories/:id/staff/:userId',
@@ -151,6 +156,7 @@ describe('active backend route contract', () => {
         'POST /api/v1/factories/:id/staff',
         'POST /api/v1/factories/:id/wallet/top-up',
         'POST /api/v1/factories/register',
+        'POST /api/v1/files/upload',
         'POST /api/v1/gate-passes',
         'POST /api/v1/gate-passes/:id/approve',
         'POST /api/v1/gate-passes/:id/deny',

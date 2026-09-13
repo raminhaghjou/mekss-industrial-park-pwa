@@ -28,6 +28,7 @@ import {
   Label,
 } from '@heroui/react';
 import { Download, Plus, Ticket } from 'lucide-react';
+import { semanticFilter } from '../../utils/semanticSearch';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
@@ -77,16 +78,8 @@ export const GatePassesPage = () => {
 
   const passes = useMemo(() => {
     const list = Array.isArray(data) ? data : data?.items || [];
-    return list.filter((pass) => {
+    const byStatus = list.filter((pass) => {
       if (status && pass.status !== status) return false;
-      if (search.trim()) {
-        const term = search.trim().toLowerCase();
-        const hay = [pass.driverName, pass.licensePlate, pass.factory?.name, pass.cargoType]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        if (!hay.includes(term)) return false;
-      }
       if (fromDate) {
         const exit = pass.exitDate ? new Date(pass.exitDate) : null;
         if (!exit || exit < new Date(fromDate)) return false;
@@ -99,6 +92,16 @@ export const GatePassesPage = () => {
       }
       return true;
     });
+    return semanticFilter(byStatus, search, (pass) => [
+      pass.driverName,
+      pass.licensePlate,
+      pass.factory?.name,
+      pass.cargoType,
+      pass.id,
+      pass.status,
+      'مجوز',
+      'برگ خروج',
+    ]);
   }, [data, status, search, fromDate, toDate]);
 
   if (creating) {

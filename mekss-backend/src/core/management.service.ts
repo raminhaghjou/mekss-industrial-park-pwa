@@ -913,10 +913,32 @@ export class ManagementService {
   }
 
   async gatePassByQr(actor: AuthenticatedUser, code: string) {
-    const pass = await this.prisma.gatePass.findUnique({
-      where: { qrCode: code },
-      include: { factory: { select: { id: true, name: true, parkId: true } }, createdBy: { select: { id: true, name: true, phoneNumber: true } } },
-    });
+    const raw = String(code || '').trim();
+    if (!raw) throw new NotFoundException('Gate pass not found');
+    const include = {
+      factory: { select: { id: true, name: true, parkId: true } },
+      createdBy: { select: { id: true, name: true, phoneNumber: true } },
+    } as const;
+    let pass = await this.prisma.gatePass.findUnique({ where: { qrCode: raw }, include });
+    if (!pass) {
+      // QR payloads may be URLs or prefixed tokens — match by containment / suffix.
+      const candidates = await this.prisma.gatePass.findMany({
+        where: {
+          OR: [
+            { qrCode: { contains: raw, mode: 'insensitive' } },
+            { id: raw },
+            { licensePlate: { contains: raw, mode: 'insensitive' } },
+          ],
+        },
+        include,
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+      });
+      pass = candidates.find((item) => item.qrCode === raw)
+        || candidates.find((item) => item.qrCode?.endsWith(raw) || item.qrCode?.includes(raw))
+        || candidates[0]
+        || null;
+    }
     if (!pass) throw new NotFoundException('Gate pass not found');
     await this.assertFactoryAccess(actor, pass.factoryId);
     return pass;
@@ -1841,18 +1863,118 @@ export class ManagementService {
     const factoryIds = await this.factoryIds(actor);
     const hasGlobalFactoryScope = actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL;
     const factoryWhere = hasGlobalFactoryScope ? {} : { factoryId: { in: factoryIds } };
-    const dateFilter = from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(to) : undefined } : undefined;
+    const dateFilter = from || to ? { gte: from ? new Date(from) : undefined, lte: to ? new Date(`${to}T23:59:59.999Z`) : undefined } : undefined;
+    const generatedAt = new Date().toISOString();
+
     if (type === 'financial') {
-      const invoices = await this.prisma.invoice.findMany({ where: { ...factoryWhere, ...(dateFilter ? { issueDate: dateFilter } : {}) }, select: { status: true, totalAmount: true } });
-      const totals = invoices.reduce((acc, invoice) => { acc.total += Number(invoice.totalAmount); if (invoice.status === InvoiceStatus.PAID) acc.paid += Number(invoice.totalAmount); return acc; }, { total: 0, paid: 0 });
-      return { type, count: invoices.length, totalAmount: totals.total, paidAmount: totals.paid, unpaidAmount: totals.total - totals.paid };
+      const invoices = await this.prisma.invoice.findMany({
+        where: { ...factoryWhere, ...(dateFilter ? { issueDate: dateFilter } : {}) },
+        include: { factory: { select: { id: true, name: true } } },
+        orderBy: { issueDate: 'desc' },
+        take: 2000,
+      });
+      const totals = invoices.reduce((acc, invoice) => {
+        acc.total += Number(invoice.totalAmount);
+        if (invoice.status === InvoiceStatus.PAID) acc.paid += Number(invoice.totalAmount);
+        return acc;
+      }, { total: 0, paid: 0 });
+      const byStatusMap = invoices.reduce((acc, invoice) => {
+        acc[invoice.status] = (acc[invoice.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      return {
+        type,
+        generatedAt,
+        from: from || null,
+        to: to || null,
+        count: invoices.length,
+        totalAmount: totals.total,
+        paidAmount: totals.paid,
+        unpaidAmount: totals.total - totals.paid,
+        byStatus: Object.entries(byStatusMap).map(([status, count]) => ({ status, count })),
+        items: invoices.map((invoice) => ({
+          id: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          factoryName: invoice.factory?.name || '',
+          description: invoice.description,
+          amount: Number(invoice.amount),
+          taxAmount: Number(invoice.taxAmount),
+          totalAmount: Number(invoice.totalAmount),
+          status: invoice.status,
+          issueDate: invoice.issueDate,
+          dueDate: invoice.dueDate,
+          paymentDate: invoice.paymentDate,
+        })),
+      };
     }
+
     if (type === 'gatepass') {
-      const passes = await this.prisma.gatePass.groupBy({ by: ['status'], where: { ...factoryWhere, ...(dateFilter ? { createdAt: dateFilter } : {}) }, _count: true });
-      return { type, byStatus: passes.map((entry) => ({ status: entry.status, count: entry._count })) };
+      const passes = await this.prisma.gatePass.findMany({
+        where: { ...factoryWhere, ...(dateFilter ? { createdAt: dateFilter } : {}) },
+        include: { factory: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 2000,
+      });
+      const byStatusMap = passes.reduce((acc, pass) => {
+        acc[pass.status] = (acc[pass.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      return {
+        type,
+        generatedAt,
+        from: from || null,
+        to: to || null,
+        count: passes.length,
+        byStatus: Object.entries(byStatusMap).map(([status, count]) => ({ status, count })),
+        items: passes.map((pass) => ({
+          id: pass.id,
+          factoryName: pass.factory?.name || '',
+          driverName: pass.driverName,
+          licensePlate: pass.licensePlate,
+          cargoType: pass.cargoType,
+          vehicleType: pass.vehicleType,
+          status: pass.status,
+          qrCode: pass.qrCode,
+          exitDate: pass.exitDate,
+          createdAt: pass.createdAt,
+          verifiedAt: pass.verifiedAt,
+        })),
+      };
     }
-    const requests = await this.prisma.request.groupBy({ by: ['status'], where: { ...factoryWhere, ...(dateFilter ? { createdAt: dateFilter } : {}) }, _count: true });
-    return { type, byStatus: requests.map((entry) => ({ status: entry.status, count: entry._count })) };
+
+    const requests = await this.prisma.request.findMany({
+      where: { ...factoryWhere, ...(dateFilter ? { createdAt: dateFilter } : {}) },
+      include: {
+        factory: { select: { id: true, name: true } },
+        creator: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 2000,
+    });
+    const byStatusMap = requests.reduce((acc, request) => {
+      acc[request.status] = (acc[request.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    return {
+      type,
+      generatedAt,
+      from: from || null,
+      to: to || null,
+      count: requests.length,
+      byStatus: Object.entries(byStatusMap).map(([status, count]) => ({ status, count })),
+      items: requests.map((request) => ({
+        id: request.id,
+        title: request.title,
+        type: request.type,
+        factoryName: request.factory?.name || '',
+        creatorName: request.creator?.name || '',
+        status: request.status,
+        priority: request.priority,
+        createdAt: request.createdAt,
+        approvedAt: request.approvedAt,
+        rejectedAt: request.rejectedAt,
+      })),
+    };
   }
 
   async smsHealth() {

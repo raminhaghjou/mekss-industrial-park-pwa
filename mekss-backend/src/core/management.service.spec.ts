@@ -188,8 +188,10 @@ describe('ManagementService transactional foundation', () => {
       take: 8,
     }));
 
-    await expect(service.report(actor(), 'gatepass')).resolves.toEqual({ type: 'gatepass', byStatus: [] });
-    expect(prisma.gatePass.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: [] } } }));
+    await expect(service.report(actor(), 'gatepass')).resolves.toEqual(expect.objectContaining({
+      type: 'gatepass', byStatus: [], count: 0, items: [],
+    }));
+    expect(prisma.gatePass.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: [] } } }));
   });
 
   it('applies park scope before pagination and returns only safe deterministic priority projections', async () => {
@@ -1074,36 +1076,44 @@ describe('ManagementService reports contract', () => {
   it('derives financial totals from real scoped invoice rows', async () => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
     const invoice = { findMany: jest.fn().mockResolvedValue([
-      { status: InvoiceStatus.PAID, totalAmount: 1000 },
-      { status: InvoiceStatus.PENDING, totalAmount: 500 },
+      { status: InvoiceStatus.PAID, totalAmount: 1000, amount: 1000, taxAmount: 0, invoiceNumber: 'INV-1', description: 'a', issueDate: new Date(), dueDate: new Date(), paymentDate: null, id: 'i1', factory: { id: 'factory-1', name: 'F1' } },
+      { status: InvoiceStatus.PENDING, totalAmount: 500, amount: 500, taxAmount: 0, invoiceNumber: 'INV-2', description: 'b', issueDate: new Date(), dueDate: new Date(), paymentDate: null, id: 'i2', factory: { id: 'factory-1', name: 'F1' } },
     ]) };
     const service = new ManagementService({ factory, invoice } as any, { record: jest.fn() } as any, config);
 
-    await expect(service.report(actor(Role.FACTORY_OWNER), 'financial')).resolves.toEqual({
+    await expect(service.report(actor(Role.FACTORY_OWNER), 'financial')).resolves.toEqual(expect.objectContaining({
       type: 'financial', count: 2, totalAmount: 1500, paidAmount: 1000, unpaidAmount: 500,
-    });
+    }));
     expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
   });
 
   it('scopes gate-pass status aggregation to the caller\'s factories', async () => {
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
-    const gatePass = { groupBy: jest.fn().mockResolvedValue([{ status: 'PENDING', _count: 3 }]) };
+    const gatePass = {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'g1', status: 'PENDING', driverName: 'A', licensePlate: '11', cargoType: 'GENERAL', vehicleType: 'TRUCK', qrCode: 'Q1', exitDate: new Date(), createdAt: new Date(), verifiedAt: null, factory: { id: 'factory-1', name: 'F1' } },
+        { id: 'g2', status: 'PENDING', driverName: 'B', licensePlate: '22', cargoType: 'GENERAL', vehicleType: 'TRUCK', qrCode: 'Q2', exitDate: new Date(), createdAt: new Date(), verifiedAt: null, factory: { id: 'factory-1', name: 'F1' } },
+        { id: 'g3', status: 'PENDING', driverName: 'C', licensePlate: '33', cargoType: 'GENERAL', vehicleType: 'TRUCK', qrCode: 'Q3', exitDate: new Date(), createdAt: new Date(), verifiedAt: null, factory: { id: 'factory-1', name: 'F1' } },
+      ]),
+    };
     const service = new ManagementService({ industrialPark, factory, gatePass } as any, { record: jest.fn() } as any, config);
 
-    await expect(service.report(actor(Role.PARK_MANAGER), 'gatepass')).resolves.toEqual({
-      type: 'gatepass', byStatus: [{ status: 'PENDING', count: 3 }],
-    });
-    expect(gatePass.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
+    await expect(service.report(actor(Role.PARK_MANAGER), 'gatepass')).resolves.toEqual(expect.objectContaining({
+      type: 'gatepass', byStatus: [{ status: 'PENDING', count: 3 }], count: 3,
+    }));
+    expect(gatePass.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
   });
 
   it('keeps the report aggregation predicate global for super-admin and government-official reads', async () => {
     const factory = { findMany: jest.fn().mockResolvedValue([]) };
-    const request = { groupBy: jest.fn().mockResolvedValue([]) };
+    const request = { findMany: jest.fn().mockResolvedValue([]) };
     const service = new ManagementService({ factory, request } as any, { record: jest.fn() } as any, config);
 
-    await expect(service.report(actor(Role.GOVERNMENT_OFFICIAL), 'requests')).resolves.toEqual({ type: 'requests', byStatus: [] });
-    expect(request.groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+    await expect(service.report(actor(Role.GOVERNMENT_OFFICIAL), 'requests')).resolves.toEqual(expect.objectContaining({
+      type: 'requests', byStatus: [], count: 0, items: [],
+    }));
+    expect(request.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
   });
 });
 

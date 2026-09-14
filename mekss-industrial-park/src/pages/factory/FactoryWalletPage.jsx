@@ -27,6 +27,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { useActiveFactory } from '../../providers/ActiveFactoryProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { amountInputToNumber, formatAmountInput } from '../../utils/amountFormat';
 
 const formatMoney = (value) =>
   Number(value || 0).toLocaleString('fa-IR', { maximumFractionDigits: 0 });
@@ -151,20 +152,20 @@ export const FactoryWalletPage = () => {
             <div className="flex flex-col gap-1">
               <Label className="text-xs">مبلغ (ریال)</Label>
               <Input
-                type="number"
-                min="1"
+                type="text"
+                inputMode="numeric"
                 dir="ltr"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="rounded-xl"
-                placeholder="مثلاً 500000"
+                onChange={(e) => setAmount(formatAmountInput(e.target.value))}
+                className="rounded-xl font-mono"
+                placeholder="مثلاً 500/000"
               />
             </div>
             <Button
               variant="primary"
               className="font-bold"
-              isDisabled={!amount || Number(amount) <= 0 || topUpMutation.isPending}
-              onPress={() => topUpMutation.mutate(Number(amount))}
+              isDisabled={!amount || !(amountInputToNumber(amount) > 0) || topUpMutation.isPending}
+              onPress={() => topUpMutation.mutate(amountInputToNumber(amount))}
             >
               {topUpMutation.isPending ? <Spinner size="sm" /> : 'ثبت شارژ'}
             </Button>

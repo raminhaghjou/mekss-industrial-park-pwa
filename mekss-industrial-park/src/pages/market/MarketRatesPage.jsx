@@ -25,6 +25,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
+import { amountInputToNumber, formatAmountInput } from '../../utils/amountFormat';
 
 export const MarketRatesPage = () => {
   const { user } = useAuth();
@@ -39,13 +40,27 @@ export const MarketRatesPage = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ key, value }) => marketApi.updateRate(key, { value: Number(value) }),
+    mutationFn: ({ key, value }) => marketApi.updateRate(key, { value }),
     onSuccess: () => {
       showNotification('نرخ به‌روز شد', 'success');
       queryClient.invalidateQueries({ queryKey: ['market-rates'] });
     },
     onError: (err) => showNotification(getErrorMessage(err, 'به‌روزرسانی نرخ ناموفق بود'), 'error'),
   });
+
+  const draftValue = (rate) => {
+    if (Object.prototype.hasOwnProperty.call(drafts, rate.key)) return drafts[rate.key];
+    return formatAmountInput(String(rate.value), { allowDecimal: true });
+  };
+
+  const saveRate = (rate) => {
+    const next = amountInputToNumber(draftValue(rate), { allowDecimal: true });
+    if (!Number.isFinite(next)) {
+      showNotification('مقدار نرخ معتبر نیست', 'error');
+      return;
+    }
+    updateMutation.mutate({ key: rate.key, value: next });
+  };
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -95,16 +110,20 @@ export const MarketRatesPage = () => {
                             <div className="flex items-center gap-2">
                               <Input
                                 dir="ltr"
-                                type="number"
-                                className="w-28 rounded-lg"
-                                value={drafts[rate.key] ?? String(rate.value)}
-                                onChange={(e) => setDrafts((prev) => ({ ...prev, [rate.key]: e.target.value }))}
+                                type="text"
+                                inputMode="decimal"
+                                className="w-32 rounded-lg font-mono"
+                                value={draftValue(rate)}
+                                onChange={(e) => setDrafts((prev) => ({
+                                  ...prev,
+                                  [rate.key]: formatAmountInput(e.target.value, { allowDecimal: true }),
+                                }))}
                               />
                               <Button
                                 size="sm"
                                 variant="primary"
                                 isDisabled={updateMutation.isPending}
-                                onPress={() => updateMutation.mutate({ key: rate.key, value: drafts[rate.key] ?? rate.value })}
+                                onPress={() => saveRate(rate)}
                               >
                                 {updateMutation.isPending ? <Spinner size="sm" /> : 'ذخیره'}
                               </Button>

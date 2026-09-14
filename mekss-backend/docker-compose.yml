@@ -80,8 +80,8 @@ services:
       MINIO_ACCESS_KEY: ${MEKSS_LOCAL_MINIO_ROOT_USER:-mekss_local_minio}
       MINIO_SECRET_KEY: ${MEKSS_LOCAL_MINIO_ROOT_PASSWORD:-mekss_local_minio_password}
       MINIO_USE_SSL: "false"
-      FRONTEND_URL: http://localhost:5173
-      CORS_ORIGINS: http://localhost:5173
+      FRONTEND_URL: https://makss.ghaaar.ir
+      CORS_ORIGINS: https://makss.ghaaar.ir
       KAVEH_NEGAR_API_KEY: ""
       SMS_SENDER: ${MEKSS_LOCAL_SMS_SENDER:-1000596446}
       ZARINPAL_MERCHANT_ID: ""

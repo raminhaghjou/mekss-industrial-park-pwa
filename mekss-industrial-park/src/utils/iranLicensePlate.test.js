@@ -48,4 +48,22 @@ describe('iranLicensePlate', () => {
     expect(IRAN_PLATE_REGIONS.filter((item) => item.province === 'فارس').map((item) => item.code))
       .toEqual(['63', '73', '83', '93']);
   });
+
+  it('matches Wikipedia allocated province codes and omits unallocated ones', () => {
+    const codes = IRAN_PLATE_REGIONS.map((item) => item.code);
+    expect(codes).toHaveLength(86);
+    expect(new Set(codes).size).toBe(86);
+    // Official table: not allocated yet
+    expect(codes).not.toContain('39');
+    expect(codes).not.toContain('70');
+    expect(codes).not.toContain('80');
+    expect(codes).not.toContain('90');
+    // Spot-check key provinces
+    expect(findIranPlateRegion('19')?.province).toBe('کرمانشاه');
+    expect(findIranPlateRegion('29')?.province).toBe('کرمانشاه');
+    expect(findIranPlateRegion('91')?.province).toBe('اردبیل');
+    expect(findIranPlateRegion('98')?.province).toBe('ایلام');
+    expect(findIranPlateRegion('16')?.province).toBe('قم');
+    expect(findIranPlateRegion('49')?.province).toBe('کهگیلویه و بویراحمد');
+  });
 });

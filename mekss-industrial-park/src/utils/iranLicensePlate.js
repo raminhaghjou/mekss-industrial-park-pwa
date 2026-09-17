@@ -18,9 +18,11 @@ export const IRAN_PLATE_LETTERS = [
 ];
 
 /**
- * Official Iran plate region codes (دو رقم سمت راست / ایران).
- * Source: Vehicle registration plates of Iran (Wikipedia) + راهنمای پلاک استان‌ها.
- * Fars = 63, 73, 83, 93 — not 17.
+ * Official Iran plate region codes (دو رقم سمت راست / ایران) at province level.
+ * Source: Wikipedia "Vehicle registration plates of Iran" (راهنمایی و رانندگی table).
+ * Unallocated codes (not in this list): 39, 70, 80, 90.
+ * Fars = 63, 73, 83, 93 — not 17 (West Azerbaijan).
+ * Any 2-digit code can still be entered via the custom option in the UI.
  */
 export const IRAN_PLATE_REGIONS = [
   { code: '10', province: 'تهران', label: '۱۰ — تهران' },
@@ -52,7 +54,6 @@ export const IRAN_PLATE_REGIONS = [
   { code: '36', province: 'خراسان رضوی', label: '۳۶ — خراسان رضوی' },
   { code: '37', province: 'آذربایجان غربی', label: '۳۷ — آذربایجان غربی' },
   { code: '38', province: 'البرز / تهران', label: '۳۸ — البرز / تهران' },
-  { code: '39', province: 'کرمانشاه', label: '۳۹ — کرمانشاه' },
   { code: '40', province: 'تهران', label: '۴۰ — تهران' },
   { code: '41', province: 'لرستان', label: '۴۱ — لرستان' },
   { code: '42', province: 'خراسان رضوی / شمالی / جنوبی', label: '۴۲ — خراسان (رضوی/شمالی/جنوبی)' },

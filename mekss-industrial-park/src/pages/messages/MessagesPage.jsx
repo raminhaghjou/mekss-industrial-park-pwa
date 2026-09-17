@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -14,21 +14,59 @@ import {
   TextArea,
   Label,
   Spinner,
+  Chip,
 } from '@heroui/react';
-import { MessageSquare, PenSquare, Reply, Send } from 'lucide-react';
+import { Bell, CheckCheck, MessageSquare, PenSquare, Reply, Send, Siren, Users } from 'lucide-react';
 import { messageApi } from '../../services/api/message.api';
+import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
 import { messageStatusLabels } from '../../constants/persianLabels';
 
+const roleRecipientLabels = {
+  PARK_MANAGER: 'مدیر شهرک',
+  FACTORY_OWNER: 'مدیر واحد',
+  EMPLOYEE: 'کارمند',
+  SUPER_ADMIN: 'ادمین',
+  SECURITY_GUARD: 'نگهبان',
+};
+
+const notificationTypeMeta = {
+  EMERGENCY: { label: 'اضطراری', color: 'danger', icon: Siren },
+  WARNING: { label: 'هشدار', color: 'warning', icon: Bell },
+  SUCCESS: { label: 'موفق', color: 'success', icon: Bell },
+  INFO: { label: 'اطلاع', color: 'accent', icon: Bell },
+};
+
 export const MessagesPage = () => {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { showNotification } = useNotification();
   const [tab, setTab] = useState('inbox');
   const [selectedId, setSelectedId] = useState(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [broadcastMode, setBroadcastMode] = useState(false);
   const [compose, setCompose] = useState({ receiverId: '', subject: '', body: '' });
+
+  const canBroadcast = user?.role === 'PARK_MANAGER' || user?.role === 'SUPER_ADMIN';
+  const [tabBootstrapped, setTabBootstrapped] = useState(false);
+
+  const unreadQuery = useQuery({
+    queryKey: ['messages', 'unread-count'],
+    queryFn: () => messageApi.getUnreadCount().then((res) => res.data),
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    if (tabBootstrapped || unreadQuery.isLoading || !unreadQuery.data) return;
+    const messagesCount = Number(unreadQuery.data.messages || 0);
+    const notificationsCount = Number(unreadQuery.data.notifications || 0);
+    if (messagesCount === 0 && notificationsCount > 0) {
+      setTab('notifications');
+    }
+    setTabBootstrapped(true);
+  }, [tabBootstrapped, unreadQuery.data, unreadQuery.isLoading]);
 
   const inboxQuery = useQuery({
     queryKey: ['messages', 'inbox'],
@@ -41,44 +79,90 @@ export const MessagesPage = () => {
     enabled: tab === 'sent',
   });
 
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => messageApi.getNotifications().then((res) => res.data || []),
+  });
+
   const recipientsQuery = useQuery({
     queryKey: ['messages', 'recipients'],
     queryFn: () => messageApi.getRecipients().then((res) => res.data || []),
-    enabled: composeOpen,
+    enabled: composeOpen && !broadcastMode,
   });
 
-  const messages = tab === 'inbox' ? (inboxQuery.data || []) : (sentQuery.data || []);
-  const isLoading = tab === 'inbox' ? inboxQuery.isLoading : sentQuery.isLoading;
-  const isError = tab === 'inbox' ? inboxQuery.isError : sentQuery.isError;
-  const error = tab === 'inbox' ? inboxQuery.error : sentQuery.error;
+  const messages = tab === 'inbox' ? (inboxQuery.data || []) : tab === 'sent' ? (sentQuery.data || []) : [];
+  const notifications = notificationsQuery.data || [];
+  const isLoading = tab === 'inbox'
+    ? inboxQuery.isLoading
+    : tab === 'sent'
+      ? sentQuery.isLoading
+      : notificationsQuery.isLoading;
+  const isError = tab === 'inbox'
+    ? inboxQuery.isError
+    : tab === 'sent'
+      ? sentQuery.isError
+      : notificationsQuery.isError;
+  const error = tab === 'inbox'
+    ? inboxQuery.error
+    : tab === 'sent'
+      ? sentQuery.error
+      : notificationsQuery.error;
   const recipients = recipientsQuery.data || [];
-  const roleRecipientLabels = {
-    PARK_MANAGER: 'مدیر شهرک',
-    FACTORY_OWNER: 'مدیر واحد',
-    EMPLOYEE: 'کارمند',
-    SUPER_ADMIN: 'ادمین',
-  };
 
-  const selected = useMemo(
-    () => messages.find((msg) => msg.id === selectedId) || null,
-    [messages, selectedId],
+  const unreadMessages = Number(unreadQuery.data?.messages || 0);
+  const unreadNotifications = Number(unreadQuery.data?.notifications || 0);
+
+  const selectedMessage = useMemo(
+    () => (tab === 'notifications' ? null : messages.find((msg) => msg.id === selectedId) || null),
+    [messages, selectedId, tab],
   );
+  const selectedNotification = useMemo(
+    () => (tab === 'notifications' ? notifications.find((item) => item.id === selectedId) || null : null),
+    [notifications, selectedId, tab],
+  );
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['messages'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['messages', 'unread-count'] });
+  };
 
   const markReadMutation = useMutation({
     mutationFn: (id) => messageApi.markRead(id),
+    onSuccess: invalidateAll,
+  });
+
+  const markNotificationReadMutation = useMutation({
+    mutationFn: (id) => messageApi.markNotificationRead(id),
+    onSuccess: invalidateAll,
+  });
+
+  const markAllNotificationsReadMutation = useMutation({
+    mutationFn: () => messageApi.markAllNotificationsRead(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
-      queryClient.invalidateQueries({ queryKey: ['messages', 'unread-count'] });
+      showNotification('همه اعلان‌ها خوانده شد', 'success');
+      invalidateAll();
     },
+    onError: (err) => showNotification(getErrorMessage(err, 'خواندن اعلان‌ها ناموفق بود'), 'error'),
   });
 
   const sendMutation = useMutation({
-    mutationFn: (payload) => messageApi.sendMessage(payload),
-    onSuccess: () => {
-      showNotification('پیام ارسال شد', 'success');
+    mutationFn: (payload) => (
+      broadcastMode
+        ? messageApi.broadcastToFactoryManagers(payload.subject, payload.body)
+        : messageApi.sendMessage(payload)
+    ),
+    onSuccess: (res) => {
+      if (broadcastMode) {
+        const sentCount = res?.data?.sentCount ?? 0;
+        showNotification(`پیام برای ${sentCount.toLocaleString('fa-IR')} مدیر واحد ارسال شد`, 'success');
+      } else {
+        showNotification('پیام ارسال شد', 'success');
+      }
       setComposeOpen(false);
+      setBroadcastMode(false);
       setCompose({ receiverId: '', subject: '', body: '' });
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      invalidateAll();
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ارسال پیام ناموفق بود'), 'error'),
   });
@@ -91,32 +175,66 @@ export const MessagesPage = () => {
     }
   };
 
+  const openNotification = (item) => {
+    setSelectedId(item.id);
+    setComposeOpen(false);
+    if (!item.isRead) {
+      markNotificationReadMutation.mutate(item.id);
+    }
+  };
+
   const startReply = () => {
-    if (!selected) return;
-    const receiverId = tab === 'inbox' ? selected.senderId || selected.sender?.id : selected.receiverId || selected.receiver?.id;
+    if (!selectedMessage) return;
+    const receiverId = tab === 'inbox'
+      ? selectedMessage.senderId || selectedMessage.sender?.id
+      : selectedMessage.receiverId || selectedMessage.receiver?.id;
+    setBroadcastMode(false);
     setCompose({
       receiverId: receiverId || '',
-      subject: selected.subject?.startsWith('باز:') ? selected.subject : `باز: ${selected.subject || ''}`,
+      subject: selectedMessage.subject?.startsWith('باز:') ? selectedMessage.subject : `باز: ${selectedMessage.subject || ''}`,
       body: '',
     });
     setComposeOpen(true);
   };
 
+  const startCompose = ({ broadcast = false } = {}) => {
+    setBroadcastMode(broadcast);
+    setSelectedId(null);
+    setCompose({ receiverId: '', subject: '', body: '' });
+    setComposeOpen(true);
+  };
+
+  const tabs = [
+    { id: 'inbox', label: 'پیام‌های دریافتی', badge: unreadMessages },
+    { id: 'notifications', label: 'اعلان‌ها', badge: unreadNotifications },
+    { id: 'sent', label: 'ارسال‌شده', badge: 0 },
+  ];
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="page-toolbar">
-        <h1 className="text-xl font-bold sm:text-2xl">پیام‌ها</h1>
-        <Button variant="primary" className="gap-2 font-bold" onPress={() => { setComposeOpen(true); setSelectedId(null); }}>
-          <PenSquare className="h-4 w-4" />
-          پیام جدید
-        </Button>
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">پیام‌ها و اعلان‌ها</h1>
+          <p className="mt-1 text-sm text-foreground-500">
+            پیام‌های شخصی و اعلان‌های سیستمی (اطلاعیه، اضطراری و ...) در یکجا
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {canBroadcast && (
+            <Button variant="secondary" className="gap-2 font-bold" onPress={() => startCompose({ broadcast: true })}>
+              <Users className="h-4 w-4" />
+              پیام به همه مدیران واحد
+            </Button>
+          )}
+          <Button variant="primary" className="gap-2 font-bold" onPress={() => startCompose()}>
+            <PenSquare className="h-4 w-4" />
+            پیام جدید
+          </Button>
+        </div>
       </div>
 
-      <div className="inline-flex rounded-xl bg-default-100 p-1">
-        {[
-          { id: 'inbox', label: 'دریافتی' },
-          { id: 'sent', label: 'ارسال‌شده' },
-        ].map((item) => (
+      <div className="inline-flex flex-wrap rounded-xl bg-default-100 p-1">
+        {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
@@ -125,7 +243,14 @@ export const MessagesPage = () => {
               tab === item.id ? 'bg-white text-[var(--color-brand)] shadow-sm' : 'text-foreground-600'
             }`}
           >
-            {item.label}
+            <span className="inline-flex items-center gap-2">
+              {item.label}
+              {item.badge > 0 && (
+                <span className="rounded-full bg-[var(--color-brand)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>
@@ -133,6 +258,20 @@ export const MessagesPage = () => {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Card className="rounded-2xl border border-default-200">
           <CardContent className="p-0">
+            {tab === 'notifications' && unreadNotifications > 0 && (
+              <div className="flex justify-end border-b border-default-100 px-3 py-2">
+                <Button
+                  size="sm"
+                  variant="tertiary"
+                  className="gap-1.5"
+                  onPress={() => markAllNotificationsReadMutation.mutate()}
+                  isDisabled={markAllNotificationsReadMutation.isPending}
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  خواندن همه
+                </Button>
+              </div>
+            )}
             {isLoading ? (
               <div className="flex flex-col gap-2 p-4">
                 {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
@@ -144,11 +283,59 @@ export const MessagesPage = () => {
                   <AlertDescription>{getErrorMessage(error, 'دریافت پیام‌ها ناموفق بود.')}</AlertDescription>
                 </AlertContent>
               </Alert>
+            ) : tab === 'notifications' ? (
+              notifications.length === 0 ? (
+                <EmptyState
+                  icon={<Bell className="h-6 w-6" />}
+                  title="اعلانی وجود ندارد"
+                  description="اعلان‌های سیستمی مثل هشدار اضطراری و اطلاعیه‌ها اینجا نمایش داده می‌شوند."
+                />
+              ) : (
+                <ul className="divide-y divide-default-100">
+                  {notifications.map((item) => {
+                    const meta = notificationTypeMeta[item.type] || notificationTypeMeta.INFO;
+                    const Icon = meta.icon;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => openNotification(item)}
+                          className={`flex w-full items-start gap-3 px-4 py-3.5 text-start transition hover:bg-default-50 ${
+                            selectedId === item.id ? 'bg-[var(--color-brand-soft)]' : ''
+                          }`}
+                        >
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                            item.type === 'EMERGENCY' ? 'bg-danger-100 text-danger-700' : 'bg-[var(--color-brand-soft)] text-[var(--color-brand)]'
+                          }`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`truncate ${!item.isRead ? 'font-bold text-foreground' : 'font-medium'}`}>
+                                {item.title}
+                              </span>
+                              <span className="shrink-0 text-[11px] text-foreground-500">
+                                {new Date(item.createdAt).toLocaleDateString('fa-IR')}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <Chip size="sm" color={meta.color} variant="soft">{meta.label}</Chip>
+                              {!item.isRead && <span className="text-[11px] font-medium text-[var(--color-brand)]">خوانده‌نشده</span>}
+                            </div>
+                            <p className="mt-1 line-clamp-1 text-sm text-foreground-500">{item.body}</p>
+                          </div>
+                          {!item.isRead && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]" />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
             ) : messages.length === 0 ? (
               <EmptyState
                 icon={<MessageSquare className="h-6 w-6" />}
                 title="هیچ پیامی وجود ندارد"
-                description={tab === 'inbox' ? 'پیام‌های دریافتی اینجا نمایش داده می‌شوند.' : 'هنوز پیامی ارسال نکرده‌اید.'}
+                description={tab === 'inbox' ? 'پیام‌های شخصی دریافتی اینجا نمایش داده می‌شوند.' : 'هنوز پیامی ارسال نکرده‌اید.'}
               />
             ) : (
               <ul className="divide-y divide-default-100">
@@ -200,34 +387,51 @@ export const MessagesPage = () => {
                 className="flex flex-col gap-4"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!compose.receiverId || !compose.subject.trim() || !compose.body.trim()) {
-                    showNotification('شناسه گیرنده، موضوع و متن الزامی است', 'error');
+                  if (!compose.subject.trim() || !compose.body.trim()) {
+                    showNotification('موضوع و متن الزامی است', 'error');
+                    return;
+                  }
+                  if (!broadcastMode && !compose.receiverId) {
+                    showNotification('گیرنده را انتخاب کنید', 'error');
                     return;
                   }
                   sendMutation.mutate(compose);
                 }}
               >
-                <h2 className="text-lg font-bold">ارسال پیام</h2>
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs">گیرنده</Label>
-                  <select
-                    required
-                    value={compose.receiverId}
-                    onChange={(e) => setCompose((p) => ({ ...p, receiverId: e.target.value }))}
-                    className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
-                  >
-                    <option value="">انتخاب از لیست مجاز</option>
-                    {recipients.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name} — {roleRecipientLabels[person.role] || person.role} ({person.phoneNumber})
-                      </option>
-                    ))}
-                  </select>
-                  {recipientsQuery.isLoading && <p className="text-[11px] text-foreground-400">در حال بارگذاری گیرندگان...</p>}
-                  {!recipientsQuery.isLoading && recipients.length === 0 && (
-                    <p className="text-[11px] text-danger">گیرنده‌ای در حوزه دسترسی شما یافت نشد.</p>
-                  )}
-                </div>
+                <h2 className="text-lg font-bold">
+                  {broadcastMode ? 'ارسال پیام به همه مدیران واحد صنعتی' : 'ارسال پیام'}
+                </h2>
+                {broadcastMode ? (
+                  <Alert status="accent">
+                    <AlertContent>
+                      <AlertTitle>ارسال گروهی</AlertTitle>
+                      <AlertDescription>
+                        این پیام به‌صورت جداگانه برای تمام مدیران واحدهای صنعتی شهرک شما در صندوق «پیام‌های دریافتی» ثبت می‌شود.
+                      </AlertDescription>
+                    </AlertContent>
+                  </Alert>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">گیرنده</Label>
+                    <select
+                      required
+                      value={compose.receiverId}
+                      onChange={(e) => setCompose((p) => ({ ...p, receiverId: e.target.value }))}
+                      className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                    >
+                      <option value="">انتخاب از لیست مجاز</option>
+                      {recipients.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.name} — {roleRecipientLabels[person.role] || person.role} ({person.phoneNumber})
+                        </option>
+                      ))}
+                    </select>
+                    {recipientsQuery.isLoading && <p className="text-[11px] text-foreground-400">در حال بارگذاری گیرندگان...</p>}
+                    {!recipientsQuery.isLoading && recipients.length === 0 && (
+                      <p className="text-[11px] text-danger">گیرنده‌ای در حوزه دسترسی شما یافت نشد.</p>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">موضوع</Label>
                   <Input
@@ -248,22 +452,46 @@ export const MessagesPage = () => {
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="tertiary" onPress={() => setComposeOpen(false)}>انصراف</Button>
+                  <Button variant="tertiary" onPress={() => { setComposeOpen(false); setBroadcastMode(false); }}>انصراف</Button>
                   <Button type="submit" variant="primary" className="gap-2 font-bold" isDisabled={sendMutation.isPending}>
                     {sendMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
-                    ارسال
+                    {broadcastMode ? 'ارسال به همه' : 'ارسال'}
                   </Button>
                 </div>
               </form>
-            ) : selected ? (
+            ) : selectedNotification ? (
+              <div className="animate-fade-in">
+                <div className="mb-4">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Chip
+                      size="sm"
+                      color={(notificationTypeMeta[selectedNotification.type] || notificationTypeMeta.INFO).color}
+                      variant="soft"
+                    >
+                      {(notificationTypeMeta[selectedNotification.type] || notificationTypeMeta.INFO).label}
+                    </Chip>
+                    {!selectedNotification.isRead && (
+                      <Chip size="sm" color="accent" variant="soft">خوانده‌نشده</Chip>
+                    )}
+                  </div>
+                  <h2 className="text-lg font-bold">{selectedNotification.title}</h2>
+                  <p className="mt-1 text-xs text-foreground-500">
+                    {new Date(selectedNotification.createdAt).toLocaleString('fa-IR')}
+                  </p>
+                </div>
+                <div className="whitespace-pre-wrap rounded-xl bg-default-50 p-4 text-sm leading-7 text-foreground">
+                  {selectedNotification.body}
+                </div>
+              </div>
+            ) : selectedMessage ? (
               <div className="animate-fade-in">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold">{selected.subject}</h2>
+                    <h2 className="text-lg font-bold">{selectedMessage.subject}</h2>
                     <p className="mt-1 text-xs text-foreground-500">
-                      {(tab === 'inbox' ? selected.sender?.name : selected.receiver?.name) || 'کاربر'}
+                      {(tab === 'inbox' ? selectedMessage.sender?.name : selectedMessage.receiver?.name) || 'کاربر'}
                       {' · '}
-                      {new Date(selected.createdAt).toLocaleString('fa-IR')}
+                      {new Date(selectedMessage.createdAt).toLocaleString('fa-IR')}
                     </p>
                   </div>
                   <Button size="sm" variant="tertiary" className="gap-1.5" onPress={startReply}>
@@ -272,14 +500,14 @@ export const MessagesPage = () => {
                   </Button>
                 </div>
                 <div className="whitespace-pre-wrap rounded-xl bg-default-50 p-4 text-sm leading-7 text-foreground">
-                  {selected.body || selected.content}
+                  {selectedMessage.body || selectedMessage.content}
                 </div>
               </div>
             ) : (
               <EmptyState
                 icon={<MessageSquare className="h-6 w-6" />}
-                title="پیامی انتخاب نشده"
-                description="یک پیام از فهرست انتخاب کنید یا پیام جدید بنویسید."
+                title="موردی انتخاب نشده"
+                description="یک پیام یا اعلان را از فهرست انتخاب کنید، یا پیام جدید بنویسید."
               />
             )}
           </CardContent>

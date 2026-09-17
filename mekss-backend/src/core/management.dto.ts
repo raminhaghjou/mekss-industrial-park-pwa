@@ -240,6 +240,26 @@ export class UpdateFactoryStaffDto {
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
+export class CreateParkStaffDto {
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
+  @Transform(trimString) @IsString() @Length(2, 120) name!: string;
+  @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password!: string;
+  @Transform(lowercaseNullableString) @IsOptional() @Matches(usernamePattern) username?: string | null;
+  @Transform(trimNullableString) @IsOptional() @Matches(nationalIdPattern) nationalId?: string | null;
+  @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
+  @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
+}
+
+export class UpdateParkStaffDto {
+  @Transform(normalizeIranianPhone) @IsOptional() @Matches(iranianPhone) phoneNumber?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) name?: string;
+  @IsOptional() @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password?: string;
+  @Transform(lowercaseNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(usernamePattern) username?: string | null;
+  @Transform(trimNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(nationalIdPattern) nationalId?: string | null;
+  @Transform(lowercaseNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @IsEmail() @MaxLength(254) email?: string | null;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
 export class WalletTopUpDto {
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
 }
@@ -381,6 +401,11 @@ export class UpdateAnnouncementDto {
 
 export class SendMessageDto {
   @IsArray() @ArrayMaxSize(500) @Matches(opaqueId, { each: true }) recipientIds!: string[];
+  @IsString() @Length(2, 200) subject!: string;
+  @IsString() @Length(2, 4000) body!: string;
+}
+
+export class BroadcastFactoryManagersMessageDto {
   @IsString() @Length(2, 200) subject!: string;
   @IsString() @Length(2, 4000) body!: string;
 }

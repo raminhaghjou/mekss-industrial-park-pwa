@@ -48,6 +48,7 @@ const navigationItems = [
   { path: '/dashboard', text: 'داشبورد', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
   { path: '/admin/factories', text: 'واحدهای صنعتی', icon: Building2, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
   { path: '/admin/registrations', text: 'تایید ثبت‌نام‌ها', icon: UserCheck, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
+  { path: '/admin/park-staff', text: 'پرسنل شهرک', icon: UserPlus, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
   { path: '/factory/register', text: 'ثبت واحد صنعتی', icon: Factory, roles: ['FACTORY_OWNER'] },
   { path: '/factory/staff', text: 'پرسنل واحد', icon: UserPlus, roles: ['FACTORY_OWNER'] },
   { path: '/factory/wallet', text: 'کیف پول', icon: Wallet, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },

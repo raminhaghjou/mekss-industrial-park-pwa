@@ -205,10 +205,13 @@ model User {
   // factory, is approved by that factory's owner, and is restricted to the
   // request types listed in canApproveRequestTypes rather than a hardcoded role.
   employeeOfFactoryId    String?
-  employeeOfFactory      Factory?      @relation("FactoryEmployee", fields: [employeeOfFactoryId], references: [id], onDelete: SetNull)
-  canApproveRequestTypes RequestType[] @default([])
+  employeeOfFactory      Factory?        @relation("FactoryEmployee", fields: [employeeOfFactoryId], references: [id], onDelete: SetNull)
+  // Park-office staff managed by a park manager (same EMPLOYEE role, park scope).
+  employeeOfParkId       String?
+  employeeOfPark         IndustrialPark? @relation("ParkEmployee", fields: [employeeOfParkId], references: [id], onDelete: SetNull)
+  canApproveRequestTypes RequestType[]   @default([])
   // Park managers may opt out of receiving unsolicited factory-to-manager messages.
-  messagingRestricted    Boolean       @default(false)
+  messagingRestricted    Boolean         @default(false)
   // A default driver/vehicle snapshot offered as a starting point on the next gate pass form.
   defaultDriver          Json?
   // Self-registration: factory owners / employees request access to a specific park until approved.
@@ -246,6 +249,7 @@ model User {
   @@index([role, isApproved, isActive])
   @@index([bootstrapCreatedAt])
   @@index([employeeOfFactoryId])
+  @@index([employeeOfParkId])
   @@index([requestedParkId, isApproved, role])
 }
 
@@ -271,6 +275,7 @@ model IndustrialPark {
 
   factories      Factory[]
   managers       User[]          @relation("ParkManager")
+  staff          User[]          @relation("ParkEmployee")
   registrationRequests User[]    @relation("UserRequestedPark")
   announcements  Announcement[]
   advertisements Advertisement[] @relation("AdvertisementPark")

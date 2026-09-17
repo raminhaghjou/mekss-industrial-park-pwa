@@ -17,80 +17,120 @@ export const IRAN_PLATE_LETTERS = [
   { value: 'ا', label: 'الف' },
 ];
 
-/** Common Iran plate region codes (کد شهر / استان روی پلاک). */
+/**
+ * Official Iran plate region codes (دو رقم سمت راست / ایران).
+ * Source: Vehicle registration plates of Iran (Wikipedia) + راهنمای پلاک استان‌ها.
+ * Fars = 63, 73, 83, 93 — not 17.
+ */
 export const IRAN_PLATE_REGIONS = [
-  { code: '10', label: '۱۰ — تهران' },
-  { code: '11', label: '۱۱ — تهران' },
-  { code: '12', label: '۱۲ — خراسان رضوی' },
-  { code: '13', label: '۱۳ — اصفهان' },
-  { code: '14', label: '۱۴ — آذربایجان شرقی' },
-  { code: '15', label: '۱۵ — البرز / کرج' },
-  { code: '16', label: '۱۶ — خوزستان' },
-  { code: '17', label: '۱۷ — فارس' },
-  { code: '18', label: '۱۸ — آذربایجان غربی' },
-  { code: '19', label: '۱۹ — کرمان' },
-  { code: '20', label: '۲۰ — مازندران' },
-  { code: '21', label: '۲۱ — تهران' },
-  { code: '22', label: '۲۲ — تهران' },
-  { code: '23', label: '۲۳ — تهران' },
-  { code: '24', label: '۲۴ — گیلان' },
-  { code: '25', label: '۲۵ — مرکزی' },
-  { code: '26', label: '۲۶ — همدان' },
-  { code: '27', label: '۲۷ — کرمانشاه' },
-  { code: '28', label: '۲۸ — گلستان' },
-  { code: '29', label: '۲۹ — هرمزگان' },
-  { code: '30', label: '۳۰ — خوزستان' },
-  { code: '31', label: '۳۱ — لرستان' },
-  { code: '32', label: '۳۲ — کردستان' },
-  { code: '33', label: '۳۳ — سیستان و بلوچستان' },
-  { code: '34', label: '۳۴ — زنجان' },
-  { code: '35', label: '۳۵ — یزد' },
-  { code: '36', label: '۳۶ — اردبیل' },
-  { code: '37', label: '۳۷ — قم' },
-  { code: '38', label: '۳۸ — قزوین' },
-  { code: '40', label: '۴۰ — بوشهر' },
-  { code: '41', label: '۴۱ — سمنان' },
-  { code: '42', label: '۴۲ — ایلام' },
-  { code: '43', label: '۴۳ — چهارمحال و بختیاری' },
-  { code: '44', label: '۴۴ — کهگیلویه و بویراحمد' },
-  { code: '45', label: '۴۵ — خراسان شمالی' },
-  { code: '46', label: '۴۶ — خراسان جنوبی' },
-  { code: '51', label: '۵۱ — فارس' },
-  { code: '52', label: '۵۲ — خراسان رضوی' },
-  { code: '53', label: '۵۳ — آذربایجان شرقی' },
-  { code: '54', label: '۵۴ — آذربایجان غربی' },
-  { code: '55', label: '۵۵ — اصفهان' },
-  { code: '56', label: '۵۶ — کرمان' },
-  { code: '57', label: '۵۷ — مازندران' },
-  { code: '61', label: '۶۱ — خوزستان' },
-  { code: '62', label: '۶۲ — گیلان' },
-  { code: '63', label: '۶۳ — فارس' },
-  { code: '66', label: '۶۶ — تهران' },
-  { code: '67', label: '۶۷ — البرز' },
-  { code: '68', label: '۶۸ — تهران' },
-  { code: '71', label: '۷۱ — فارس' },
-  { code: '72', label: '۷۲ — خراسان رضوی' },
-  { code: '74', label: '۷۴ — اصفهان' },
-  { code: '75', label: '۷۵ — مازندران' },
-  { code: '77', label: '۷۷ — فارس' },
-  { code: '78', label: '۷۸ — تهران' },
-  { code: '81', label: '۸۱ — کرمان' },
-  { code: '82', label: '۸۲ — خوزستان' },
-  { code: '84', label: '۸۴ — همدان' },
-  { code: '86', label: '۸۶ — یزد' },
-  { code: '87', label: '۸۷ — مرکزی' },
-  { code: '88', label: '۸۸ — بوشهر' },
-  { code: '91', label: '۹۱ — هرمزگان' },
-  { code: '93', label: '۹۳ — سیستان و بلوچستان' },
-  { code: '95', label: '۹۵ — کهگیلویه و بویراحمد' },
-  { code: '96', label: '۹۶ — زنجان' },
-  { code: '97', label: '۹۷ — قزوین' },
-  { code: '98', label: '۹۸ — ایلام' },
-  { code: '99', label: '۹۹ — تهران' },
+  { code: '10', province: 'تهران', label: '۱۰ — تهران' },
+  { code: '11', province: 'تهران', label: '۱۱ — تهران' },
+  { code: '12', province: 'خراسان رضوی', label: '۱۲ — خراسان رضوی' },
+  { code: '13', province: 'اصفهان', label: '۱۳ — اصفهان' },
+  { code: '14', province: 'خوزستان', label: '۱۴ — خوزستان' },
+  { code: '15', province: 'آذربایجان شرقی', label: '۱۵ — آذربایجان شرقی' },
+  { code: '16', province: 'قم', label: '۱۶ — قم' },
+  { code: '17', province: 'آذربایجان غربی', label: '۱۷ — آذربایجان غربی' },
+  { code: '18', province: 'همدان', label: '۱۸ — همدان' },
+  { code: '19', province: 'کرمانشاه', label: '۱۹ — کرمانشاه' },
+  { code: '20', province: 'تهران', label: '۲۰ — تهران' },
+  { code: '21', province: 'البرز / تهران', label: '۲۱ — البرز / تهران' },
+  { code: '22', province: 'تهران', label: '۲۲ — تهران' },
+  { code: '23', province: 'اصفهان', label: '۲۳ — اصفهان' },
+  { code: '24', province: 'خوزستان', label: '۲۴ — خوزستان' },
+  { code: '25', province: 'آذربایجان شرقی', label: '۲۵ — آذربایجان شرقی' },
+  { code: '26', province: 'خراسان شمالی', label: '۲۶ — خراسان شمالی' },
+  { code: '27', province: 'آذربایجان غربی', label: '۲۷ — آذربایجان غربی' },
+  { code: '28', province: 'همدان', label: '۲۸ — همدان' },
+  { code: '29', province: 'کرمانشاه', label: '۲۹ — کرمانشاه' },
+  { code: '30', province: 'البرز / تهران', label: '۳۰ — البرز / تهران' },
+  { code: '31', province: 'لرستان', label: '۳۱ — لرستان' },
+  { code: '32', province: 'خراسان رضوی / شمالی / جنوبی', label: '۳۲ — خراسان (رضوی/شمالی/جنوبی)' },
+  { code: '33', province: 'تهران', label: '۳۳ — تهران' },
+  { code: '34', province: 'خوزستان', label: '۳۴ — خوزستان' },
+  { code: '35', province: 'آذربایجان شرقی', label: '۳۵ — آذربایجان شرقی' },
+  { code: '36', province: 'خراسان رضوی', label: '۳۶ — خراسان رضوی' },
+  { code: '37', province: 'آذربایجان غربی', label: '۳۷ — آذربایجان غربی' },
+  { code: '38', province: 'البرز / تهران', label: '۳۸ — البرز / تهران' },
+  { code: '39', province: 'کرمانشاه', label: '۳۹ — کرمانشاه' },
+  { code: '40', province: 'تهران', label: '۴۰ — تهران' },
+  { code: '41', province: 'لرستان', label: '۴۱ — لرستان' },
+  { code: '42', province: 'خراسان رضوی / شمالی / جنوبی', label: '۴۲ — خراسان (رضوی/شمالی/جنوبی)' },
+  { code: '43', province: 'اصفهان', label: '۴۳ — اصفهان' },
+  { code: '44', province: 'تهران', label: '۴۴ — تهران' },
+  { code: '45', province: 'کرمان', label: '۴۵ — کرمان' },
+  { code: '46', province: 'گیلان', label: '۴۶ — گیلان' },
+  { code: '47', province: 'مرکزی', label: '۴۷ — مرکزی' },
+  { code: '48', province: 'بوشهر', label: '۴۸ — بوشهر' },
+  { code: '49', province: 'کهگیلویه و بویراحمد', label: '۴۹ — کهگیلویه و بویراحمد' },
+  { code: '50', province: 'تهران', label: '۵۰ — تهران' },
+  { code: '51', province: 'کردستان', label: '۵۱ — کردستان' },
+  { code: '52', province: 'خراسان جنوبی', label: '۵۲ — خراسان جنوبی' },
+  { code: '53', province: 'اصفهان', label: '۵۳ — اصفهان' },
+  { code: '54', province: 'یزد', label: '۵۴ — یزد' },
+  { code: '55', province: 'تهران', label: '۵۵ — تهران' },
+  { code: '56', province: 'گیلان', label: '۵۶ — گیلان' },
+  { code: '57', province: 'مرکزی', label: '۵۷ — مرکزی' },
+  { code: '58', province: 'بوشهر', label: '۵۸ — بوشهر' },
+  { code: '59', province: 'گلستان', label: '۵۹ — گلستان' },
+  { code: '60', province: 'تهران', label: '۶۰ — تهران' },
+  { code: '61', province: 'کردستان', label: '۶۱ — کردستان' },
+  { code: '62', province: 'مازندران', label: '۶۲ — مازندران' },
+  { code: '63', province: 'فارس', label: '۶۳ — فارس (شیراز و اطراف)' },
+  { code: '64', province: 'یزد', label: '۶۴ — یزد' },
+  { code: '65', province: 'کرمان', label: '۶۵ — کرمان' },
+  { code: '66', province: 'تهران', label: '۶۶ — تهران' },
+  { code: '67', province: 'اصفهان', label: '۶۷ — اصفهان' },
+  { code: '68', province: 'البرز / تهران', label: '۶۸ — البرز / تهران' },
+  { code: '69', province: 'گلستان', label: '۶۹ — گلستان' },
+  { code: '71', province: 'چهارمحال و بختیاری', label: '۷۱ — چهارمحال و بختیاری' },
+  { code: '72', province: 'مازندران', label: '۷۲ — مازندران' },
+  { code: '73', province: 'فارس', label: '۷۳ — فارس' },
+  { code: '74', province: 'خراسان رضوی', label: '۷۴ — خراسان رضوی' },
+  { code: '75', province: 'کرمان', label: '۷۵ — کرمان' },
+  { code: '76', province: 'گیلان', label: '۷۶ — گیلان' },
+  { code: '77', province: 'تهران', label: '۷۷ — تهران' },
+  { code: '78', province: 'البرز / تهران', label: '۷۸ — البرز / تهران' },
+  { code: '79', province: 'قزوین', label: '۷۹ — قزوین' },
+  { code: '81', province: 'چهارمحال و بختیاری', label: '۸۱ — چهارمحال و بختیاری' },
+  { code: '82', province: 'مازندران', label: '۸۲ — مازندران' },
+  { code: '83', province: 'فارس', label: '۸۳ — فارس' },
+  { code: '84', province: 'هرمزگان', label: '۸۴ — هرمزگان' },
+  { code: '85', province: 'سیستان و بلوچستان', label: '۸۵ — سیستان و بلوچستان' },
+  { code: '86', province: 'سمنان', label: '۸۶ — سمنان' },
+  { code: '87', province: 'زنجان', label: '۸۷ — زنجان' },
+  { code: '88', province: 'تهران', label: '۸۸ — تهران' },
+  { code: '89', province: 'قزوین', label: '۸۹ — قزوین' },
+  { code: '91', province: 'اردبیل', label: '۹۱ — اردبیل' },
+  { code: '92', province: 'مازندران', label: '۹۲ — مازندران' },
+  { code: '93', province: 'فارس', label: '۹۳ — فارس' },
+  { code: '94', province: 'هرمزگان', label: '۹۴ — هرمزگان' },
+  { code: '95', province: 'سیستان و بلوچستان', label: '۹۵ — سیستان و بلوچستان' },
+  { code: '96', province: 'سمنان', label: '۹۶ — سمنان' },
+  { code: '97', province: 'زنجان', label: '۹۷ — زنجان' },
+  { code: '98', province: 'ایلام', label: '۹۸ — ایلام' },
+  { code: '99', province: 'تهران', label: '۹۹ — تهران' },
 ];
 
 export const TWO_DIGIT_OPTIONS = Array.from({ length: 99 }, (_, i) => String(i + 1).padStart(2, '0'));
 export const DIGIT_OPTIONS = Array.from({ length: 10 }, (_, i) => String(i));
+
+const CUSTOM_REGION = '__custom__';
+
+export function findIranPlateRegion(code = '') {
+  return IRAN_PLATE_REGIONS.find((item) => item.code === String(code)) || null;
+}
+
+export function iranPlateRegionLabel(code = '') {
+  const known = findIranPlateRegion(code);
+  if (known) return known.label;
+  if (/^\d{2}$/.test(String(code))) return `${toPersianDigits(code)} — سایر / دستی`;
+  return '';
+}
+
+export function toPersianDigits(value = '') {
+  return String(value).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
+}
 
 const toAsciiDigits = (value = '') =>
   String(value)
@@ -139,3 +179,5 @@ export function formatIranLicensePlate(parts) {
 export function isCompleteIranLicensePlate(value) {
   return Boolean(formatIranLicensePlate(parseIranLicensePlate(value)));
 }
+
+export { CUSTOM_REGION };

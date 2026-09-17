@@ -76,29 +76,16 @@ export const DashboardPage = () => {
     ? '/admin/announcements'
     : '/announcements';
 
-  const feedItems = useMemo(() => {
-    const sortedAnnouncements = [...(announcements || [])].sort((a, b) => {
-      const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
-      if (pinDiff !== 0) return pinDiff;
-      return Number(b.priority || 0) - Number(a.priority || 0);
-    });
-    const ann = sortedAnnouncements.slice(0, 8).map((item) => ({
-      id: `a-${item.id}`,
-      kind: 'announcement',
-      title: item.title,
-      body: item.content,
-      href: announcementsHref,
-    }));
-    const ads = (advertisements || []).slice(0, 4).map((item) => ({
+  // Ads-only slider — announcements have a dedicated panel to avoid duplicate banners.
+  const feedItems = useMemo(() => (
+    (advertisements || []).slice(0, 6).map((item) => ({
       id: `ad-${item.id}`,
       kind: 'ad',
       title: item.title,
       body: item.description || item.content,
       href: '/advertisements',
-    }));
-    // Announcements first so park notices dominate the home feed for factory users.
-    return [...ann, ...ads];
-  }, [announcements, advertisements, announcementsHref]);
+    }))
+  ), [advertisements]);
 
   const featuredAnnouncements = useMemo(() => {
     return [...(announcements || [])]
@@ -109,8 +96,6 @@ export const DashboardPage = () => {
       })
       .slice(0, 3);
   }, [announcements]);
-
-  const showAnnouncementPanel = ['FACTORY_OWNER', 'EMPLOYEE', 'PARK_MANAGER', 'SECURITY_GUARD'].includes(user?.role);
 
   if (isLoading) {
     return (
@@ -184,13 +169,18 @@ export const DashboardPage = () => {
 
       <HomeFeedSlider items={feedItems} />
 
-      {showAnnouncementPanel && featuredAnnouncements.length > 0 && (
-        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
+      {featuredAnnouncements.length > 0 && (
+        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 animate-slide-up">
           <CardContent className="p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Megaphone className="h-5 w-5 text-primary-600" />
-                <h2 className="text-base font-bold text-foreground">اطلاعیه‌های شهرک</h2>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                  <Megaphone className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-foreground">اطلاعیه‌های شهرک</h2>
+                  <p className="text-xs text-foreground-500">آخرین اطلاعیه‌های رسمی مدیریت شهرک</p>
+                </div>
               </div>
               <Button
                 variant="ghost"
@@ -209,7 +199,7 @@ export const DashboardPage = () => {
                   onClick={() => navigate(announcementsHref)}
                   className="flex flex-col gap-1 py-3 text-start first:pt-0 last:pb-0 hover:opacity-90"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-foreground">{item.title}</span>
                     {item.isPinned && (
                       <span className="rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-medium text-warning-700">

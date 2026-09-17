@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 import { SmsGateway } from './sms.gateway';
@@ -175,6 +175,22 @@ const STAFF_USER_SELECT = Prisma.validator<Prisma.UserSelect>()({
   isApproved: true,
   employeeOfFactoryId: true,
   canApproveRequestTypes: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+const PARK_STAFF_USER_SELECT = Prisma.validator<Prisma.UserSelect>()({
+  id: true,
+  phoneNumber: true,
+  username: true,
+  name: true,
+  nationalId: true,
+  email: true,
+  role: true,
+  isActive: true,
+  isApproved: true,
+  mustChangePassword: true,
+  employeeOfParkId: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -1986,6 +2002,33 @@ export class ManagementService {
     return { count: messages + notifications, messages, notifications };
   }
 
+  async listNotifications(actor: AuthenticatedUser) {
+    return this.prisma.notification.findMany({
+      where: { userId: actor.id },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+  }
+
+  async markNotificationRead(actor: AuthenticatedUser, id: string) {
+    const notification = await this.prisma.notification.findUnique({ where: { id } });
+    if (!notification) throw new NotFoundException('Notification not found');
+    if (notification.userId !== actor.id) throw new ForbiddenException('You do not have access to this notification');
+    if (notification.isRead) return notification;
+    return this.prisma.notification.update({
+      where: { id },
+      data: { isRead: true, readAt: new Date() },
+    });
+  }
+
+  async markAllNotificationsRead(actor: AuthenticatedUser) {
+    const result = await this.prisma.notification.updateMany({
+      where: { userId: actor.id, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { updated: result.count };
+  }
+
   async markMessageRead(actor: AuthenticatedUser, id: string) {
     const message = await this.prisma.message.findUnique({ where: { id } });
     if (!message) throw new NotFoundException('Message not found');
@@ -2020,12 +2063,12 @@ export class ManagementService {
         body: input.body,
       },
       include: {
-        sender: { select: { id: true, name: true } },
-        receiver: { select: { id: true, name: true } },
+        sender: { select: { id: true, name: true, role: true } },
+        receiver: { select: { id: true, name: true, role: true } },
       },
     });
     await this.audit.record({ userId: actor.id, action: 'MESSAGE_SENT', entity: 'Message', entityId: message.id });
-    await this.notifyUser(receiver.id, input.subject, input.body.slice(0, 280), 'INFO');
+    // Do not create a parallel in-app Notification here — the Message inbox is the source of truth.
     if (receiver.phoneNumber) {
       await this.safeSendSms(receiver.phoneNumber, `MEKSS پیام جدید: ${input.subject}`);
     }
@@ -2041,16 +2084,34 @@ export class ManagementService {
       select: { id: true, phoneNumber: true },
     });
     if (!validRecipients.length) throw new BadRequestException('No valid recipients were resolved');
-    const excludedCount = recipientIds.length - validRecipients.length;
+    const excludedCount = Math.max(0, Array.from(new Set(recipientIds)).length - validRecipients.length);
     const created = await this.prisma.$transaction(
-      validRecipients.map((recipient) => this.prisma.message.create({ data: { senderId: actor.id, receiverId: recipient.id, subject, body } })),
+      validRecipients.map((recipient) => this.prisma.message.create({
+        data: { senderId: actor.id, receiverId: recipient.id, subject, body },
+      })),
     );
-    await this.audit.record({ userId: actor.id, action: 'MESSAGE_BATCH_SENT', entity: 'Message', entityId: created.map((message) => message.id).join(','), changes: { recipientCount: created.length } });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'MESSAGE_BATCH_SENT',
+      entity: 'Message',
+      entityId: created.map((message) => message.id).join(','),
+      changes: { recipientCount: created.length },
+    });
     await Promise.all(validRecipients.map(async (recipient) => {
-      await this.notifyUser(recipient.id, subject, body.slice(0, 280), 'INFO');
       if (recipient.phoneNumber) await this.safeSendSms(recipient.phoneNumber, `MEKSS پیام جدید: ${subject}`);
     }));
     return { sentCount: created.length, excludedCount };
+  }
+
+  /** Broadcast one message to every factory owner in the actor's managed parks. */
+  async broadcastToFactoryManagers(actor: AuthenticatedUser, subject: string, body: string) {
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('Only park managers can broadcast to factory managers');
+    }
+    const recipients = await this.messageRecipients(actor);
+    const factoryManagers = recipients.filter((item) => item.role === Role.FACTORY_OWNER);
+    if (!factoryManagers.length) throw new BadRequestException('No factory managers found in your park scope');
+    return this.sendMessage(actor, factoryManagers.map((item) => item.id), subject, body);
   }
 
   async messageRecipients(actor: AuthenticatedUser) {
@@ -2185,6 +2246,174 @@ export class ManagementService {
       changes: input as unknown as Prisma.InputJsonObject,
     });
     return updated;
+  }
+
+  async listParkStaff(actor: AuthenticatedUser, parkId?: string) {
+    const scopeParkIds = await this.resolveParkStaffScope(actor, parkId);
+    return this.prisma.user.findMany({
+      where: {
+        role: Role.EMPLOYEE,
+        employeeOfParkId: { in: scopeParkIds },
+        employeeOfFactoryId: null,
+      },
+      select: {
+        ...PARK_STAFF_USER_SELECT,
+        employeeOfPark: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    });
+  }
+
+  async createParkStaff(actor: AuthenticatedUser, input: CreateParkStaffDto) {
+    const parkId = await this.resolveParkStaffParkId(actor, input.parkId);
+    const password = await bcrypt.hash(input.password, 12);
+    try {
+      const created = await this.prisma.user.create({
+        data: {
+          phoneNumber: input.phoneNumber,
+          name: input.name.trim(),
+          password,
+          username: input.username || null,
+          nationalId: input.nationalId || null,
+          email: input.email || null,
+          role: Role.EMPLOYEE,
+          isApproved: true,
+          isActive: true,
+          mustChangePassword: true,
+          employeeOfParkId: parkId,
+          employeeOfFactoryId: null,
+          canApproveRequestTypes: [],
+        },
+        select: {
+          ...PARK_STAFF_USER_SELECT,
+          employeeOfPark: { select: { id: true, name: true, code: true } },
+        },
+      });
+      await this.audit.record({
+        userId: actor.id,
+        action: 'PARK_STAFF_CREATED',
+        entity: 'User',
+        entityId: created.id,
+        changes: { parkId, phoneNumber: input.phoneNumber, username: input.username || null },
+      });
+      return created;
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2002') {
+        throw new ConflictException('Phone number, username, national ID or email is already registered');
+      }
+      throw error;
+    }
+  }
+
+  async updateParkStaff(actor: AuthenticatedUser, userId: string, input: UpdateParkStaffDto) {
+    const keys = Object.keys(input).filter((key) => (input as Record<string, unknown>)[key] !== undefined);
+    if (!keys.length) throw new BadRequestException('At least one staff field is required');
+
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        role: Role.EMPLOYEE,
+        employeeOfParkId: { not: null },
+        employeeOfFactoryId: null,
+      },
+      select: { id: true, employeeOfParkId: true },
+    });
+    if (!existing?.employeeOfParkId) throw new NotFoundException('Park staff user not found');
+    await this.assertManagedParkAccess(actor, existing.employeeOfParkId);
+
+    const data: Prisma.UserUpdateInput = {};
+    if (input.name !== undefined) data.name = input.name.trim();
+    if (input.phoneNumber !== undefined) data.phoneNumber = input.phoneNumber;
+    if (input.username !== undefined) data.username = input.username;
+    if (input.nationalId !== undefined) data.nationalId = input.nationalId;
+    if (input.email !== undefined) data.email = input.email;
+    if (input.isActive !== undefined) {
+      data.isActive = input.isActive;
+      if (input.isActive === false) data.sessionVersion = { increment: 1 };
+    }
+    if (input.password) {
+      data.password = await bcrypt.hash(input.password, 12);
+      data.mustChangePassword = true;
+      data.sessionVersion = { increment: 1 };
+    }
+
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data,
+        select: {
+          ...PARK_STAFF_USER_SELECT,
+          employeeOfPark: { select: { id: true, name: true, code: true } },
+        },
+      });
+      if (input.password || input.isActive === false) {
+        await this.prisma.refreshToken.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      await this.audit.record({
+        userId: actor.id,
+        action: 'PARK_STAFF_UPDATED',
+        entity: 'User',
+        entityId: userId,
+        changes: {
+          ...input,
+          password: input.password ? '[redacted]' : undefined,
+        } as unknown as Prisma.InputJsonObject,
+      });
+      return updated;
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2002') {
+        throw new ConflictException('Phone number, username, national ID or email is already registered');
+      }
+      throw error;
+    }
+  }
+
+  async deleteParkStaff(actor: AuthenticatedUser, userId: string) {
+    if (actor.id === userId) throw new ForbiddenException('You cannot delete your own account');
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        role: Role.EMPLOYEE,
+        employeeOfParkId: { not: null },
+        employeeOfFactoryId: null,
+      },
+      select: { id: true, employeeOfParkId: true },
+    });
+    if (!existing?.employeeOfParkId) throw new NotFoundException('Park staff user not found');
+    await this.assertManagedParkAccess(actor, existing.employeeOfParkId);
+
+    const blockers = await this.userDeleteBlockers(this.prisma, userId);
+    if (blockers.length) {
+      // Soft-delete when hard delete is blocked by business relations.
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { isActive: false, sessionVersion: { increment: 1 } },
+      });
+      await this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await this.audit.record({
+        userId: actor.id,
+        action: 'PARK_STAFF_DEACTIVATED',
+        entity: 'User',
+        entityId: userId,
+        changes: { reason: 'protected_relations', blockers },
+      });
+      return { id: userId, deleted: false, deactivated: true };
+    }
+
+    await this.prisma.user.delete({ where: { id: userId } });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'PARK_STAFF_DELETED',
+      entity: 'User',
+      entityId: userId,
+    });
+    return { id: userId, deleted: true, deactivated: false };
   }
 
   async factoryWallet(actor: AuthenticatedUser, factoryId: string) {
@@ -2772,6 +3001,49 @@ export class ManagementService {
     if (!owned) throw new ForbiddenException('You do not have access to this factory');
   }
 
+  private async assertManagedParkAccess(actor: AuthenticatedUser, parkId: string) {
+    if (actor.role === Role.SUPER_ADMIN) return;
+    if (actor.role !== Role.PARK_MANAGER) throw new ForbiddenException('Only park managers can manage park staff');
+    const managed = await this.managedParkIds(actor);
+    if (!managed.includes(parkId)) throw new ForbiddenException('You do not have access to this park');
+  }
+
+  private async resolveParkStaffParkId(actor: AuthenticatedUser, requestedParkId?: string): Promise<string> {
+    if (actor.role === Role.SUPER_ADMIN) {
+      if (!requestedParkId) throw new BadRequestException('parkId is required');
+      const park = await this.prisma.industrialPark.findUnique({ where: { id: requestedParkId }, select: { id: true } });
+      if (!park) throw new NotFoundException('Park not found');
+      return park.id;
+    }
+    if (actor.role !== Role.PARK_MANAGER) throw new ForbiddenException('Only park managers can manage park staff');
+    const managed = await this.managedParkIds(actor);
+    if (!managed.length) throw new ForbiddenException('No managed park assigned');
+    if (requestedParkId) {
+      if (!managed.includes(requestedParkId)) throw new ForbiddenException('You do not have access to this park');
+      return requestedParkId;
+    }
+    if (managed.length === 1) return managed[0];
+    throw new BadRequestException('parkId is required when multiple parks are assigned');
+  }
+
+  private async resolveParkStaffScope(actor: AuthenticatedUser, parkId?: string): Promise<string[]> {
+    if (actor.role === Role.SUPER_ADMIN) {
+      if (parkId) {
+        const park = await this.prisma.industrialPark.findUnique({ where: { id: parkId }, select: { id: true } });
+        if (!park) throw new NotFoundException('Park not found');
+        return [park.id];
+      }
+      return this.prisma.industrialPark.findMany({ select: { id: true } }).then((rows) => rows.map((row) => row.id));
+    }
+    if (actor.role !== Role.PARK_MANAGER) throw new ForbiddenException('Only park managers can manage park staff');
+    const managed = await this.managedParkIds(actor);
+    if (parkId) {
+      if (!managed.includes(parkId)) throw new ForbiddenException('You do not have access to this park');
+      return [parkId];
+    }
+    return managed;
+  }
+
   private async assertRequestActionAccess(
     actor: AuthenticatedUser,
     request: { factoryId: string; type: RequestType; isToParkManager: boolean },
@@ -2824,8 +3096,12 @@ export class ManagementService {
     if (actor.role === Role.EMPLOYEE) {
       const employee = await this.prisma.user.findUnique({
         where: { id: actor.id },
-        select: { employeeOfFactory: { select: { parkId: true } } },
+        select: {
+          employeeOfFactory: { select: { parkId: true } },
+          employeeOfParkId: true,
+        },
       });
+      if (employee?.employeeOfParkId) return [employee.employeeOfParkId];
       return employee?.employeeOfFactory?.parkId ? [employee.employeeOfFactory.parkId] : [];
     }
     if (actor.role === Role.SECURITY_GUARD) {
@@ -2933,6 +3209,17 @@ export class ManagementService {
       addUser(guard.user?.id, guard.user?.phoneNumber, guard.user?.isActive !== false, guard.user?.isApproved !== false);
     }
     for (const employee of employees) addUser(employee.id, employee.phoneNumber);
+    const parkEmployees = await this.prisma.user.findMany({
+      where: {
+        role: Role.EMPLOYEE,
+        employeeOfParkId: parkId,
+        employeeOfFactoryId: null,
+        isActive: true,
+        isApproved: true,
+      },
+      select: { id: true, phoneNumber: true },
+    });
+    for (const employee of parkEmployees) addUser(employee.id, employee.phoneNumber);
 
     const phones = new Set<string>();
     for (const phone of userMap.values()) {

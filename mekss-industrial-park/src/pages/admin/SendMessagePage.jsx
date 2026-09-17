@@ -64,6 +64,18 @@ const SendMessagePage = () => {
     onError: (err) => showNotification(getErrorMessage(err, 'ارسال پیام ناموفق بود.'), 'error'),
   });
 
+  const broadcastMutation = useMutation({
+    mutationFn: () => messageApi.broadcastToFactoryManagers(subject, body),
+    onSuccess: (res) => {
+      const { sentCount } = res.data;
+      showNotification(`پیام برای ${sentCount.toLocaleString('fa-IR')} مدیر واحد ارسال شد.`, 'success');
+      setSelectedManagerIds([]);
+      setSubject('');
+      setBody('');
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'ارسال پیام ناموفق بود.'), 'error'),
+  });
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedManagerIds.length || !subject.trim() || !body.trim()) {
@@ -73,12 +85,24 @@ const SendMessagePage = () => {
     sendMutation.mutate();
   };
 
+  const handleBroadcastAll = () => {
+    if (!subject.trim() || !body.trim()) {
+      showNotification('موضوع و متن پیام الزامی است.', 'error');
+      return;
+    }
+    broadcastMutation.mutate();
+  };
+
   const handleRecipientsChange = (keys) => {
     if (keys === 'all') {
       setSelectedManagerIds(recipients.map((recipient) => recipient.id));
       return;
     }
     setSelectedManagerIds(Array.from(keys));
+  };
+
+  const selectAllManagers = () => {
+    setSelectedManagerIds(recipients.map((recipient) => recipient.id));
   };
 
   return (
@@ -106,7 +130,19 @@ const SendMessagePage = () => {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
-              <Label className="text-xs font-medium text-foreground-600">انتخاب گیرندگان</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium text-foreground-600">انتخاب گیرندگان</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="tertiary"
+                  className="rounded-lg"
+                  onPress={selectAllManagers}
+                  isDisabled={!recipients.length}
+                >
+                  انتخاب همه مدیران واحد
+                </Button>
+              </div>
               <Select
                 selectionMode="multiple"
                 value={selectedManagerIds}
@@ -128,6 +164,9 @@ const SendMessagePage = () => {
                   </ListBox>
                 </SelectPopover>
               </Select>
+              <p className="text-[11px] text-foreground-400">
+                {selectedManagerIds.length.toLocaleString('fa-IR')} گیرنده انتخاب شده از {recipients.length.toLocaleString('fa-IR')} مدیر واحد
+              </p>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -153,16 +192,27 @@ const SendMessagePage = () => {
               />
             </div>
 
-            <div className="flex items-center justify-end mt-2">
+            <div className="flex flex-col-reverse items-stretch justify-end gap-2 mt-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                isDisabled={broadcastMutation.isPending || sendMutation.isPending}
+                className="rounded-xl font-bold px-6 flex items-center gap-2"
+                onPress={handleBroadcastAll}
+              >
+                {broadcastMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
+                ارسال به همه مدیران واحد
+              </Button>
               <Button
                 type="submit"
                 variant="primary"
                 size="lg"
-                isDisabled={sendMutation.isPending}
+                isDisabled={sendMutation.isPending || broadcastMutation.isPending}
                 className="rounded-xl font-bold px-8 shadow-md flex items-center gap-2"
               >
                 {sendMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
-                ارسال پیام
+                ارسال به انتخاب‌شده‌ها
               </Button>
             </div>
           </form>

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Label } from '@heroui/react';
 import {
+  CUSTOM_REGION,
   DIGIT_OPTIONS,
   IRAN_PLATE_LETTERS,
   IRAN_PLATE_REGIONS,
   TWO_DIGIT_OPTIONS,
+  findIranPlateRegion,
   formatIranLicensePlate,
+  iranPlateRegionLabel,
   parseIranLicensePlate,
 } from '../../utils/iranLicensePlate';
 
@@ -33,12 +36,16 @@ export default function IranLicensePlateInput({
     return m.length === 3 ? m.split('') : emptyDigits();
   });
   const [region, setRegion] = useState(parsed.region);
+  const [regionMode, setRegionMode] = useState(() => (
+    parsed.region && !findIranPlateRegion(parsed.region) ? CUSTOM_REGION : parsed.region
+  ));
 
   useEffect(() => {
     setSeries(parsed.series);
     setLetter(parsed.letter);
     setMiddleDigits(parsed.middle.length === 3 ? parsed.middle.split('') : emptyDigits());
     setRegion(parsed.region);
+    setRegionMode(parsed.region && !findIranPlateRegion(parsed.region) ? CUSTOM_REGION : parsed.region);
   }, [parsed.series, parsed.letter, parsed.middle, parsed.region]);
 
   const emit = (nextSeries, nextLetter, nextDigits, nextRegion) => {
@@ -51,19 +58,14 @@ export default function IranLicensePlateInput({
     }));
   };
 
-  const regionOptions = useMemo(() => {
-    if (region && !IRAN_PLATE_REGIONS.some((item) => item.code === region)) {
-      return [{ code: region, label: `${region} — سایر` }, ...IRAN_PLATE_REGIONS];
-    }
-    return IRAN_PLATE_REGIONS;
-  }, [region]);
-
   const letterOptions = useMemo(() => {
     if (letter && !IRAN_PLATE_LETTERS.some((item) => item.value === letter)) {
       return [{ value: letter, label: letter }, ...IRAN_PLATE_LETTERS];
     }
     return IRAN_PLATE_LETTERS;
   }, [letter]);
+
+  const selectedRegionMeta = findIranPlateRegion(region);
 
   return (
     <div className="flex flex-col gap-1 sm:col-span-2">
@@ -145,33 +147,75 @@ export default function IranLicensePlateInput({
 
             <div className="mx-0.5 hidden h-10 w-px bg-slate-500/70 sm:block" aria-hidden />
 
-            <div className="flex flex-col items-center gap-0.5">
+            <div className="flex min-w-[7.5rem] flex-col items-center gap-0.5 sm:min-w-[10rem]">
               <span className="text-[10px] font-bold leading-none text-slate-700">ایران</span>
-              <select
-                aria-label="کد شهر پلاک"
-                className={`${selectClass} w-[8rem] text-[11px] sm:w-44 sm:text-sm`}
-                disabled={disabled}
-                required={required}
-                value={region}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setRegion(next);
-                  emit(series, letter, middleDigits, next);
-                }}
-              >
-                <option value="">کد شهر</option>
-                {regionOptions.map((item) => (
-                  <option key={item.code} value={item.code}>{item.label}</option>
-                ))}
-              </select>
+              {regionMode === CUSTOM_REGION ? (
+                <input
+                  aria-label="کد ایران دستی"
+                  className={`${selectClass} w-[4.5rem]`}
+                  disabled={disabled}
+                  required={required}
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="۰۰"
+                  value={region}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/\D/g, '').slice(0, 2);
+                    setRegion(next);
+                    emit(series, letter, middleDigits, next);
+                  }}
+                />
+              ) : (
+                <select
+                  aria-label="کد ایران / استان"
+                  className={`${selectClass} w-full text-[11px] sm:text-sm`}
+                  disabled={disabled}
+                  required={required}
+                  value={regionMode}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (next === CUSTOM_REGION) {
+                      setRegionMode(CUSTOM_REGION);
+                      setRegion('');
+                      emit(series, letter, middleDigits, '');
+                      return;
+                    }
+                    setRegionMode(next);
+                    setRegion(next);
+                    emit(series, letter, middleDigits, next);
+                  }}
+                >
+                  <option value="">کد ایران</option>
+                  {IRAN_PLATE_REGIONS.map((item) => (
+                    <option key={item.code} value={item.code}>{item.label}</option>
+                  ))}
+                  <option value={CUSTOM_REGION}>سایر — ورود دستی دو رقم</option>
+                </select>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      <p className="text-[11px] leading-relaxed text-foreground-500">
-        مطابق پلاک واقعی انتخاب کنید: دو رقم، حرف، سه رقم میانی، سپس کد شهر (ایران).
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] leading-relaxed text-foreground-500">
+          کد ایران طبق راهنمایی و رانندگی است؛ مثلاً فارس: ۶۳، ۷۳، ۸۳، ۹۳.
+          {selectedRegionMeta ? ` انتخاب فعلی: ${iranPlateRegionLabel(region)}` : ''}
+        </p>
+        {regionMode === CUSTOM_REGION && (
+          <button
+            type="button"
+            className="text-[11px] font-medium text-[var(--color-brand)]"
+            onClick={() => {
+              setRegionMode('');
+              setRegion('');
+              emit(series, letter, middleDigits, '');
+            }}
+          >
+            بازگشت به فهرست استان‌ها
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -1332,6 +1332,53 @@ describe('ManagementService emergency broadcast contract', () => {
   });
 });
 
+describe('ManagementService park staff contract', () => {
+  it('creates park-scoped employee credentials for a park manager', async () => {
+    const created = {
+      id: 'staff-1',
+      phoneNumber: '09123334455',
+      name: 'کارمند دفتر',
+      role: Role.EMPLOYEE,
+      employeeOfParkId: 'park-1',
+    };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
+    const user = { create: jest.fn().mockResolvedValue(created) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ industrialPark, user } as any, audit, config);
+
+    await expect(service.createParkStaff(actor(Role.PARK_MANAGER), {
+      phoneNumber: '09123334455',
+      name: 'کارمند دفتر',
+      password: 'Password1234',
+    } as any)).resolves.toEqual(created);
+
+    expect(user.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        role: Role.EMPLOYEE,
+        employeeOfParkId: 'park-1',
+        employeeOfFactoryId: null,
+        mustChangePassword: true,
+        isApproved: true,
+      }),
+    }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'PARK_STAFF_CREATED', entityId: 'staff-1' }));
+  });
+
+  it('rejects creating park staff for an unmanaged park', async () => {
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-owned' }]) };
+    const user = { create: jest.fn() };
+    const service = new ManagementService({ industrialPark, user } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.createParkStaff(actor(Role.PARK_MANAGER), {
+      phoneNumber: '09123334455',
+      name: 'کارمند',
+      password: 'Password1234',
+      parkId: 'park-other',
+    } as any)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(user.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('ManagementService SMS health contract', () => {
   it('never returns the raw sender or API key, only a masked sender and a presence flag', async () => {
     const sms = { get: jest.fn((key: string, fallback?: string) => {

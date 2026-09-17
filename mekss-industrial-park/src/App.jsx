@@ -46,6 +46,7 @@ const ApproveGatePassesPage = lazy(() => import('./pages/admin/ApproveGatePasses
 const ApproveRequestsPage = lazy(() => import('./pages/admin/ApproveRequestsPage'));
 const SendMessagePage = lazy(() => import('./pages/admin/SendMessagePage'));
 const ManageAnnouncementsPage = lazy(() => import('./pages/admin/ManageAnnouncementsPage'));
+const ParkStaffPage = lazy(() => import('./pages/admin/ParkStaffPage'));
 const ApproveAdvertisementsPage = lazy(() => import('./pages/admin/ApproveAdvertisementsPage'));
 const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
 const PendingRegistrationsPage = lazy(() => import('./pages/admin/PendingRegistrationsPage'));
@@ -197,6 +198,11 @@ function AppRoutes() {
         <Route path="admin/announcements" element={
           <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER']}>
             <ManageAnnouncementsPage />
+          </RoleRoute>
+        } />
+        <Route path="admin/park-staff" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER']}>
+            <ParkStaffPage />
           </RoleRoute>
         } />
         <Route path="admin/advertisements" element={

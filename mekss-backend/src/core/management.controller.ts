@@ -16,6 +16,7 @@ import {
   CreateInvoiceDto,
   CreateManagedUserDto,
   CreateParkDto,
+  CreateParkStaffDto,
   CreateRequestDto,
   MarketRateKeyParamDto,
   OpaqueIdParamDto,
@@ -29,6 +30,7 @@ import {
   ResetPasswordAdminDto,
   SendDirectMessageDto,
   SendMessageDto,
+  BroadcastFactoryManagersMessageDto,
   UpdateAnnouncementDto,
   UpdateFactoryDto,
   UpdateFactoryStaffDto,
@@ -36,6 +38,7 @@ import {
   UpdateManagedUserDto,
   UpdateMarketRateDto,
   UpdateParkDto,
+  UpdateParkStaffDto,
   WalletTopUpDto,
 } from './management.dto';
 import { ManagementService } from './management.service';
@@ -66,6 +69,11 @@ export class ManagementController {
   @Post('industrial-parks') @Roles(Role.SUPER_ADMIN) @ApiTags('Parks') createPark(@Req() req: AuthenticatedRequest, @Body() body: CreateParkDto) { return this.management.createPark(currentUser(req), body); }
   @Put('industrial-parks/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Parks') updatePark(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateParkDto) { return this.management.updatePark(currentUser(req), params.id, body); }
   @Delete('industrial-parks/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Parks') deletePark(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deletePark(currentUser(req), params.id); }
+
+  @Get('park-staff') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Park staff') listParkStaff(@Req() req: AuthenticatedRequest, @Query('parkId') parkId?: string) { return this.management.listParkStaff(currentUser(req), parkId); }
+  @Post('park-staff') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Park staff') createParkStaff(@Req() req: AuthenticatedRequest, @Body() body: CreateParkStaffDto) { return this.management.createParkStaff(currentUser(req), body); }
+  @Patch('park-staff/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Park staff') updateParkStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateParkStaffDto) { return this.management.updateParkStaff(currentUser(req), params.id, body); }
+  @Delete('park-staff/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Park staff') deleteParkStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteParkStaff(currentUser(req), params.id); }
 
   @Get('factories') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Factories') factories(@Req() req: AuthenticatedRequest) { return this.management.listFactories(currentUser(req)); }
   @Get('factories/management-scope') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') factoryManagementScope(@Req() req: AuthenticatedRequest) { return this.management.factoryManagementScope(currentUser(req)); }
@@ -121,11 +129,16 @@ export class ManagementController {
 
   @Post('messages') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') sendDirectMessage(@Req() req: AuthenticatedRequest, @Body() body: SendDirectMessageDto) { return this.management.sendDirectMessage(currentUser(req), body); }
   @Post('messages/batch') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') sendBatchMessage(@Req() req: AuthenticatedRequest, @Body() body: SendMessageDto) { return this.management.sendMessage(currentUser(req), body.recipientIds, body.subject, body.body); }
+  @Post('messages/broadcast/factory-managers') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') broadcastFactoryManagers(@Req() req: AuthenticatedRequest, @Body() body: BroadcastFactoryManagersMessageDto) { return this.management.broadcastToFactoryManagers(currentUser(req), body.subject, body.body); }
   @Get('messages/recipients') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') messageRecipients(@Req() req: AuthenticatedRequest) { return this.management.messageRecipients(currentUser(req)); }
   @Get('messages/inbox') @ApiTags('Messages') inboxMessages(@Req() req: AuthenticatedRequest) { return this.management.inboxMessages(currentUser(req)); }
   @Get('messages/sent') @ApiTags('Messages') sentMessages(@Req() req: AuthenticatedRequest) { return this.management.sentMessages(currentUser(req)); }
   @Get('messages/unread-count') @ApiTags('Messages') unreadMessageCount(@Req() req: AuthenticatedRequest) { return this.management.unreadMessageCount(currentUser(req)); }
   @Post('messages/:id/read') @ApiTags('Messages') markMessageRead(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.markMessageRead(currentUser(req), params.id); }
+
+  @Get('notifications') @ApiTags('Notifications') listNotifications(@Req() req: AuthenticatedRequest) { return this.management.listNotifications(currentUser(req)); }
+  @Post('notifications/read-all') @ApiTags('Notifications') markAllNotificationsRead(@Req() req: AuthenticatedRequest) { return this.management.markAllNotificationsRead(currentUser(req)); }
+  @Post('notifications/:id/read') @ApiTags('Notifications') markNotificationRead(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.markNotificationRead(currentUser(req), params.id); }
 
   @Get('market-rates') @ApiTags('Market rates') marketRates() { return this.management.listMarketRates(); }
   @Get('market-rates/history') @ApiTags('Market rates') marketRateHistory(@Query('days') days?: string) { return this.management.marketRateHistory(Number(days) || 14); }

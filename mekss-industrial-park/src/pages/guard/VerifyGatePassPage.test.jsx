@@ -27,7 +27,7 @@ import VerifyGatePassPage from './VerifyGatePassPage';
 
 const approvedPass = {
   id: 'pass-1',
-  status: 'APPROVED',
+  status: 'PENDING',
   driverName: 'راننده آزمون',
   licensePlate: '12ب34567',
   exitDate: '2027-01-01T00:00:00.000Z',

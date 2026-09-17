@@ -169,14 +169,16 @@ describe('ManagementService transactional foundation', () => {
       unpaidInvoiceCount: 0,
       unpaidInvoiceTotal: 0,
       pendingWork: { gatePasses: 0, requests: 0, advertisements: 0 },
-      capabilities: ['view_dashboard', 'view_reports'],
+      capabilities: expect.arrayContaining(['view_dashboard', 'view_reports']),
       recentPriorityItems: [],
     });
     const managerFactoryScope = { park: { is: { managers: { some: { id: 'actor-1' } } } } };
     expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead' });
     expect(prisma.industrialPark.count).toHaveBeenCalledWith({ where: { managers: { some: { id: 'actor-1' } } } });
     expect(prisma.factory.count).toHaveBeenCalledWith({ where: managerFactoryScope });
-    expect(prisma.emergencyAlert.count).toHaveBeenCalledWith({ where: { status: { not: 'RESOLVED' } } });
+    expect(prisma.emergencyAlert.count).toHaveBeenCalledWith({
+      where: { status: { not: 'RESOLVED' }, parkId: { in: [] } },
+    });
     for (const call of [...prisma.gatePass.count.mock.calls, ...prisma.gatePass.findMany.mock.calls]) {
       expect(call[0].where.factory).toEqual({ is: managerFactoryScope });
     }
@@ -236,7 +238,7 @@ describe('ManagementService transactional foundation', () => {
       unpaidInvoiceTotal: 1500,
       pendingWork: { gatePasses: 1, requests: 2, advertisements: 1 },
     });
-    expect(result.capabilities).toEqual(expect.arrayContaining(['manage_factories', 'approve_gate_passes', 'approve_requests', 'moderate_advertisements']));
+    expect(result.capabilities).toEqual(expect.arrayContaining(['manage_factories', 'view_gate_passes', 'approve_requests', 'moderate_advertisements']));
     expect(result.recentPriorityItems.map((item) => item.id)).toEqual(['request-high', 'gate-1', 'ad-1', 'request-low']);
     expect(result.recentPriorityItems[0]).toEqual({
       kind: 'REQUEST', id: 'request-high', status: 'PENDING', createdAt: '2026-08-27T10:00:00.000Z',
@@ -871,10 +873,32 @@ describe('ManagementService gate-pass state machine contract', () => {
   });
 
   it.each([
-    ['approve', GatePassStatus.PENDING, undefined, { status: GatePassStatus.APPROVED, approvedById: 'actor-1' }],
-    ['reject', GatePassStatus.PENDING, 'Invalid cargo', { status: GatePassStatus.REJECTED, approvedById: 'actor-1', notes: 'Invalid cargo' }],
-    ['verify', GatePassStatus.APPROVED, undefined, { status: GatePassStatus.COMPLETED, verifiedById: 'actor-1', verifiedAt: expect.any(Date) }],
-    ['deny', GatePassStatus.APPROVED, 'Plate mismatch', { status: GatePassStatus.REJECTED, verifiedById: 'actor-1', verifiedAt: expect.any(Date), notes: 'Plate mismatch' }],
+    ['approve', GatePassStatus.PENDING, undefined, {
+      status: GatePassStatus.COMPLETED,
+      approvedById: 'actor-1',
+      verifiedById: 'actor-1',
+      verifiedAt: expect.any(Date),
+    }],
+    ['reject', GatePassStatus.PENDING, 'Invalid cargo', {
+      status: GatePassStatus.REJECTED,
+      approvedById: 'actor-1',
+      verifiedById: 'actor-1',
+      verifiedAt: expect.any(Date),
+      notes: 'Invalid cargo',
+    }],
+    ['verify', GatePassStatus.PENDING, undefined, {
+      status: GatePassStatus.COMPLETED,
+      approvedById: 'actor-1',
+      verifiedById: 'actor-1',
+      verifiedAt: expect.any(Date),
+    }],
+    ['deny', GatePassStatus.APPROVED, 'Plate mismatch', {
+      status: GatePassStatus.REJECTED,
+      approvedById: 'actor-1',
+      verifiedById: 'actor-1',
+      verifiedAt: expect.any(Date),
+      notes: 'Plate mismatch',
+    }],
   ] as const)('commits a valid %s transition from the required source state', async (action, sourceStatus, reason, expectedData) => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
     const gatePass = {
@@ -882,29 +906,32 @@ describe('ManagementService gate-pass state machine contract', () => {
         id: 'pass-1',
         factoryId: 'factory-1',
         status: sourceStatus,
+        approvedById: null,
         driverName: 'Driver',
         licensePlate: '12A34567',
         exitDate: new Date('2027-01-01T00:00:00.000Z'),
         createdBy: { phoneNumber: '09121111111' },
-        factory: { name: 'Factory', manager: { phoneNumber: '09122222222' } },
+        factory: { name: 'Factory', managerId: 'mgr-1', manager: { id: 'mgr-1', phoneNumber: '09122222222' } },
       }),
-      update: jest.fn().mockResolvedValue({ id: 'pass-1', status: 'updated' }),
+      update: jest.fn().mockResolvedValue({ id: 'pass-1', status: 'updated', verifiedAt: new Date() }),
     };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
+    const notification = { create: jest.fn().mockResolvedValue({}) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ factory, gatePass } as any, audit, config);
+    const service = new ManagementService({ factory, gatePass, notification, industrialPark } as any, audit, config);
 
-    await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', action, reason)).resolves.toEqual({ id: 'pass-1', status: 'updated' });
+    await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', action, reason)).resolves.toEqual(expect.objectContaining({ id: 'pass-1' }));
     expect(gatePass.update).toHaveBeenCalledWith({ where: { id: 'pass-1' }, data: expectedData });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: `GATE_PASS_${action.toUpperCase()}`, entityId: 'pass-1' }));
   });
 
-  it('rejects approving a gate pass that is not pending, without mutating it', async () => {
+  it('rejects deciding a completed gate pass without mutating it', async () => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
     const gatePass = {
       findUnique: jest.fn().mockResolvedValue({
         id: 'pass-1',
         factoryId: 'factory-1',
-        status: GatePassStatus.APPROVED,
+        status: GatePassStatus.COMPLETED,
         driverName: 'Driver',
         licensePlate: '12A34567',
         exitDate: new Date(),
@@ -934,7 +961,7 @@ describe('ManagementService gate-pass state machine contract', () => {
   it('rejects verifying a gate pass outside factory scope', async () => {
     const factory = { count: jest.fn().mockResolvedValue(0) };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([]) };
-    const gatePass = { findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'out-of-scope', status: GatePassStatus.APPROVED }), update: jest.fn() };
+    const gatePass = { findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'out-of-scope', status: GatePassStatus.PENDING }), update: jest.fn() };
     const service = new ManagementService({ factory, industrialPark, gatePass } as any, { record: jest.fn() } as any, config);
 
     await expect(service.gatePassAction(actor(Role.SECURITY_GUARD), 'pass-1', 'verify')).rejects.toBeInstanceOf(ForbiddenException);
@@ -1006,18 +1033,25 @@ describe('ManagementService request review contract', () => {
 });
 
 describe('ManagementService announcement contract', () => {
+  const recipientMocks = () => ({
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    factory: { findMany: jest.fn().mockResolvedValue([]) },
+    securityGuard: { findMany: jest.fn().mockResolvedValue([]) },
+    notification: { create: jest.fn().mockResolvedValue({}) },
+  });
+
   it('creates a global announcement without requiring park scope', async () => {
-    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-1' }) };
+    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-1', title: 'Title', content: 'Content' }) };
     const industrialPark = { findMany: jest.fn() };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ announcement, industrialPark } as any, audit, config);
+    const service = new ManagementService({ announcement, industrialPark, ...recipientMocks() } as any, audit, config);
 
     await expect(service.createAnnouncement(actor(Role.SUPER_ADMIN), {
       title: 'Title', content: 'Content', isGlobal: true,
-    })).resolves.toEqual({ id: 'ann-1' });
+    })).resolves.toEqual(expect.objectContaining({ id: 'ann-1' }));
     expect(industrialPark.findMany).not.toHaveBeenCalled();
     expect(announcement.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ isGlobal: true, parkId: undefined }),
+      data: expect.objectContaining({ isGlobal: true, parkId: null }),
     }));
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'ANNOUNCEMENT_CREATED', entityId: 'ann-1' }));
   });
@@ -1025,7 +1059,7 @@ describe('ManagementService announcement contract', () => {
   it('rejects a park manager creating an announcement scoped to a park they do not manage', async () => {
     const announcement = { create: jest.fn() };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-owned' }]) };
-    const service = new ManagementService({ announcement, industrialPark } as any, { record: jest.fn() } as any, config);
+    const service = new ManagementService({ announcement, industrialPark, ...recipientMocks() } as any, { record: jest.fn() } as any, config);
 
     await expect(service.createAnnouncement(actor(Role.PARK_MANAGER), {
       title: 'Title', content: 'Content', parkId: 'park-not-owned',
@@ -1034,14 +1068,14 @@ describe('ManagementService announcement contract', () => {
   });
 
   it('allows a park manager to create an announcement scoped to their own park', async () => {
-    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-1' }) };
+    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-1', title: 'Title', content: 'Content' }) };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-owned' }]) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ announcement, industrialPark } as any, audit, config);
+    const service = new ManagementService({ announcement, industrialPark, ...recipientMocks() } as any, audit, config);
 
     await expect(service.createAnnouncement(actor(Role.PARK_MANAGER), {
       title: 'Title', content: 'Content', parkId: 'park-owned',
-    })).resolves.toEqual({ id: 'ann-1' });
+    })).resolves.toEqual(expect.objectContaining({ id: 'ann-1' }));
     expect(announcement.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ parkId: 'park-owned' }) }));
   });
 
@@ -1057,9 +1091,12 @@ describe('ManagementService announcement contract', () => {
 
     await expect(service.updateAnnouncement(actor(Role.PARK_MANAGER), 'ann-1', { title: 'New title', isPinned: true }))
       .resolves.toEqual(updated);
-    expect(announcement.update).toHaveBeenCalledWith({ where: { id: 'ann-1' }, data: { title: 'New title', isPinned: true } });
+    expect(announcement.update).toHaveBeenCalledWith({
+      where: { id: 'ann-1' },
+      data: { title: 'New title', isPinned: true, isGlobal: false },
+    });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'ANNOUNCEMENT_UPDATED', changes: { title: 'New title', isPinned: true },
+      action: 'ANNOUNCEMENT_UPDATED', changes: { title: 'New title', isPinned: true, isGlobal: false },
     }));
   });
 
@@ -1208,6 +1245,90 @@ describe('ManagementService reports contract', () => {
       type: 'requests', byStatus: [], count: 0, items: [],
     }));
     expect(request.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+});
+
+describe('ManagementService emergency broadcast contract', () => {
+  it('creates a park-scoped emergency, notifies every park user, and fans out SMS', async () => {
+    const created = {
+      id: 'em-1',
+      title: 'آتش‌سوزی',
+      description: 'سوله ۱۲',
+      parkId: 'park-1',
+      park: { id: 'park-1', name: 'شهرک الف', code: 'P1' },
+      createdBy: { id: 'actor-1', name: 'Manager', role: Role.PARK_MANAGER },
+    };
+    const emergencyAlert = {
+      create: jest.fn().mockResolvedValue(created),
+    };
+    const industrialPark = {
+      findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]),
+      findUnique: jest.fn().mockResolvedValue({ guardPhone: '09121111111', phoneNumber: '02100000000' }),
+    };
+    const user = {
+      findMany: jest.fn()
+        .mockResolvedValueOnce([{ id: 'manager-1', phoneNumber: '09120000001' }]) // park managers
+        .mockResolvedValueOnce([{ id: 'employee-1', phoneNumber: '09120000003' }]), // employees
+    };
+    const factory = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'factory-1',
+          managerId: 'owner-1',
+          manager: { id: 'owner-1', phoneNumber: '09120000002', isActive: true, isApproved: true },
+        },
+      ]),
+    };
+    const securityGuard = {
+      findMany: jest.fn().mockResolvedValue([
+        { user: { id: 'guard-1', phoneNumber: '09120000004', isActive: true, isApproved: true } },
+      ]),
+    };
+    const notification = { createMany: jest.fn().mockResolvedValue({ count: 4 }) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const sms = { sendText: jest.fn().mockResolvedValue(undefined), sendOtp: jest.fn() } as any;
+    const service = new ManagementService(
+      { emergencyAlert, industrialPark, user, factory, securityGuard, notification } as any,
+      audit,
+      config,
+      sms,
+    );
+
+    await expect(service.createEmergency(actor(Role.PARK_MANAGER), {
+      title: 'آتش‌سوزی',
+      description: 'سوله ۱۲',
+      severity: 'CRITICAL' as any,
+    })).resolves.toEqual(created);
+
+    expect(emergencyAlert.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ parkId: 'park-1', severity: 'CRITICAL', createdById: 'actor-1' }),
+    }));
+    expect(notification.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ userId: 'manager-1', type: 'EMERGENCY' }),
+        expect.objectContaining({ userId: 'owner-1', type: 'EMERGENCY' }),
+        expect.objectContaining({ userId: 'employee-1', type: 'EMERGENCY' }),
+        expect.objectContaining({ userId: 'guard-1', type: 'EMERGENCY' }),
+      ]),
+    });
+    expect(sms.sendText).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'EMERGENCY_CREATED',
+      entityId: 'em-1',
+    }));
+  });
+
+  it('rejects park managers creating emergencies for parks they do not manage', async () => {
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-owned' }]) };
+    const emergencyAlert = { create: jest.fn() };
+    const service = new ManagementService({ industrialPark, emergencyAlert } as any, { record: jest.fn() } as any, config);
+
+    await expect(service.createEmergency(actor(Role.PARK_MANAGER), {
+      title: 'Incident',
+      description: 'Details here',
+      parkId: 'park-other',
+    })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(emergencyAlert.create).not.toHaveBeenCalled();
   });
 });
 

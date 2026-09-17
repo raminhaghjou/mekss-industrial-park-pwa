@@ -26,6 +26,8 @@ import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import JalaliDatePicker from '../common/JalaliDatePicker';
+import IranLicensePlateInput from '../common/IranLicensePlateInput';
+import { isCompleteIranLicensePlate } from '../../utils/iranLicensePlate';
 
 const cargoTypes = [
   { value: 'RAW_MATERIALS', label: 'مواد اولیه' },
@@ -83,24 +85,53 @@ const FormInput = ({ label, isRequired, ...props }) => (
   </div>
 );
 
-const CreateGatePassForm = ({ handleBack }) => {
+const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
+  const isEdit = Boolean(initialPass?.id);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => (initialPass ? {
+    factoryId: initialPass.factoryId || '',
+    cargoType: initialPass.cargoType || 'RAW_MATERIALS',
+    cargoDescription: initialPass.cargoDescription || '',
+    driverName: initialPass.driverName || '',
+    driverNationalId: initialPass.driverNationalId || '',
+    driverPhone: initialPass.driverPhone || '',
+    vehicleType: initialPass.vehicleType || 'TRUCK',
+    licensePlate: initialPass.licensePlate || '',
+    exitDate: initialPass.exitDate || '',
+  } : emptyForm));
 
   const { data: factories, isLoading: loadingFactories, isError: factoriesError } = useQuery({
     queryKey: ['factories', 'managed'],
     queryFn: () => factoryApi.getFactories().then((res) => res.data),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (/** @type {typeof emptyForm} */ payload) => gatePassApi.createGatePass(payload),
+  const saveMutation = useMutation({
+    mutationFn: (/** @type {typeof emptyForm} */ payload) => (
+      isEdit
+        ? gatePassApi.updateGatePass(initialPass.id, {
+            cargoType: payload.cargoType,
+            cargoDescription: payload.cargoDescription,
+            driverName: payload.driverName,
+            driverNationalId: payload.driverNationalId,
+            driverPhone: payload.driverPhone,
+            vehicleType: payload.vehicleType,
+            licensePlate: payload.licensePlate,
+            exitDate: payload.exitDate,
+          })
+        : gatePassApi.createGatePass(payload)
+    ),
     onSuccess: () => {
-      showNotification('برگ خروج با موفقیت ثبت و برای تایید ارسال شد.', 'success');
+      showNotification(
+        isEdit
+          ? 'برگ خروج با موفقیت به‌روز شد.'
+          : 'برگ خروج ثبت شد و برای تایید نگهبان ارسال گردید.',
+        'success',
+      );
       queryClient.invalidateQueries({ queryKey: ['gate-passes'] });
       handleBack();
     },
-    onError: (err) => showNotification(getErrorMessage(err, 'ثبت برگ خروج ناموفق بود.'), 'error'),
+    onError: (err) => showNotification(getErrorMessage(err, isEdit ? 'ویرایش برگ خروج ناموفق بود.' : 'ثبت برگ خروج ناموفق بود.'), 'error'),
   });
 
   const handleChange = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
@@ -112,7 +143,32 @@ const CreateGatePassForm = ({ handleBack }) => {
       showNotification('لطفا تمام فیلدهای الزامی را پر کنید.', 'error');
       return;
     }
-    createMutation.mutate(form);
+    if (!isCompleteIranLicensePlate(form.licensePlate)) {
+      showNotification('شماره پلاک را کامل و صحیح انتخاب کنید.', 'error');
+      return;
+    }
+    const toAscii = (value) => String(value || '')
+      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+    let phoneDigits = toAscii(form.driverPhone).replace(/\D/g, '');
+    if (phoneDigits.startsWith('0098')) phoneDigits = `0${phoneDigits.slice(4)}`;
+    else if (phoneDigits.startsWith('98') && phoneDigits.length === 12) phoneDigits = `0${phoneDigits.slice(2)}`;
+    else if (phoneDigits.length === 10 && phoneDigits.startsWith('9')) phoneDigits = `0${phoneDigits}`;
+    const nationalId = toAscii(form.driverNationalId).replace(/\D/g, '');
+    if (!/^09\d{9}$/.test(phoneDigits)) {
+      showNotification('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود.', 'error');
+      return;
+    }
+    if (!/^\d{10}$/.test(nationalId)) {
+      showNotification('کد ملی باید دقیقاً ۱۰ رقم باشد.', 'error');
+      return;
+    }
+    saveMutation.mutate({
+      ...form,
+      driverPhone: phoneDigits,
+      driverNationalId: nationalId,
+      cargoDescription: form.cargoDescription?.trim() || undefined,
+    });
   };
 
   const factoryOptions = (factories || []).map((factory) => ({ value: factory.id, label: factory.name }));
@@ -125,7 +181,7 @@ const CreateGatePassForm = ({ handleBack }) => {
             <ArrowRight className="h-5 w-5" />
           </Button>
           <h2 className="text-xl font-bold text-foreground">
-            فرم ایجاد برگ خروج جدید
+            {isEdit ? 'ویرایش برگ خروج' : 'فرم ایجاد برگ خروج جدید'}
           </h2>
         </div>
 
@@ -145,7 +201,7 @@ const CreateGatePassForm = ({ handleBack }) => {
               value={form.factoryId}
               onChange={(value) => handleChange('factoryId', value)}
               options={factoryOptions}
-              isDisabled={loadingFactories}
+              isDisabled={loadingFactories || isEdit}
               isRequired
               placeholder="واحد صنعتی را انتخاب کنید..."
             />
@@ -192,12 +248,10 @@ const CreateGatePassForm = ({ handleBack }) => {
               isRequired
             />
 
-            <FormInput
-              label="شماره پلاک"
-              placeholder="مثلا: ۱۲ ب ۳۴۵ ایران ۷۸"
+            <IranLicensePlateInput
               value={form.licensePlate}
-              onChange={(e) => handleChange('licensePlate', e.target.value)}
-              isRequired
+              onChange={(value) => handleChange('licensePlate', value)}
+              required
             />
 
             <JalaliDatePicker
@@ -222,11 +276,11 @@ const CreateGatePassForm = ({ handleBack }) => {
           </div>
 
           <div className="flex items-center justify-end gap-3 mt-4">
-            <Button variant="tertiary" onPress={handleBack} isDisabled={createMutation.isPending} className="rounded-xl font-medium">
+            <Button variant="tertiary" onPress={handleBack} isDisabled={saveMutation.isPending} className="rounded-xl font-medium">
               انصراف
             </Button>
-            <Button type="submit" className="rounded-xl font-bold" variant="primary" isDisabled={createMutation.isPending}>
-              {createMutation.isPending ? <Spinner size="sm" /> : 'ثبت و ارسال برای تایید'}
+            <Button type="submit" className="rounded-xl font-bold" variant="primary" isDisabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Spinner size="sm" /> : (isEdit ? 'ذخیره تغییرات' : 'ثبت و ارسال برای تایید نگهبان')}
             </Button>
           </div>
         </form>

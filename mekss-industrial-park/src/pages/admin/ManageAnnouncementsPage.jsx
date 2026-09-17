@@ -24,6 +24,7 @@ import {
 import { Plus, Edit2, Trash2, Bell, Pin, Globe, Building2 } from 'lucide-react';
 import { announcementApi } from '../../services/api/announcement.api';
 import { parkApi } from '../../services/api/park.api';
+import { factoryApi } from '../../services/api/factory.api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
@@ -47,6 +48,7 @@ const toDateInputValue = (value) => {
 const ManageAnnouncementsPage = () => {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isParkManager = user?.role === 'PARK_MANAGER';
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = React.useState(false);
@@ -60,13 +62,21 @@ const ManageAnnouncementsPage = () => {
   });
 
   const { data: parksData } = useQuery({
-    queryKey: queryKeys.parks.all(),
-    queryFn: () => parkApi.getParks().then((res) => res.data),
-    enabled: isSuperAdmin && showForm,
+    queryKey: isSuperAdmin ? queryKeys.parks.all() : queryKeys.factories.managementScope(),
+    queryFn: () => (
+      isSuperAdmin
+        ? parkApi.getParks().then((res) => res.data)
+        : factoryApi.getManagementScope().then((res) => res.data?.parks || [])
+    ),
+    enabled: showForm && (isSuperAdmin || isParkManager),
   });
   const parks = Array.isArray(parksData) ? parksData : parksData?.items || [];
+  const needsParkPick = !editing && ((isSuperAdmin && !form.isGlobal) || (isParkManager && parks.length > 1));
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.announcements.managed() });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.announcements.managed() });
+    queryClient.invalidateQueries({ queryKey: ['announcements'] });
+  };
 
   const resetForm = () => { setForm(emptyForm); setEditing(null); setShowForm(false); };
 
@@ -94,10 +104,15 @@ const ManageAnnouncementsPage = () => {
       showNotification('عنوان و متن اطلاعیه الزامی است.', 'error');
       return;
     }
+    if (needsParkPick && !form.parkId) {
+      showNotification('انتخاب شهرک صنعتی الزامی است.', 'error');
+      return;
+    }
+    const isGlobal = isSuperAdmin ? Boolean(form.isGlobal) : false;
     const basePayload = {
-      title: form.title,
-      content: form.content,
-      isGlobal: form.isGlobal,
+      title: form.title.trim(),
+      content: form.content.trim(),
+      isGlobal,
       isPinned: form.isPinned,
       priority: Number(form.priority) || 0,
       expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined,
@@ -105,7 +120,10 @@ const ManageAnnouncementsPage = () => {
     if (editing) {
       updateMutation.mutate({ id: editing.id, payload: basePayload });
     } else {
-      createMutation.mutate({ ...basePayload, parkId: form.isGlobal ? undefined : form.parkId || undefined });
+      const parkId = isGlobal
+        ? undefined
+        : (form.parkId || (isParkManager && parks.length === 1 ? parks[0].id : undefined));
+      createMutation.mutate({ ...basePayload, parkId });
     }
   };
 
@@ -181,15 +199,22 @@ const ManageAnnouncementsPage = () => {
               </div>
 
               <div className="flex flex-wrap gap-6 py-1">
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
-                  <input
-                    type="checkbox"
-                    checked={form.isGlobal}
-                    onChange={(e) => setForm((f) => ({ ...f, isGlobal: e.target.checked, parkId: e.target.checked ? '' : f.parkId }))}
-                    className="h-4 w-4 rounded border-default-300 text-primary focus:ring-primary"
-                  />
-                  نمایش سراسری (همه شهرک‌ها)
-                </label>
+                {isSuperAdmin && (
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                    <input
+                      type="checkbox"
+                      checked={form.isGlobal}
+                      onChange={(e) => setForm((f) => ({ ...f, isGlobal: e.target.checked, parkId: e.target.checked ? '' : f.parkId }))}
+                      className="h-4 w-4 rounded border-default-300 text-primary focus:ring-primary"
+                    />
+                    نمایش سراسری (همه شهرک‌ها)
+                  </label>
+                )}
+                {isParkManager && (
+                  <p className="text-sm text-foreground-500">
+                    این اطلاعیه برای همه واحدهای صنعتی شهرک شما در داشبورد نمایش داده می‌شود.
+                  </p>
+                )}
                 <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
                   <input
                     type="checkbox"
@@ -221,7 +246,7 @@ const ManageAnnouncementsPage = () => {
                   onChange={(expiresAt) => setForm((f) => ({ ...f, expiresAt }))}
                 />
 
-                {!editing && isSuperAdmin && !form.isGlobal && (
+                {needsParkPick && (
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی هدف</Label>
                     <Select

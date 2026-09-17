@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto } from './management.dto';
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 import { SmsGateway } from './sms.gateway';
@@ -862,13 +862,13 @@ export class ManagementService {
         });
         if (!factory) throw new NotFoundException('Factory not found');
         if (Number(factory.gatePassWalletBalance) < fee) {
-          throw new BadRequestException('Insufficient gate-pass wallet balance');
+          throw new BadRequestException('موجودی کیف‌پول برگ خروج کافی نیست. ابتدا کیف‌پول واحد صنعتی را شارژ کنید.');
         }
         const deducted = await tx.factory.updateMany({
           where: { id: input.factoryId, gatePassWalletBalance: { gte: fee } },
           data: { gatePassWalletBalance: { decrement: fee } },
         });
-        if (deducted.count !== 1) throw new BadRequestException('Insufficient gate-pass wallet balance');
+        if (deducted.count !== 1) throw new BadRequestException('موجودی کیف‌پول برگ خروج کافی نیست. ابتدا کیف‌پول واحد صنعتی را شارژ کنید.');
       }
       return tx.gatePass.create({
         data: {
@@ -892,6 +892,46 @@ export class ManagementService {
     return pass;
   }
 
+  async updateGatePass(actor: AuthenticatedUser, id: string, input: {
+    cargoType?: string;
+    cargoDescription?: string | null;
+    driverName?: string;
+    driverNationalId?: string;
+    driverPhone?: string;
+    vehicleType?: string;
+    licensePlate?: string;
+    licensePlatePhoto?: string;
+    exitDate?: string;
+  }) {
+    const existing = await this.prisma.gatePass.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Gate pass not found');
+    await this.assertFactoryAccess(actor, existing.factoryId);
+    if (existing.status !== GatePassStatus.PENDING && existing.status !== GatePassStatus.REJECTED) {
+      throw new ConflictException('Only pending or rejected gate passes can be edited');
+    }
+    if (!Object.keys(input || {}).length) throw new BadRequestException('At least one gate-pass field is required');
+
+    const updated = await this.prisma.gatePass.update({
+      where: { id },
+      data: {
+        ...(input.cargoType !== undefined ? { cargoType: input.cargoType as any } : {}),
+        ...(input.cargoDescription !== undefined ? { cargoDescription: input.cargoDescription || null } : {}),
+        ...(input.driverName !== undefined ? { driverName: input.driverName } : {}),
+        ...(input.driverNationalId !== undefined ? { driverNationalId: input.driverNationalId } : {}),
+        ...(input.driverPhone !== undefined ? { driverPhone: input.driverPhone } : {}),
+        ...(input.vehicleType !== undefined ? { vehicleType: input.vehicleType as any } : {}),
+        ...(input.licensePlate !== undefined ? { licensePlate: input.licensePlate } : {}),
+        ...(input.licensePlatePhoto !== undefined ? { licensePlatePhoto: input.licensePlatePhoto || null } : {}),
+        ...(input.exitDate !== undefined ? { exitDate: new Date(input.exitDate) } : {}),
+        // Re-submit rejected passes for guard review.
+        ...(existing.status === GatePassStatus.REJECTED ? { status: GatePassStatus.PENDING, notes: null } : {}),
+      },
+      include: { factory: true },
+    });
+    await this.audit.record({ userId: actor.id, action: 'GATE_PASS_UPDATED', entity: 'GatePass', entityId: id, changes: input as any });
+    return updated;
+  }
+
   async gatePassAction(actor: AuthenticatedUser, id: string, action: 'approve' | 'reject' | 'verify' | 'deny', reason?: string) {
     const pass = await this.prisma.gatePass.findUnique({
       where: { id },
@@ -902,26 +942,32 @@ export class ManagementService {
     });
     if (!pass) throw new NotFoundException('Gate pass not found');
     await this.assertFactoryAccess(actor, pass.factoryId);
-    const requiresPending = action === 'approve' || action === 'reject';
-    const requiresApproved = action === 'verify' || action === 'deny';
-    if (requiresPending && pass.status !== GatePassStatus.PENDING) throw new ConflictException('Gate pass decision was already recorded');
-    if (requiresApproved && pass.status !== GatePassStatus.APPROVED) throw new ConflictException('Gate pass is not awaiting exit verification');
+
+    // Only security guards (and super admin via controller) may decide exits.
+    // Accept PENDING (new flow) and APPROVED (legacy park-manager-approved rows).
+    const awaitingGuard = pass.status === GatePassStatus.PENDING || pass.status === GatePassStatus.APPROVED;
+    if (!awaitingGuard) throw new ConflictException('Gate pass is not awaiting guard confirmation');
     if ((action === 'reject' || action === 'deny') && !reason?.trim()) throw new BadRequestException('A reason is required');
+
     const data =
-      action === 'approve' ? { status: GatePassStatus.APPROVED, approvedById: actor.id }
-      : action === 'reject' ? { status: GatePassStatus.REJECTED, approvedById: actor.id, notes: reason?.trim() }
-      : action === 'verify' ? { status: GatePassStatus.COMPLETED, verifiedById: actor.id, verifiedAt: new Date() }
-      : { status: GatePassStatus.REJECTED, verifiedById: actor.id, verifiedAt: new Date(), notes: reason?.trim() };
+      action === 'approve' || action === 'verify'
+        ? {
+            status: GatePassStatus.COMPLETED,
+            approvedById: pass.approvedById || actor.id,
+            verifiedById: actor.id,
+            verifiedAt: new Date(),
+          }
+        : {
+            status: GatePassStatus.REJECTED,
+            approvedById: pass.approvedById || actor.id,
+            verifiedById: actor.id,
+            verifiedAt: new Date(),
+            notes: reason?.trim(),
+          };
     const updated = await this.prisma.gatePass.update({ where: { id }, data });
     await this.audit.record({ userId: actor.id, action: `GATE_PASS_${action.toUpperCase()}`, entity: 'GatePass', entityId: id });
-    if (action === 'approve') {
-      const phone = pass.createdBy?.phoneNumber || pass.factory?.manager?.phoneNumber;
-      if (phone) {
-        const summary = `واحد ${pass.factory.name} | راننده ${pass.driverName} | پلاک ${pass.licensePlate} | خروج ${pass.exitDate.toISOString()}`;
-        await this.safeSendSms(phone, `MEKSS: مجوز عبور تایید شد. ${summary}`);
-      }
-    }
-    if (action === 'verify') {
+
+    if (action === 'approve' || action === 'verify') {
       const managerPhone = pass.factory?.manager?.phoneNumber;
       const verifiedAt = updated.verifiedAt || new Date();
       const summary = `خروج تایید شد · ${pass.factory.name} · راننده ${pass.driverName} · پلاک ${pass.licensePlate} · ${verifiedAt.toLocaleString('fa-IR')}`;
@@ -1372,6 +1418,10 @@ export class ManagementService {
     for (const key of ['title', 'content', 'isGlobal', 'isPinned', 'priority'] as const) {
       if (input[key] !== undefined) { (data as Record<string, unknown>)[key] = input[key]; changes[key] = input[key] as Prisma.InputJsonValue; }
     }
+    if (actor.role === Role.PARK_MANAGER) {
+      data.isGlobal = false;
+      changes.isGlobal = false;
+    }
     if (input.expiresAt !== undefined) {
       data.expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
       changes.expiresAt = input.expiresAt ?? null;
@@ -1562,29 +1612,131 @@ export class ManagementService {
     return records.map((record) => this.safeAdvertisement(record));
   }
 
-  async emergencies() { return this.prisma.emergencyAlert.findMany({ include: { createdBy: { select: { name: true, phoneNumber: true } } }, orderBy: { createdAt: 'desc' } }); }
-  async createEmergency(actor: AuthenticatedUser, input: any) {
+  async emergencies(actor: AuthenticatedUser) {
+    const where = await this.emergencyScopeWhere(actor);
+    return this.prisma.emergencyAlert.findMany({
+      where,
+      include: {
+        createdBy: { select: { id: true, name: true, phoneNumber: true, role: true } },
+        park: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async activeEmergencies(actor: AuthenticatedUser) {
+    const scope = await this.emergencyScopeWhere(actor);
+    return this.prisma.emergencyAlert.findMany({
+      where: {
+        AND: [
+          scope,
+          { status: { in: [EmergencyStatus.OPEN, EmergencyStatus.ACKNOWLEDGED] } },
+        ],
+      },
+      include: {
+        createdBy: { select: { id: true, name: true, role: true } },
+        park: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createEmergency(actor: AuthenticatedUser, input: CreateEmergencyDto) {
     this.text(input.title, 'title');
     this.text(input.description, 'description');
+    const title = input.title.trim();
+    const description = input.description.trim();
+    const parkId = await this.resolveEmergencyParkId(actor, input.parkId);
+    const severity = input.severity || 'HIGH';
+
     const item = await this.prisma.emergencyAlert.create({
       data: {
-        title: input.title,
-        description: input.description,
-        severity: input.severity || 'HIGH',
-        location: input.location,
+        title,
+        description,
+        severity,
+        location: input.location as Prisma.InputJsonValue | undefined,
+        parkId,
         createdById: actor.id,
-      } as any,
+      },
+      include: {
+        park: { select: { id: true, name: true, code: true } },
+        createdBy: { select: { id: true, name: true, role: true } },
+      },
     });
-    await this.prisma.notification.create({
-      data: { userId: actor.id, title: 'هشدار اضطراری ثبت شد', body: input.title, type: 'EMERGENCY' },
+
+    await this.audit.record({
+      userId: actor.id,
+      action: 'EMERGENCY_CREATED',
+      entity: 'EmergencyAlert',
+      entityId: item.id,
+      changes: { parkId, severity, title } as Prisma.InputJsonObject,
     });
-    await this.audit.record({ userId: actor.id, action: 'EMERGENCY_CREATED', entity: 'EmergencyAlert', entityId: item.id });
-    const phones = await this.emergencyNotifyPhones(actor);
-    const message = `MEKSS اضطراری: ${input.title}`;
-    await Promise.all(phones.map((phone) => this.safeSendSms(phone, message)));
+
+    const recipients = await this.emergencyRecipients(parkId);
+    const notifyTitle = `🚨 هشدار اضطراری: ${title}`;
+    const notifyBody = description.slice(0, 500);
+    if (recipients.userIds.length) {
+      await this.prisma.notification.createMany({
+        data: recipients.userIds.map((userId) => ({
+          userId,
+          title: notifyTitle,
+          body: notifyBody,
+          type: 'EMERGENCY' as const,
+        })),
+      });
+    }
+
+    const smsMessage = `MEKSS اضطراری [${item.park?.name || 'شهرک'}]: ${title}`;
+    await Promise.all(recipients.phones.map((phone) => this.safeSendSms(phone, smsMessage)));
+
     return item;
   }
-  async emergencyAction(actor: AuthenticatedUser, id: string, action: 'acknowledge' | 'resolve') { const item = await this.prisma.emergencyAlert.update({ where: { id }, data: action === 'resolve' ? { status: EmergencyStatus.RESOLVED, resolvedAt: new Date() } : { status: EmergencyStatus.ACKNOWLEDGED } }); await this.audit.record({ userId: actor.id, action: `EMERGENCY_${action.toUpperCase()}`, entity: 'EmergencyAlert', entityId: id }); return item; }
+
+  async emergencyAction(actor: AuthenticatedUser, id: string, action: 'acknowledge' | 'resolve') {
+    const existing = await this.prisma.emergencyAlert.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Emergency alert not found');
+    await this.assertEmergencyAccess(actor, existing);
+
+    if (action === 'resolve' && actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('Only park managers can resolve emergency alerts');
+    }
+
+    const item = await this.prisma.emergencyAlert.update({
+      where: { id },
+      data: action === 'resolve'
+        ? { status: EmergencyStatus.RESOLVED, resolvedAt: new Date() }
+        : { status: EmergencyStatus.ACKNOWLEDGED },
+      include: {
+        park: { select: { id: true, name: true, code: true } },
+        createdBy: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    await this.audit.record({
+      userId: actor.id,
+      action: `EMERGENCY_${action.toUpperCase()}`,
+      entity: 'EmergencyAlert',
+      entityId: id,
+    });
+
+    if (action === 'resolve' && existing.parkId) {
+      const recipients = await this.emergencyRecipients(existing.parkId);
+      const clearTitle = `✅ پایان وضعیت اضطراری: ${existing.title}`;
+      const clearBody = 'وضعیت اضطراری رفع شد. به فعالیت عادی بازگردید.';
+      if (recipients.userIds.length) {
+        await this.prisma.notification.createMany({
+          data: recipients.userIds.map((userId) => ({
+            userId,
+            title: clearTitle,
+            body: clearBody,
+            type: 'SUCCESS' as const,
+          })),
+        });
+      }
+    }
+
+    return item;
+  }
 
   async dashboard(user: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
@@ -1608,6 +1760,11 @@ export class ManagementService {
       const managedParkCount = isParkManager
         ? await tx.industrialPark.count({ where: { managers: { some: { id: user.id } } } })
         : 0;
+      const emergencyParkIds = hasGlobalFactoryScope ? null : await this.actorParkIds(user);
+      const emergencyWhere: Prisma.EmergencyAlertWhereInput = {
+        status: { not: EmergencyStatus.RESOLVED },
+        ...(emergencyParkIds ? { parkId: { in: emergencyParkIds } } : {}),
+      };
 
       const [
         factories,
@@ -1628,7 +1785,7 @@ export class ManagementService {
         tx.gatePass.count({ where: factoryWhere }),
         tx.invoice.count({ where: factoryWhere }),
         tx.request.count({ where: factoryWhere }),
-        tx.emergencyAlert.count({ where: { status: { not: EmergencyStatus.RESOLVED } } }),
+        tx.emergencyAlert.count({ where: emergencyWhere }),
         tx.gatePass.count({ where: { ...factoryWhere, status: GatePassStatus.PENDING } }),
         tx.request.count({ where: { ...factoryWhere, status: RequestStatus.PENDING } }),
         canReviewPendingWork
@@ -1685,7 +1842,7 @@ export class ManagementService {
           status: item.status,
           createdAt: item.createdAt.toISOString(),
           title: item.factory.name,
-          capability: 'approve_gate_passes',
+          capability: 'view_gate_passes',
           rank: priorityWeight.MEDIUM,
         })),
         ...recentAdvertisements.map((item) => ({
@@ -2530,9 +2687,9 @@ export class ManagementService {
     const shared = ['view_dashboard'];
     const byRole: Record<string, string[]> = {
       SUPER_ADMIN: [...shared, 'manage_parks', 'manage_users', 'manage_advertisements', 'manage_sms'],
-      PARK_MANAGER: [...shared, 'manage_factories', 'approve_gate_passes', 'approve_requests', 'manage_announcements', 'moderate_advertisements', 'send_messages', 'view_reports'],
-      FACTORY_OWNER: [...shared, 'create_gate_passes', 'create_requests', 'create_advertisements', 'view_invoices'],
-      SECURITY_GUARD: [...shared, 'verify_gate_passes', 'view_emergencies'],
+      PARK_MANAGER: [...shared, 'manage_factories', 'view_gate_passes', 'approve_requests', 'manage_announcements', 'moderate_advertisements', 'send_messages', 'view_reports'],
+      FACTORY_OWNER: [...shared, 'create_gate_passes', 'edit_gate_passes', 'create_requests', 'create_advertisements', 'view_invoices'],
+      SECURITY_GUARD: [...shared, 'verify_gate_passes', 'approve_gate_passes', 'view_emergencies'],
       GOVERNMENT_OFFICIAL: [...shared, 'view_reports'],
       EMPLOYEE: shared,
     };
@@ -2671,51 +2828,136 @@ export class ManagementService {
       });
       return employee?.employeeOfFactory?.parkId ? [employee.employeeOfFactory.parkId] : [];
     }
+    if (actor.role === Role.SECURITY_GUARD) {
+      const assignments = await this.prisma.securityGuard.findMany({
+        where: { userId: actor.id, isActive: true },
+        select: { parkId: true },
+      });
+      return [...new Set(assignments.map((row) => row.parkId))];
+    }
     return this.managedParkIds(actor);
   }
 
-  private async emergencyNotifyPhones(actor: AuthenticatedUser): Promise<string[]> {
-    const phones = new Set<string>();
-    let parkIds: string[] = [];
+  private async resolveEmergencyParkId(actor: AuthenticatedUser, requestedParkId?: string): Promise<string> {
     if (actor.role === Role.SUPER_ADMIN) {
-      parkIds = (await this.prisma.industrialPark.findMany({
+      if (!requestedParkId) throw new BadRequestException('parkId is required for super-admin emergency alerts');
+      const park = await this.prisma.industrialPark.findUnique({ where: { id: requestedParkId }, select: { id: true } });
+      if (!park) throw new NotFoundException('Park not found');
+      return park.id;
+    }
+
+    const parkIds = await this.actorParkIds(actor);
+    if (!parkIds.length) throw new ForbiddenException('No park assignment found for emergency alerts');
+
+    if (requestedParkId) {
+      if (!parkIds.includes(requestedParkId)) throw new ForbiddenException('You do not have access to this park');
+      return requestedParkId;
+    }
+
+    if (parkIds.length === 1) return parkIds[0];
+    throw new BadRequestException('parkId is required when multiple parks are assigned');
+  }
+
+  private async emergencyScopeWhere(actor: AuthenticatedUser): Promise<Prisma.EmergencyAlertWhereInput> {
+    if (actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL) return {};
+    const parkIds = await this.actorParkIds(actor);
+    if (!parkIds.length) return { id: { in: [] } };
+    return { parkId: { in: parkIds } };
+  }
+
+  private async assertEmergencyAccess(actor: AuthenticatedUser, alert: { parkId: string | null; createdById: string }) {
+    if (actor.role === Role.SUPER_ADMIN) return;
+    if (alert.createdById === actor.id) return;
+    if (!alert.parkId) throw new ForbiddenException('You do not have access to this emergency alert');
+    const parkIds = await this.actorParkIds(actor);
+    if (!parkIds.includes(alert.parkId)) throw new ForbiddenException('You do not have access to this emergency alert');
+  }
+
+  private async emergencyRecipients(parkId: string | null): Promise<{ userIds: string[]; phones: string[] }> {
+    if (!parkId) return { userIds: [], phones: [] };
+
+    const [managers, factories, guards, park] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { role: Role.PARK_MANAGER, isActive: true, isApproved: true, managedParks: { some: { id: parkId } } },
+        select: { id: true, phoneNumber: true },
+      }),
+      this.prisma.factory.findMany({
+        where: { parkId, isApproved: true },
+        select: {
+          id: true,
+          managerId: true,
+          manager: { select: { id: true, phoneNumber: true, isActive: true, isApproved: true } },
+        },
+      }),
+      this.prisma.securityGuard.findMany({
+        where: { parkId, isActive: true },
+        select: {
+          user: { select: { id: true, phoneNumber: true, isActive: true, isApproved: true } },
+        },
+      }),
+      this.prisma.industrialPark.findUnique({
+        where: { id: parkId },
+        select: { guardPhone: true, phoneNumber: true },
+      }),
+    ]);
+
+    const factoryIds = factories.map((factory) => factory.id).filter(Boolean);
+    const employees = factoryIds.length
+      ? await this.prisma.user.findMany({
+        where: {
+          role: Role.EMPLOYEE,
+          employeeOfFactoryId: { in: factoryIds },
+          isActive: true,
+          isApproved: true,
+        },
+        select: { id: true, phoneNumber: true },
+      })
+      : [];
+
+    const userMap = new Map<string, string>();
+    const addUser = (id?: string | null, phone?: string | null, active = true, approved = true) => {
+      if (!id || !active || !approved) return;
+      userMap.set(id, phone || '');
+    };
+
+    for (const manager of managers) addUser(manager.id, manager.phoneNumber);
+    for (const factory of factories) {
+      addUser(
+        factory.manager?.id || factory.managerId,
+        factory.manager?.phoneNumber,
+        factory.manager?.isActive !== false,
+        factory.manager?.isApproved !== false,
+      );
+    }
+    for (const guard of guards) {
+      addUser(guard.user?.id, guard.user?.phoneNumber, guard.user?.isActive !== false, guard.user?.isApproved !== false);
+    }
+    for (const employee of employees) addUser(employee.id, employee.phoneNumber);
+
+    const phones = new Set<string>();
+    for (const phone of userMap.values()) {
+      if (phone) phones.add(phone);
+    }
+    if (park?.guardPhone) phones.add(park.guardPhone);
+    if (park?.phoneNumber) phones.add(park.phoneNumber);
+
+    return { userIds: [...userMap.keys()], phones: [...phones] };
+  }
+
+  private async emergencyNotifyPhones(actor: AuthenticatedUser): Promise<string[]> {
+    const parkIds = actor.role === Role.SUPER_ADMIN
+      ? (await this.prisma.industrialPark.findMany({
         where: { status: ParkStatus.ACTIVE },
         select: { id: true },
         take: 50,
-      })).map((park) => park.id);
-    } else if (actor.role === Role.PARK_MANAGER) {
-      parkIds = await this.managedParkIds(actor);
-    } else if (actor.role === Role.FACTORY_OWNER) {
-      parkIds = await this.actorParkIds(actor);
-    } else if (actor.role === Role.SECURITY_GUARD) {
-      parkIds = (await this.prisma.industrialPark.findMany({
-        where: { securityGuards: { some: { userId: actor.id, isActive: true } } },
-        select: { id: true },
-      })).map((park) => park.id);
-    }
+      })).map((park) => park.id)
+      : await this.actorParkIds(actor);
 
-    if (parkIds.length) {
-      const [managers, guards, parks] = await Promise.all([
-        this.prisma.user.findMany({
-          where: { role: Role.PARK_MANAGER, isActive: true, managedParks: { some: { id: { in: parkIds } } } },
-          select: { phoneNumber: true },
-        }),
-        this.prisma.user.findMany({
-          where: { role: Role.SECURITY_GUARD, isActive: true, securityShifts: { some: { parkId: { in: parkIds }, isActive: true } } },
-          select: { phoneNumber: true },
-        }),
-        this.prisma.industrialPark.findMany({
-          where: { id: { in: parkIds } },
-          select: { guardPhone: true, phoneNumber: true },
-        }),
-      ]);
-      for (const user of [...managers, ...guards]) phones.add(user.phoneNumber);
-      for (const park of parks) {
-        if (park.guardPhone) phones.add(park.guardPhone);
-        if (park.phoneNumber) phones.add(park.phoneNumber);
-      }
+    const phones = new Set<string>();
+    for (const parkId of parkIds) {
+      const recipients = await this.emergencyRecipients(parkId);
+      for (const phone of recipients.phones) phones.add(phone);
     }
-
     phones.delete(actor.phoneNumber);
     return [...phones];
   }

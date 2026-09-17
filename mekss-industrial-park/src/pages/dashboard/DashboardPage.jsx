@@ -72,23 +72,45 @@ export const DashboardPage = () => {
     queryFn: () => advertisementApi.getPublicAdvertisements().then((res) => res.data),
   });
 
+  const announcementsHref = user?.role === 'PARK_MANAGER' || user?.role === 'SUPER_ADMIN'
+    ? '/admin/announcements'
+    : '/announcements';
+
   const feedItems = useMemo(() => {
-    const ann = (announcements || []).slice(0, 8).map((item) => ({
+    const sortedAnnouncements = [...(announcements || [])].sort((a, b) => {
+      const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+      if (pinDiff !== 0) return pinDiff;
+      return Number(b.priority || 0) - Number(a.priority || 0);
+    });
+    const ann = sortedAnnouncements.slice(0, 8).map((item) => ({
       id: `a-${item.id}`,
       kind: 'announcement',
       title: item.title,
       body: item.content,
-      href: '/announcements',
+      href: announcementsHref,
     }));
-    const ads = (advertisements || []).slice(0, 8).map((item) => ({
+    const ads = (advertisements || []).slice(0, 4).map((item) => ({
       id: `ad-${item.id}`,
       kind: 'ad',
       title: item.title,
       body: item.description || item.content,
       href: '/advertisements',
     }));
+    // Announcements first so park notices dominate the home feed for factory users.
     return [...ann, ...ads];
-  }, [announcements, advertisements]);
+  }, [announcements, advertisements, announcementsHref]);
+
+  const featuredAnnouncements = useMemo(() => {
+    return [...(announcements || [])]
+      .sort((a, b) => {
+        const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+        if (pinDiff !== 0) return pinDiff;
+        return Number(b.priority || 0) - Number(a.priority || 0);
+      })
+      .slice(0, 3);
+  }, [announcements]);
+
+  const showAnnouncementPanel = ['FACTORY_OWNER', 'EMPLOYEE', 'PARK_MANAGER', 'SECURITY_GUARD'].includes(user?.role);
 
   if (isLoading) {
     return (
@@ -126,7 +148,9 @@ export const DashboardPage = () => {
 
   const capabilities = data?.capabilities || [];
   const canManageFactories = capabilities.includes('manage_factories');
-  const canApproveGatePasses = capabilities.includes('approve_gate_passes');
+  const canViewGatePasses = capabilities.includes('view_gate_passes')
+    || capabilities.includes('approve_gate_passes')
+    || capabilities.includes('verify_gate_passes');
   const canApproveRequests = capabilities.includes('approve_requests');
   const canModerateAds = capabilities.includes('moderate_advertisements') || capabilities.includes('manage_advertisements');
   const unpaidTotal = Number(data?.unpaidInvoiceTotal || 0);
@@ -160,6 +184,47 @@ export const DashboardPage = () => {
 
       <HomeFeedSlider items={feedItems} />
 
+      {showAnnouncementPanel && featuredAnnouncements.length > 0 && (
+        <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
+          <CardContent className="p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-primary-600" />
+                <h2 className="text-base font-bold text-foreground">اطلاعیه‌های شهرک</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-xl font-medium"
+                onPress={() => navigate(announcementsHref)}
+              >
+                مشاهده همه
+              </Button>
+            </div>
+            <div className="flex flex-col divide-y divide-default-100 dark:divide-white/5">
+              {featuredAnnouncements.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigate(announcementsHref)}
+                  className="flex flex-col gap-1 py-3 text-start first:pt-0 last:pb-0 hover:opacity-90"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">{item.title}</span>
+                    {item.isPinned && (
+                      <span className="rounded-full bg-warning-100 px-2 py-0.5 text-[10px] font-medium text-warning-700">
+                        سنجاق‌شده
+                      </span>
+                    )}
+                  </div>
+                  <p className="line-clamp-2 text-sm text-foreground-500">{item.content}</p>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <StatCard
           index={0}
@@ -177,7 +242,11 @@ export const DashboardPage = () => {
           value={data?.gatePasses ?? 0}
           color="success"
           badge={data?.pendingWork?.gatePasses ? `${data.pendingWork.gatePasses} در انتظار` : undefined}
-          onClick={canApproveGatePasses ? () => navigate('/admin/gate-passes') : () => navigate('/gate-passes')}
+          onClick={() => {
+            if (capabilities.includes('verify_gate_passes')) navigate('/guard/gate-passes');
+            else if (canViewGatePasses) navigate('/admin/gate-passes');
+            else navigate('/gate-passes');
+          }}
         />
 
         <StatCard

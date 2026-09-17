@@ -28,6 +28,8 @@ const iranianPhone = /^09\d{9}$/;
 const opaqueId = /^[A-Za-z0-9_-]{1,128}$/;
 const strongPassword = /^(?=.*[A-Za-z])(?=.*\d).{10,128}$/;
 const usernamePattern = /^[a-z0-9._-]{3,64}$/;
+const nationalIdPattern = /^\d{10}$/;
+const iranLicensePlatePattern = /^\d{2}[آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیA-Za-z]{1,3}\d{5}$/u;
 const trimString = ({ value }: TransformFnParams) => typeof value === 'string' ? value.trim() : value;
 const trimNullableString = ({ value }: TransformFnParams) => {
   if (typeof value !== 'string') return value;
@@ -38,12 +40,28 @@ const lowercaseNullableString = ({ value }: TransformFnParams) => {
   const normalized = trimNullableString({ value } as TransformFnParams);
   return typeof normalized === 'string' ? normalized.toLowerCase() : normalized;
 };
+const toAsciiDigits = (value: string) =>
+  value
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
 const normalizeIranianPhone = ({ value }: TransformFnParams) => {
   if (typeof value !== 'string') return value;
-  const digits = value.trim().replace(/\D/g, '');
+  const digits = toAsciiDigits(value.trim()).replace(/\D/g, '');
   if (digits.startsWith('0098')) return `0${digits.slice(4)}`;
-  if (digits.startsWith('98')) return `0${digits.slice(2)}`;
+  if (digits.startsWith('98') && digits.length === 12) return `0${digits.slice(2)}`;
+  if (digits.length === 10 && digits.startsWith('9')) return `0${digits}`;
   return digits;
+};
+const normalizeNationalId = ({ value }: TransformFnParams) => {
+  if (typeof value !== 'string') return value;
+  return toAsciiDigits(value.trim()).replace(/\D/g, '');
+};
+const normalizeLicensePlate = ({ value }: TransformFnParams) => {
+  if (typeof value !== 'string') return value;
+  return toAsciiDigits(value.trim())
+    .replace(/ایران/gi, '')
+    .replace(/IRAN/gi, '')
+    .replace(/[\s\-_|]/g, '');
 };
 
 export class OpaqueIdParamDto {
@@ -247,14 +265,26 @@ export class PublicSmsRequestDto {
 export class CreateGatePassDto {
   @IsString() @Matches(opaqueId) factoryId!: string;
   @IsEnum(CargoType) cargoType!: CargoType;
-  @IsOptional() @IsString() @MaxLength(2000) cargoDescription?: string;
-  @IsString() @Length(2, 120) driverName!: string;
-  @IsString() @Matches(/^\d{10}$/) driverNationalId!: string;
-  @Matches(iranianPhone) driverPhone!: string;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) cargoDescription?: string | null;
+  @Transform(trimString) @IsString() @Length(2, 120) driverName!: string;
+  @Transform(normalizeNationalId) @Matches(nationalIdPattern, { message: 'کد ملی باید ۱۰ رقم باشد' }) driverNationalId!: string;
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone, { message: 'شماره موبایل باید به صورت 09XXXXXXXXX باشد' }) driverPhone!: string;
   @IsEnum(VehicleType) vehicleType!: VehicleType;
-  @IsString() @Length(4, 20) licensePlate!: string;
+  @Transform(normalizeLicensePlate) @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate!: string;
   @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
-  @IsDateString() exitDate!: string;
+  @IsDateString({}, { message: 'تاریخ خروج نامعتبر است' }) exitDate!: string;
+}
+
+export class UpdateGatePassDto {
+  @IsOptional() @IsEnum(CargoType) cargoType?: CargoType;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) cargoDescription?: string | null;
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) driverName?: string;
+  @Transform(normalizeNationalId) @IsOptional() @Matches(nationalIdPattern, { message: 'کد ملی باید ۱۰ رقم باشد' }) driverNationalId?: string;
+  @Transform(normalizeIranianPhone) @IsOptional() @Matches(iranianPhone, { message: 'شماره موبایل باید به صورت 09XXXXXXXXX باشد' }) driverPhone?: string;
+  @IsOptional() @IsEnum(VehicleType) vehicleType?: VehicleType;
+  @Transform(normalizeLicensePlate) @IsOptional() @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate?: string;
+  @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
+  @IsOptional() @IsDateString({}, { message: 'تاریخ خروج نامعتبر است' }) exitDate?: string;
 }
 
 export class CreateInvoiceDto {
@@ -371,6 +401,7 @@ export class CreateEmergencyDto {
   @IsString() @Length(2, 200) title!: string;
   @IsString() @Length(2, 8000) description!: string;
   @IsOptional() @IsEnum(EmergencySeverity) severity?: EmergencySeverity;
+  @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
   @IsOptional() @IsObject() @ValidateNested() @Type(() => EmergencyLocationDto) location?: EmergencyLocationDto;
 }
 

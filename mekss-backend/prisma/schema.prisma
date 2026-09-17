@@ -275,6 +275,7 @@ model IndustrialPark {
   announcements  Announcement[]
   advertisements Advertisement[] @relation("AdvertisementPark")
   securityGuards SecurityGuard[]
+  emergencies    EmergencyAlert[]
   scopedFiles    ScopedFile[]
   feedback       Feedback[]      @relation("FeedbackRecipientPark")
 
@@ -740,10 +741,13 @@ model EmergencyAlert {
   updatedAt   DateTime          @updatedAt
   resolvedAt  DateTime?
 
+  parkId      String?
+  park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: Restrict)
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User            @relation(fields: [createdById], references: [id])
 
   @@index([status, severity, createdAt])
+  @@index([parkId, status, createdAt])
 }
 
 model MarketRate {

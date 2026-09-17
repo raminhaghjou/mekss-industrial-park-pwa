@@ -27,7 +27,7 @@ import {
   ListBoxItem,
   Label,
 } from '@heroui/react';
-import { Download, Plus, Ticket } from 'lucide-react';
+import { Download, Pencil, Plus, Ticket } from 'lucide-react';
 import { semanticFilter } from '../../utils/semanticSearch';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -38,9 +38,9 @@ import CreateGatePassForm from '../../components/gate-pass/CreateGatePassForm';
 
 const statusColors = {
   PENDING: 'warning',
-  APPROVED: 'success',
+  APPROVED: 'accent',
   REJECTED: 'danger',
-  COMPLETED: 'accent',
+  COMPLETED: 'success',
   EXPIRED: 'default',
 };
 
@@ -66,6 +66,7 @@ const exportCsv = (rows) => {
 
 export const GatePassesPage = () => {
   const [creating, setCreating] = useState(false);
+  const [editingPass, setEditingPass] = useState(null);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -104,8 +105,16 @@ export const GatePassesPage = () => {
     ]);
   }, [data, status, search, fromDate, toDate]);
 
-  if (creating) {
-    return <CreateGatePassForm handleBack={() => setCreating(false)} />;
+  if (creating || editingPass) {
+    return (
+      <CreateGatePassForm
+        initialPass={editingPass}
+        handleBack={() => {
+          setCreating(false);
+          setEditingPass(null);
+        }}
+      />
+    );
   }
 
   return (
@@ -190,20 +199,39 @@ export const GatePassesPage = () => {
                     <TableColumn>شماره پلاک</TableColumn>
                     <TableColumn>تاریخ خروج</TableColumn>
                     <TableColumn>وضعیت</TableColumn>
+                    <TableColumn>عملیات</TableColumn>
                   </TableHeader>
                   <TableBody>
-                    {passes.map((pass) => (
-                      <TableRow key={pass.id} id={pass.id}>
-                        <TableCell>{pass.driverName}</TableCell>
-                        <TableCell dir="ltr">{pass.licensePlate}</TableCell>
-                        <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
-                        <TableCell>
-                          <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">
-                            {statusLabels[pass.status] || pass.status}
-                          </Chip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {passes.map((pass) => {
+                      const canEdit = pass.status === 'PENDING' || pass.status === 'REJECTED';
+                      return (
+                        <TableRow key={pass.id} id={pass.id}>
+                          <TableCell>{pass.driverName}</TableCell>
+                          <TableCell dir="ltr">{pass.licensePlate}</TableCell>
+                          <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
+                          <TableCell>
+                            <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">
+                              {statusLabels[pass.status] || pass.status}
+                            </Chip>
+                          </TableCell>
+                          <TableCell>
+                            {canEdit ? (
+                              <Button
+                                size="sm"
+                                variant="tertiary"
+                                className="rounded-xl gap-1"
+                                onPress={() => setEditingPass(pass)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                ویرایش
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-foreground-400">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </TableContent>
               </Table>

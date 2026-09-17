@@ -34,9 +34,9 @@ const GuardGatePassesPage = () => {
     queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
   });
 
-  const approvedPasses = React.useMemo(() => {
-    const approved = (data || []).filter((pass) => pass.status === 'APPROVED');
-    return semanticFilter(approved, search, (pass) => [
+  const pendingPasses = React.useMemo(() => {
+    const awaiting = (data || []).filter((pass) => pass.status === 'PENDING' || pass.status === 'APPROVED');
+    return semanticFilter(awaiting, search, (pass) => [
       pass.licensePlate,
       pass.id,
       pass.driverName,
@@ -50,8 +50,8 @@ const GuardGatePassesPage = () => {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">برگ‌های خروج در انتظار تایید نهایی</h1>
-        <p className="text-sm text-foreground-500 mt-1">لیست مجوزهای تاییدشده ترافیک خروجی شهرک</p>
+        <h1 className="text-2xl font-bold text-foreground">تایید برگ‌های خروج</h1>
+        <p className="text-sm text-foreground-500 mt-1">فقط نگهبان می‌تواند خروج را تایید یا رد کند</p>
       </div>
 
       <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10">
@@ -99,7 +99,7 @@ const GuardGatePassesPage = () => {
               <TableColumn className="text-center font-bold">عملیات</TableColumn>
             </TableHeader>
             <TableBody>
-              {approvedPasses.map((pass) => (
+              {pendingPasses.map((pass) => (
                 <TableRow key={pass.id} id={pass.id}>
                   <TableCell className="font-bold text-foreground">{pass.factory?.name || '—'}</TableCell>
                   <TableCell>{pass.driverName}</TableCell>

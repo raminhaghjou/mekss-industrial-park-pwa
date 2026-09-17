@@ -29,14 +29,30 @@ describe('management DTO validation', () => {
     driverNationalId: '1234567890',
     driverPhone: '09120000000',
     vehicleType: 'TRUCK',
-    licensePlate: '12A345',
+    licensePlate: '12ب34567',
     exitDate: '2026-08-30T10:00:00.000Z',
   };
 
   it('accepts the existing gate-pass payload and rejects extra fields or non-canonical enums', async () => {
-    await expect(validate(CreateGatePassDto, validGatePass)).resolves.toMatchObject(validGatePass);
+    await expect(validate(CreateGatePassDto, validGatePass)).resolves.toMatchObject({
+      ...validGatePass,
+      cargoDescription: null,
+    });
     await expect(validate(CreateGatePassDto, { ...validGatePass, createdById: 'attacker' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(validate(CreateGatePassDto, { ...validGatePass, cargoType: 'raw_materials' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('normalizes Persian digits and +98 phone for gate-pass creation', async () => {
+    await expect(validate(CreateGatePassDto, {
+      ...validGatePass,
+      driverNationalId: '۱۲۳۴۵۶۷۸۹۰',
+      driverPhone: '+989120000000',
+      licensePlate: '۱۲ ب ۳۴۵ ۶۷',
+    })).resolves.toMatchObject({
+      driverNationalId: '1234567890',
+      driverPhone: '09120000000',
+      licensePlate: '12ب34567',
+    });
   });
 
   it('requires a real moderation boolean and a non-blank rejection reason', async () => {

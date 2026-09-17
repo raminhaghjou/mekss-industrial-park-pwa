@@ -75,6 +75,8 @@ const VerifyGatePassPage = () => {
     );
   }
 
+  const canDecide = pass.status === 'PENDING' || pass.status === 'APPROVED';
+
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
       <div className="flex items-center">
@@ -140,29 +142,29 @@ const VerifyGatePassPage = () => {
               variant="primary"
               size="lg"
               onPress={() => setVerifyOpen(true)}
-              isDisabled={verifyMutation.isPending || pass.status !== 'APPROVED'}
+              isDisabled={verifyMutation.isPending || !canDecide}
               className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20 flex items-center gap-2"
             >
               {verifyMutation.isPending ? <Spinner size="sm" /> : <CheckCircle2 className="h-5 w-5" />}
-              ثبت خروج
+              تایید و ثبت خروج
             </Button>
             <Button
               variant="secondary"
               size="lg"
               onPress={() => setDenyOpen(true)}
-              isDisabled={pass.status !== 'APPROVED'}
+              isDisabled={!canDecide}
               className="rounded-2xl font-bold px-8 flex items-center gap-2"
             >
               <AlertTriangle className="h-5 w-5" />
-              اعلام مغایرت
+              رد / اعلام مغایرت
             </Button>
           </div>
 
-          {pass.status !== 'APPROVED' && (
+          {!canDecide && (
             <Alert status="warning" className="mt-2">
               <AlertContent>
                 <AlertTitle>هشدار عدم امکان خروج</AlertTitle>
-                <AlertDescription>این برگ خروج در وضعیت قابل خروج نیست.</AlertDescription>
+                <AlertDescription>این برگ خروج در وضعیت قابل تایید نیست.</AlertDescription>
               </AlertContent>
             </Alert>
           )}
@@ -171,9 +173,9 @@ const VerifyGatePassPage = () => {
 
       <ConfirmDialog
         open={verifyOpen}
-        title="ثبت خروج"
+        title="تایید خروج"
         description={`با تایید این عملیات، خروج خودرو با پلاک «${pass.licensePlate}» ثبت نهایی می‌شود. آیا اطمینان دارید؟`}
-        confirmLabel="ثبت خروج"
+        confirmLabel="تایید خروج"
         confirmColor="primary"
         loading={verifyMutation.isPending}
         onConfirm={() => verifyMutation.mutate()}
@@ -181,11 +183,11 @@ const VerifyGatePassPage = () => {
       />
       <ConfirmDialog
         open={denyOpen}
-        title="اعلام مغایرت"
-        description="لطفا دلیل مغایرت و عدم اجازه خروج را ذکر کنید."
+        title="رد برگ خروج"
+        description="لطفا دلیل رد یا مغایرت را ذکر کنید."
         requireReason
-        reasonLabel="دلیل مغایرت"
-        confirmLabel="ثبت مغایرت"
+        reasonLabel="دلیل"
+        confirmLabel="ثبت رد"
         confirmColor="danger"
         loading={denyMutation.isPending}
         onConfirm={(reason) => denyMutation.mutate(reason)}

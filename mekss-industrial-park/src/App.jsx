@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider, useAuth } from './providers/AuthProvider';
 import { ActiveFactoryProvider } from './providers/ActiveFactoryProvider';
 import { NotificationProvider } from './providers/NotificationProvider';
+import { EmergencyAlarmProvider } from './providers/EmergencyAlarmProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { LoadingScreen } from './components/common/LoadingScreen';
 import { OfflineBanner } from './components/common/OfflineBanner';
@@ -94,7 +95,9 @@ function AppRoutes() {
         <ProtectedRoute>
           <AdminHostRoute>
             <ActiveFactoryProvider>
-              <DashboardLayout />
+              <EmergencyAlarmProvider>
+                <DashboardLayout />
+              </EmergencyAlarmProvider>
             </ActiveFactoryProvider>
           </AdminHostRoute>
         </ProtectedRoute>

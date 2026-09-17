@@ -4,6 +4,7 @@ export const messageApi = {
   sendBatchMessage: (recipientIds, subject, body) =>
     apiClient.post('/messages/batch', { recipientIds, subject, body }),
   sendMessage: (data) => apiClient.post('/messages', data),
+  getRecipients: () => apiClient.get('/messages/recipients'),
   getInbox: () => apiClient.get('/messages/inbox'),
   getMessages: () => apiClient.get('/messages/inbox'),
   getSent: () => apiClient.get('/messages/sent'),

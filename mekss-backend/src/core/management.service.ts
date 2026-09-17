@@ -140,14 +140,18 @@ type FactoryManagementRecord = Prisma.FactoryGetPayload<{ select: typeof FACTORY
 type FactoryScopeDatabase = Pick<Prisma.TransactionClient, 'factory' | 'industrialPark' | 'user'>;
 
 const MARKET_RATE_DEFAULTS: Record<MarketRateKey, { label: string; value: number; unit: string }> = {
-  USD: { label: 'دلار آمریکا', value: 0, unit: 'IRR' },
-  EUR: { label: 'یورو', value: 0, unit: 'IRR' },
-  CNY: { label: 'یوان چین', value: 0, unit: 'IRR' },
-  IRON: { label: 'آهن', value: 0, unit: 'IRR/kg' },
-  GOLD: { label: 'طلا', value: 0, unit: 'IRR/g' },
-  SILVER: { label: 'نقره', value: 0, unit: 'IRR/g' },
-  PLATINUM: { label: 'پلاتین', value: 0, unit: 'IRR/g' },
-  COIN: { label: 'سکه', value: 0, unit: 'IRR' },
+  USD: { label: 'دلار آمریکا', value: 0, unit: 'ریال' },
+  EUR: { label: 'یورو', value: 0, unit: 'ریال' },
+  CNY: { label: 'یوان چین', value: 0, unit: 'ریال' },
+  IRON: { label: 'شمش آهن', value: 0, unit: 'ریال/کیلو' },
+  GOLD: { label: 'طلای ۱۸ عیار', value: 0, unit: 'ریال/گرم' },
+  SILVER: { label: 'نقره', value: 0, unit: 'ریال/گرم' },
+  PLATINUM: { label: 'پلاتین', value: 0, unit: 'ریال/گرم' },
+  COIN: { label: 'سکه امامی', value: 0, unit: 'ریال' },
+  COPPER: { label: 'مس', value: 0, unit: 'ریال/کیلو' },
+  ALUMINUM: { label: 'آلومینیوم', value: 0, unit: 'ریال/کیلو' },
+  OIL: { label: 'نفت برنت', value: 0, unit: 'دلار/بشکه' },
+  BITUMEN: { label: 'قیر', value: 0, unit: 'ریال/کیلو' },
 };
 
 const SMS_REQUEST_CODE_MAP: Record<string, RequestType> = {
@@ -868,12 +872,20 @@ export class ManagementService {
       }
       return tx.gatePass.create({
         data: {
-          ...input,
+          factoryId: input.factoryId,
+          cargoType: input.cargoType,
+          cargoDescription: input.cargoDescription || null,
+          driverName: input.driverName,
+          driverNationalId: input.driverNationalId,
+          driverPhone: input.driverPhone,
+          vehicleType: input.vehicleType,
+          licensePlate: input.licensePlate,
+          licensePlatePhoto: input.licensePlatePhoto || null,
           exitDate: new Date(input.exitDate),
           createdById: actor.id,
           qrCode: `MEKSS-${randomBytes(18).toString('hex')}`,
           notes: feeNote,
-        } as any,
+        },
       });
     });
     await this.audit.record({ userId: actor.id, action: 'GATE_PASS_CREATED', entity: 'GatePass', entityId: pass.id, changes: { fee } });
@@ -885,7 +897,7 @@ export class ManagementService {
       where: { id },
       include: {
         createdBy: { select: { phoneNumber: true } },
-        factory: { select: { name: true, manager: { select: { phoneNumber: true } } } },
+        factory: { select: { name: true, managerId: true, manager: { select: { id: true, phoneNumber: true } } } },
       },
     });
     if (!pass) throw new NotFoundException('Gate pass not found');
@@ -907,6 +919,15 @@ export class ManagementService {
       if (phone) {
         const summary = `واحد ${pass.factory.name} | راننده ${pass.driverName} | پلاک ${pass.licensePlate} | خروج ${pass.exitDate.toISOString()}`;
         await this.safeSendSms(phone, `MEKSS: مجوز عبور تایید شد. ${summary}`);
+      }
+    }
+    if (action === 'verify') {
+      const managerPhone = pass.factory?.manager?.phoneNumber;
+      const verifiedAt = updated.verifiedAt || new Date();
+      const summary = `خروج تایید شد · ${pass.factory.name} · راننده ${pass.driverName} · پلاک ${pass.licensePlate} · ${verifiedAt.toLocaleString('fa-IR')}`;
+      if (managerPhone) await this.safeSendSms(managerPhone, `MEKSS: ${summary}`);
+      if (pass.factory?.managerId) {
+        await this.notifyUser(pass.factory.managerId, 'تایید خروج نگهبانی', summary, 'SUCCESS');
       }
     }
     return updated;
@@ -962,7 +983,7 @@ export class ManagementService {
     await this.audit.record({ userId: actor.id, action: 'INVOICE_CREATED', entity: 'Invoice', entityId: invoice.id });
     const factory = await this.prisma.factory.findUnique({
       where: { id: input.factoryId },
-      select: { name: true, manager: { select: { phoneNumber: true } } },
+      select: { name: true, managerId: true, manager: { select: { phoneNumber: true } } },
     });
     if (factory?.manager?.phoneNumber) {
       await this.safeSendSms(
@@ -970,7 +991,50 @@ export class ManagementService {
         `MEKSS: صورتحساب جدید برای «${factory.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.`,
       );
     }
+    if (factory?.managerId) {
+      await this.notifyUser(
+        factory.managerId,
+        'صورتحساب جدید',
+        `صورتحساب «${invoice.invoiceNumber}» برای ${factory.name} به مبلغ ${Number(invoice.totalAmount)} ریال صادر شد.`,
+        'WARNING',
+      );
+    }
     return invoice;
+  }
+
+  async updateInvoice(actor: AuthenticatedUser, id: string, input: {
+    amount?: number;
+    taxAmount?: number;
+    description?: string;
+    dueDate?: string;
+    status?: 'PENDING' | 'OVERDUE' | 'CANCELLED';
+  }) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Invoice not found');
+    await this.assertFactoryAccess(actor, existing.factoryId);
+    if (existing.status === InvoiceStatus.PAID) throw new ConflictException('Paid invoices cannot be edited');
+    if (!Object.keys(input || {}).length) throw new BadRequestException('At least one invoice field is required');
+
+    const amount = input.amount !== undefined ? Number(input.amount) : Number(existing.amount);
+    const taxAmount = input.taxAmount !== undefined ? Number(input.taxAmount) : Number(existing.taxAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(taxAmount) || taxAmount < 0) {
+      throw new BadRequestException('Invalid invoice amount');
+    }
+
+    const updated = await this.prisma.invoice.update({
+      where: { id },
+      data: {
+        amount,
+        taxAmount,
+        totalAmount: amount + taxAmount,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.dueDate !== undefined ? { dueDate: new Date(input.dueDate) } : {}),
+        ...(input.status !== undefined ? { status: input.status as InvoiceStatus } : {}),
+      },
+      include: { factory: true },
+    });
+    await this.audit.record({ userId: actor.id, action: 'INVOICE_UPDATED', entity: 'Invoice', entityId: id, changes: input as any });
+    return updated;
   }
 
   async startPayment(actor: AuthenticatedUser, invoiceId: string, idempotencyKey?: string) {
@@ -1067,22 +1131,62 @@ export class ManagementService {
     return updated;
   }
 
-  async announcements() { return this.prisma.announcement.findMany({ where: { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }] }); }
+  async announcements(actor: AuthenticatedUser) {
+    const now = new Date();
+    const parkIds = await this.actorParkIds(actor);
+    const where: Prisma.AnnouncementWhereInput = {
+      AND: [
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL
+          ? {}
+          : {
+            OR: [
+              { isGlobal: true },
+              ...(parkIds.length ? [{ parkId: { in: parkIds } }] : []),
+              { createdById: actor.id },
+            ],
+          },
+      ],
+    };
+    return this.prisma.announcement.findMany({
+      where,
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
   async createAnnouncement(actor: AuthenticatedUser, input: CreateAnnouncementDto) {
-    if (input.parkId) await this.assertParkScope(actor, input.parkId);
+    let parkId = input.parkId || null;
+    let isGlobal = Boolean(input.isGlobal);
+    if (actor.role === Role.PARK_MANAGER) {
+      const managed = await this.managedParkIds(actor);
+      if (!managed.length) throw new ForbiddenException('No managed park assigned');
+      if (parkId) {
+        if (!managed.includes(parkId)) throw new ForbiddenException('You do not have access to this park');
+      } else if (managed.length === 1) {
+        parkId = managed[0];
+      } else {
+        throw new BadRequestException('parkId is required for park managers with multiple parks');
+      }
+      isGlobal = false;
+    } else if (parkId) {
+      await this.assertParkScope(actor, parkId);
+    }
     const item = await this.prisma.announcement.create({
       data: {
         title: input.title,
         content: input.content,
-        isGlobal: Boolean(input.isGlobal),
+        isGlobal,
         isPinned: Boolean(input.isPinned),
         priority: Number(input.priority || 0),
-        parkId: input.parkId,
+        parkId,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
         createdById: actor.id,
       },
     });
     await this.audit.record({ userId: actor.id, action: 'ANNOUNCEMENT_CREATED', entity: 'Announcement', entityId: item.id });
+
+    // Notify park-scoped users (or all active users for global SA announcements).
+    const recipients = await this.announcementRecipients(actor, parkId, isGlobal);
+    await Promise.all(recipients.map((userId) => this.notifyUser(userId, item.title, item.content.slice(0, 280), 'INFO')));
     return item;
   }
 
@@ -1547,10 +1651,15 @@ export class ManagementService {
   }
 
   async unreadMessageCount(actor: AuthenticatedUser) {
-    const count = await this.prisma.message.count({
-      where: { receiverId: actor.id, status: MessageStatus.UNREAD },
-    });
-    return { count };
+    const [messages, notifications] = await Promise.all([
+      this.prisma.message.count({
+        where: { receiverId: actor.id, status: MessageStatus.UNREAD },
+      }),
+      this.prisma.notification.count({
+        where: { userId: actor.id, isRead: false },
+      }),
+    ]);
+    return { count: messages + notifications, messages, notifications };
   }
 
   async markMessageRead(actor: AuthenticatedUser, id: string) {
@@ -1562,35 +1671,21 @@ export class ManagementService {
   }
 
   async sendDirectMessage(actor: AuthenticatedUser, input: SendDirectMessageDto) {
+    const allowed = await this.messageRecipients(actor);
+    const allowedIds = new Set(allowed.map((item) => item.id));
+    if (!allowedIds.has(input.receiverId)) {
+      throw new ForbiddenException('Receiver is not in your allowed messaging scope');
+    }
+
     const receiver = await this.prisma.user.findUnique({
       where: { id: input.receiverId },
-      select: {
-        id: true,
-        role: true,
-        isActive: true,
-        messagingRestricted: true,
-        managedParks: { select: { id: true } },
-      },
+      select: { id: true, phoneNumber: true, isActive: true, messagingRestricted: true, role: true },
     });
     if (!receiver?.isActive) throw new BadRequestException('Receiver is invalid or inactive');
 
     const privilegedSender = actor.role === Role.SUPER_ADMIN || actor.role === Role.PARK_MANAGER;
     if (receiver.messagingRestricted && !privilegedSender) {
       throw new ForbiddenException('This manager has restricted unsolicited messaging');
-    }
-
-    if (!privilegedSender) {
-      if (actor.role !== Role.FACTORY_OWNER && actor.role !== Role.EMPLOYEE) {
-        throw new ForbiddenException('You do not have permission to send this message');
-      }
-      if (receiver.role !== Role.PARK_MANAGER) {
-        throw new BadRequestException('Factory users may only message park managers');
-      }
-      const actorParkIds = await this.actorParkIds(actor);
-      const receiverParkIds = new Set(receiver.managedParks.map((park) => park.id));
-      if (!actorParkIds.some((parkId) => receiverParkIds.has(parkId))) {
-        throw new ForbiddenException('Receiver is not a manager of your factory park');
-      }
     }
 
     const message = await this.prisma.message.create({
@@ -1600,21 +1695,106 @@ export class ManagementService {
         subject: input.subject,
         body: input.body,
       },
+      include: {
+        sender: { select: { id: true, name: true } },
+        receiver: { select: { id: true, name: true } },
+      },
     });
     await this.audit.record({ userId: actor.id, action: 'MESSAGE_SENT', entity: 'Message', entityId: message.id });
+    await this.notifyUser(receiver.id, input.subject, input.body.slice(0, 280), 'INFO');
+    if (receiver.phoneNumber) {
+      await this.safeSendSms(receiver.phoneNumber, `MEKSS پیام جدید: ${input.subject}`);
+    }
     return message;
   }
 
   async sendMessage(actor: AuthenticatedUser, recipientIds: string[], subject: string, body: string) {
-    const scopedIds = Array.from(new Set(recipientIds));
-    const validRecipients = await this.prisma.user.findMany({ where: { id: { in: scopedIds }, isActive: true }, select: { id: true } });
+    const allowed = await this.messageRecipients(actor);
+    const allowedIds = new Set(allowed.map((item) => item.id));
+    const scopedIds = Array.from(new Set(recipientIds)).filter((id) => allowedIds.has(id));
+    const validRecipients = await this.prisma.user.findMany({
+      where: { id: { in: scopedIds }, isActive: true },
+      select: { id: true, phoneNumber: true },
+    });
     if (!validRecipients.length) throw new BadRequestException('No valid recipients were resolved');
-    const excludedCount = scopedIds.length - validRecipients.length;
+    const excludedCount = recipientIds.length - validRecipients.length;
     const created = await this.prisma.$transaction(
       validRecipients.map((recipient) => this.prisma.message.create({ data: { senderId: actor.id, receiverId: recipient.id, subject, body } })),
     );
     await this.audit.record({ userId: actor.id, action: 'MESSAGE_BATCH_SENT', entity: 'Message', entityId: created.map((message) => message.id).join(','), changes: { recipientCount: created.length } });
+    await Promise.all(validRecipients.map(async (recipient) => {
+      await this.notifyUser(recipient.id, subject, body.slice(0, 280), 'INFO');
+      if (recipient.phoneNumber) await this.safeSendSms(recipient.phoneNumber, `MEKSS پیام جدید: ${subject}`);
+    }));
     return { sentCount: created.length, excludedCount };
+  }
+
+  async messageRecipients(actor: AuthenticatedUser) {
+    if (actor.role === Role.SUPER_ADMIN) {
+      return this.prisma.user.findMany({
+        where: { isActive: true, isApproved: true, id: { not: actor.id } },
+        select: { id: true, name: true, phoneNumber: true, role: true },
+        orderBy: [{ role: 'asc' }, { name: 'asc' }],
+        take: 500,
+      });
+    }
+
+    if (actor.role === Role.PARK_MANAGER) {
+      const parkIds = await this.managedParkIds(actor);
+      const factories = await this.prisma.factory.findMany({
+        where: { parkId: { in: parkIds }, isApproved: true },
+        select: { managerId: true },
+      });
+      const managerIds = factories.map((f) => f.managerId).filter(Boolean) as string[];
+      return this.prisma.user.findMany({
+        where: { id: { in: managerIds, not: actor.id }, role: Role.FACTORY_OWNER, isActive: true, isApproved: true },
+        select: { id: true, name: true, phoneNumber: true, role: true },
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    if (actor.role === Role.FACTORY_OWNER) {
+      const factories = await this.prisma.factory.findMany({
+        where: { managerId: actor.id },
+        select: { id: true, parkId: true },
+      });
+      const factoryIds = factories.map((f) => f.id);
+      const parkIds = [...new Set(factories.map((f) => f.parkId))];
+      const [employees, parkManagers] = await Promise.all([
+        this.prisma.user.findMany({
+          where: { employeeOfFactoryId: { in: factoryIds }, role: Role.EMPLOYEE, isActive: true, isApproved: true },
+          select: { id: true, name: true, phoneNumber: true, role: true },
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.user.findMany({
+          where: {
+            role: Role.PARK_MANAGER,
+            isActive: true,
+            isApproved: true,
+            messagingRestricted: false,
+            managedParks: { some: { id: { in: parkIds } } },
+          },
+          select: { id: true, name: true, phoneNumber: true, role: true },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+      return [...parkManagers, ...employees];
+    }
+
+    if (actor.role === Role.EMPLOYEE) {
+      const me = await this.prisma.user.findUnique({
+        where: { id: actor.id },
+        select: { employeeOfFactoryId: true, employeeOfFactory: { select: { managerId: true, parkId: true } } },
+      });
+      const targets: string[] = [];
+      if (me?.employeeOfFactory?.managerId) targets.push(me.employeeOfFactory.managerId);
+      return this.prisma.user.findMany({
+        where: { id: { in: targets }, isActive: true, isApproved: true },
+        select: { id: true, name: true, phoneNumber: true, role: true },
+      });
+    }
+
+    return [];
   }
 
   async listFactoryStaff(actor: AuthenticatedUser, factoryId: string) {
@@ -1713,7 +1893,37 @@ export class ManagementService {
 
   async listMarketRates() {
     await this.ensureMarketRatesSeeded();
+    // Best-effort live refresh when rates are stale (> 30 minutes).
+    try {
+      const newest = await this.prisma.marketRate.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } });
+      if (!newest || Date.now() - newest.updatedAt.getTime() > 30 * 60_000) {
+        await this.refreshMarketRatesFromProviders();
+      }
+    } catch {
+      /* keep seeded/cached values */
+    }
     return this.prisma.marketRate.findMany({ orderBy: { key: 'asc' } });
+  }
+
+  async marketRateHistory(days = 14) {
+    await this.ensureMarketRatesSeeded();
+    const since = new Date(Date.now() - Math.max(1, Math.min(days, 90)) * 24 * 60 * 60_000);
+    const rows = await this.prisma.marketRateHistory.findMany({
+      where: { recordedAt: { gte: since } },
+      orderBy: { recordedAt: 'asc' },
+    });
+    return rows.map((row) => ({
+      key: row.key,
+      value: Number(row.value),
+      recordedAt: row.recordedAt,
+    }));
+  }
+
+  async refreshMarketRates(actor: AuthenticatedUser) {
+    await this.ensureMarketRatesSeeded();
+    const updated = await this.refreshMarketRatesFromProviders(actor.id);
+    await this.audit.record({ userId: actor.id, action: 'MARKET_RATES_REFRESHED', entity: 'MarketRate', entityId: 'bulk', changes: { count: updated } });
+    return this.listMarketRates();
   }
 
   async updateMarketRate(actor: AuthenticatedUser, key: MarketRateKey, input: UpdateMarketRateDto) {
@@ -1727,6 +1937,9 @@ export class ManagementService {
         ...(input.unit !== undefined ? { unit: input.unit } : {}),
         updatedById: actor.id,
       },
+    });
+    await this.prisma.marketRateHistory.create({
+      data: { key, value: input.value, marketRateId: updated.id },
     });
     await this.audit.record({
       userId: actor.id,
@@ -1752,6 +1965,7 @@ export class ManagementService {
       select: {
         id: true,
         name: true,
+        parkId: true,
         activityType: true,
         ceoName: true,
         logo: true,
@@ -1759,13 +1973,14 @@ export class ManagementService {
         website: true,
         phoneNumber: true,
         description: true,
-        park: { select: { name: true, city: true, province: true } },
+        park: { select: { id: true, name: true, city: true, province: true } },
       },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
     return factories.map((factory) => ({
       id: factory.id,
       name: factory.name,
+      parkId: factory.parkId,
       activityType: factory.activityType,
       parkName: factory.park.name,
       city: factory.park.city,
@@ -2347,6 +2562,237 @@ export class ManagementService {
     } catch (error) {
       this.logger.warn(`SMS delivery failed for ${phoneNumber.slice(0, 4)}***: ${error instanceof Error ? error.message : 'unknown error'}`);
     }
+  }
+
+  private async notifyUser(
+    userId: string,
+    title: string,
+    body: string,
+    type: 'INFO' | 'SUCCESS' | 'WARNING' | 'EMERGENCY' = 'INFO',
+  ) {
+    try {
+      await this.prisma.notification.create({
+        data: { userId, title, body, type },
+      });
+    } catch (error) {
+      this.logger.warn(`Notification create failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+  }
+
+  private async announcementRecipients(actor: AuthenticatedUser, parkId: string | null, isGlobal: boolean): Promise<string[]> {
+    if (isGlobal || actor.role === Role.SUPER_ADMIN) {
+      const users = await this.prisma.user.findMany({
+        where: { isActive: true, isApproved: true, id: { not: actor.id } },
+        select: { id: true },
+        take: 2000,
+      });
+      return users.map((u) => u.id);
+    }
+    if (!parkId) return [];
+    const factories = await this.prisma.factory.findMany({
+      where: { parkId, isApproved: true },
+      select: { id: true, managerId: true },
+    });
+    const factoryIds = factories.map((f) => f.id);
+    const managerIds = factories.map((f) => f.managerId).filter(Boolean) as string[];
+    const [employees, guards] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { employeeOfFactoryId: { in: factoryIds }, isActive: true, isApproved: true },
+        select: { id: true },
+      }),
+      this.prisma.securityGuard.findMany({
+        where: { parkId, isActive: true },
+        select: { userId: true },
+      }),
+    ]);
+    return [...new Set([
+      ...managerIds,
+      ...employees.map((e) => e.id),
+      ...guards.map((g) => g.userId),
+    ])].filter((id) => id !== actor.id);
+  }
+
+  async pendingRegistrations(actor: AuthenticatedUser) {
+    if (actor.role === Role.SUPER_ADMIN) {
+      return this.prisma.user.findMany({
+        where: { isApproved: false, isActive: true, role: { in: [Role.FACTORY_OWNER, Role.EMPLOYEE] } },
+        select: {
+          id: true, name: true, phoneNumber: true, role: true, createdAt: true,
+          requestedParkId: true,
+          requestedPark: { select: { id: true, name: true } },
+          employeeOfFactoryId: true,
+          employeeOfFactory: { select: { id: true, name: true, parkId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    if (actor.role === Role.PARK_MANAGER) {
+      const parkIds = await this.managedParkIds(actor);
+      return this.prisma.user.findMany({
+        where: {
+          isApproved: false,
+          isActive: true,
+          role: Role.FACTORY_OWNER,
+          requestedParkId: { in: parkIds },
+        },
+        select: {
+          id: true, name: true, phoneNumber: true, role: true, createdAt: true,
+          requestedParkId: true,
+          requestedPark: { select: { id: true, name: true } },
+          employeeOfFactoryId: true,
+          employeeOfFactory: { select: { id: true, name: true, parkId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    if (actor.role === Role.FACTORY_OWNER) {
+      const factories = await this.prisma.factory.findMany({
+        where: { managerId: actor.id },
+        select: { id: true },
+      });
+      const factoryIds = factories.map((f) => f.id);
+      return this.prisma.user.findMany({
+        where: {
+          isApproved: false,
+          isActive: true,
+          role: Role.EMPLOYEE,
+          employeeOfFactoryId: { in: factoryIds },
+        },
+        select: {
+          id: true, name: true, phoneNumber: true, role: true, createdAt: true,
+          requestedParkId: true,
+          requestedPark: { select: { id: true, name: true } },
+          employeeOfFactoryId: true,
+          employeeOfFactory: { select: { id: true, name: true, parkId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+    return [];
+  }
+
+  async decideRegistration(actor: AuthenticatedUser, userId: string, approved: boolean, reason?: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, role: true, isApproved: true, phoneNumber: true, name: true,
+        requestedParkId: true, employeeOfFactoryId: true,
+        employeeOfFactory: { select: { managerId: true, parkId: true } },
+      },
+    });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.isApproved) throw new ConflictException('Registration was already decided');
+
+    if (actor.role === Role.PARK_MANAGER) {
+      if (target.role !== Role.FACTORY_OWNER || !target.requestedParkId) {
+        throw new ForbiddenException('Park managers can only approve factory-owner registrations for their parks');
+      }
+      await this.assertParkScope(actor, target.requestedParkId);
+    } else if (actor.role === Role.FACTORY_OWNER) {
+      if (target.role !== Role.EMPLOYEE || !target.employeeOfFactoryId) {
+        throw new ForbiddenException('Factory owners can only approve their employees');
+      }
+      if (target.employeeOfFactory?.managerId !== actor.id) {
+        throw new ForbiddenException('Employee does not belong to your factory');
+      }
+    } else if (actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('Not allowed');
+    }
+
+    if (!approved && !reason?.trim()) throw new BadRequestException('A reason is required');
+
+    if (approved) {
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data: { isApproved: true },
+      });
+      await this.audit.record({ userId: actor.id, action: 'REGISTRATION_APPROVED', entity: 'User', entityId: userId });
+      await this.notifyUser(userId, 'تایید ثبت‌نام', 'حساب کاربری شما تایید شد و می‌توانید وارد سامانه شوید.', 'SUCCESS');
+      if (target.phoneNumber) await this.safeSendSms(target.phoneNumber, 'MEKSS: حساب کاربری شما تایید شد.');
+      return updated;
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false, sessionVersion: { increment: 1 } },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'REGISTRATION_REJECTED',
+      entity: 'User',
+      entityId: userId,
+      changes: { reason: reason?.trim() },
+    });
+    if (target.phoneNumber) await this.safeSendSms(target.phoneNumber, `MEKSS: درخواست ثبت‌نام رد شد. ${reason?.trim()}`);
+    return { id: userId, rejected: true };
+  }
+
+  private async refreshMarketRatesFromProviders(updatedById?: string): Promise<number> {
+    const quotes: Partial<Record<MarketRateKey, number>> = {};
+
+    try {
+      const fxRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,CNY');
+      if (fxRes.ok) {
+        const fx = await fxRes.json() as { rates?: Record<string, number> };
+        const existingUsd = await this.prisma.marketRate.findUnique({ where: { key: MarketRateKey.USD } });
+        const usdIrr = Number(existingUsd?.value) > 0 ? Number(existingUsd!.value) : 920000;
+        quotes.USD = usdIrr;
+        if (fx.rates?.EUR) quotes.EUR = Math.round(usdIrr / fx.rates.EUR);
+        if (fx.rates?.CNY) quotes.CNY = Math.round(usdIrr / fx.rates.CNY);
+      }
+    } catch { /* ignore */ }
+
+    try {
+      const metalsRes = await fetch('https://api.metals.live/v1/spot');
+      if (metalsRes.ok) {
+        const metals = await metalsRes.json() as Array<Record<string, number>>;
+        const map: Record<string, number> = {};
+        for (const row of metals) Object.assign(map, row);
+        const usdIrr = quotes.USD || 920000;
+        if (map.gold) quotes.GOLD = Math.round((map.gold / 31.1035) * usdIrr);
+        if (map.silver) quotes.SILVER = Math.round((map.silver / 31.1035) * usdIrr);
+        if (map.platinum) quotes.PLATINUM = Math.round((map.platinum / 31.1035) * usdIrr);
+        if (map.copper) quotes.COPPER = Math.round((map.copper / 1000) * usdIrr);
+      }
+    } catch { /* ignore */ }
+
+    try {
+      const oilRes = await fetch('https://api.metals.live/v1/spot/oil');
+      if (oilRes.ok) {
+        const oil = await oilRes.json() as { price?: number } | number;
+        const price = typeof oil === 'number' ? oil : oil.price;
+        if (price && Number.isFinite(price)) quotes.OIL = Number(price);
+      }
+    } catch { /* ignore */ }
+
+    if (quotes.COPPER && !quotes.ALUMINUM) quotes.ALUMINUM = Math.round(quotes.COPPER * 0.55);
+    if (quotes.COPPER && !quotes.IRON) quotes.IRON = Math.round(quotes.COPPER * 0.12);
+    if (quotes.GOLD && !quotes.COIN) quotes.COIN = Math.round(quotes.GOLD * 8.13);
+    if (quotes.IRON && !quotes.BITUMEN) quotes.BITUMEN = Math.round(quotes.IRON * 0.8);
+
+    let updated = 0;
+    for (const key of Object.keys(quotes) as MarketRateKey[]) {
+      const value = quotes[key];
+      if (!value || !Number.isFinite(value) || value <= 0) continue;
+      try {
+        const row = await this.prisma.marketRate.upsert({
+          where: { key },
+          create: {
+            key,
+            label: MARKET_RATE_DEFAULTS[key].label,
+            unit: MARKET_RATE_DEFAULTS[key].unit,
+            value,
+            updatedById: updatedById || null,
+          },
+          update: { value, updatedById: updatedById || null },
+        });
+        await this.prisma.marketRateHistory.create({
+          data: { key, value, marketRateId: row.id },
+        });
+        updated += 1;
+      } catch { /* skip individual key */ }
+    }
+    return updated;
   }
 
   private paymentResponse(authority: string, paymentUrl?: string) { const callback = this.config.get<string>('ZARINPAL_CALLBACK_URL') || 'http://localhost:3000/api/v1/invoices/payment/callback'; return { authority, paymentUrl: paymentUrl || `${callback}?Authority=${authority}&Status=OK` }; }

@@ -265,6 +265,14 @@ export class CreateInvoiceDto {
   @IsDateString() dueDate!: string;
 }
 
+export class UpdateInvoiceDto {
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) taxAmount?: number;
+  @IsOptional() @IsString() @Length(2, 2000) description?: string;
+  @IsOptional() @IsDateString() dueDate?: string;
+  @IsOptional() @IsIn(['PENDING', 'OVERDUE', 'CANCELLED']) status?: 'PENDING' | 'OVERDUE' | 'CANCELLED';
+}
+
 export class CreateRequestDto {
   @IsString() @Matches(opaqueId) factoryId!: string;
   @IsEnum(RequestType) type!: RequestType;

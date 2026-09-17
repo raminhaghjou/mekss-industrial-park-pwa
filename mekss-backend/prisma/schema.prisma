@@ -131,6 +131,10 @@ enum MarketRateKey {
   SILVER
   PLATINUM
   COIN
+  COPPER
+  ALUMINUM
+  OIL
+  BITUMEN
 }
 
 enum OtpPurpose {
@@ -207,6 +211,9 @@ model User {
   messagingRestricted    Boolean       @default(false)
   // A default driver/vehicle snapshot offered as a starting point on the next gate pass form.
   defaultDriver          Json?
+  // Self-registration: factory owners / employees request access to a specific park until approved.
+  requestedParkId        String?
+  requestedPark          IndustrialPark? @relation("UserRequestedPark", fields: [requestedParkId], references: [id], onDelete: SetNull)
 
   managedFactories        Factory[]               @relation("FactoryOwner")
   managedParks            IndustrialPark[]        @relation("ParkManager")
@@ -239,6 +246,7 @@ model User {
   @@index([role, isApproved, isActive])
   @@index([bootstrapCreatedAt])
   @@index([employeeOfFactoryId])
+  @@index([requestedParkId, isApproved, role])
 }
 
 model IndustrialPark {
@@ -263,6 +271,7 @@ model IndustrialPark {
 
   factories      Factory[]
   managers       User[]          @relation("ParkManager")
+  registrationRequests User[]    @relation("UserRequestedPark")
   announcements  Announcement[]
   advertisements Advertisement[] @relation("AdvertisementPark")
   securityGuards SecurityGuard[]
@@ -741,6 +750,20 @@ model MarketRate {
 
   updatedById String?
   updatedBy   User?   @relation("MarketRateUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  history     MarketRateHistory[]
+}
+
+model MarketRateHistory {
+  id         String        @id @default(cuid())
+  key        MarketRateKey
+  value      Decimal       @db.Decimal(18, 4)
+  recordedAt DateTime      @default(now())
+
+  marketRateId String?
+  marketRate   MarketRate? @relation(fields: [marketRateId], references: [id], onDelete: SetNull)
+
+  @@index([key, recordedAt])
+  @@index([marketRateId, recordedAt])
 }
 
 model Feedback {

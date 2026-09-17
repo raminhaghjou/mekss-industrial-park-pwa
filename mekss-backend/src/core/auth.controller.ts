@@ -1,27 +1,59 @@
 import { Body, Controller, Get, HttpCode, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
-import { OtpPurpose } from '@prisma/client';
+import { IsEmail, IsIn, IsOptional, IsString, Length, Matches, MinLength, ValidateIf } from 'class-validator';
+import { OtpPurpose, Role } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { AuthenticatedUser, JwtAuthGuard } from './auth.guard';
 
 const iranianPhone = /^09\d{9}$/;
+const opaqueId = /^[A-Za-z0-9_-]{1,128}$/;
 const canonicalEmail = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value;
+const normalizeIranianPhone = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const digits = value.trim().replace(/\D/g, '');
+  if (digits.startsWith('0098')) return `0${digits.slice(4)}`;
+  if (digits.startsWith('98')) return `0${digits.slice(2)}`;
+  return digits;
+};
 
 class RegisterDto {
-  @Matches(iranianPhone) phoneNumber!: string;
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
   @IsString() @Length(2, 120) name!: string;
-  @IsString() @MinLength(10) password!: string;
+  @IsString() @MinLength(8) @Matches(/^(?=.*[A-Za-zÀ-ÿآ-ی])(?=.*\d).{8,128}$/, {
+    message: 'password must be at least 8 characters and include letters and numbers',
+  }) password!: string;
   @Transform(canonicalEmail) @IsOptional() @IsEmail() email?: string;
+  @IsIn([Role.FACTORY_OWNER, Role.EMPLOYEE]) role!: Role;
+  /** Required for FACTORY_OWNER self-registration — park manager of this park must approve. */
+  @ValidateIf((body: RegisterDto) => body.role === Role.FACTORY_OWNER)
+  @IsString() @Matches(opaqueId) parkId!: string;
+  /** Required for EMPLOYEE self-registration under a factory. */
+  @ValidateIf((body: RegisterDto) => body.role === Role.EMPLOYEE)
+  @IsString() @Matches(opaqueId) factoryId!: string;
 }
-class LoginDto { @Matches(iranianPhone) phoneNumber!: string; @IsString() password!: string; }
-class SendOtpDto { @Matches(iranianPhone) phoneNumber!: string; }
-class VerifyOtpDto { @Matches(iranianPhone) phoneNumber!: string; @Matches(/^\d{6}$/) otp!: string; }
+class LoginDto {
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
+  @IsString() password!: string;
+}
+class SendOtpDto { @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string; }
+class VerifyOtpDto {
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
+  @Matches(/^\d{6}$/) otp!: string;
+}
 class RefreshDto { @IsString() @MinLength(32) refreshToken!: string; }
-class ResetPasswordDto extends VerifyOtpDto { @IsString() @MinLength(10) newPassword!: string; }
-class ChangePasswordDto { @IsString() currentPassword!: string; @IsString() @MinLength(10) newPassword!: string; }
-class UpdateProfileDto { @IsOptional() @IsString() @Length(2, 120) name?: string; @Transform(canonicalEmail) @IsOptional() @IsEmail() email?: string; @IsOptional() @IsString() avatar?: string; }
+class ResetPasswordDto extends VerifyOtpDto {
+  @IsString() @MinLength(8) @Matches(/^(?=.*[A-Za-zÀ-ÿآ-ی])(?=.*\d).{8,128}$/) newPassword!: string;
+}
+class ChangePasswordDto {
+  @IsString() currentPassword!: string;
+  @IsString() @MinLength(8) @Matches(/^(?=.*[A-Za-zÀ-ÿآ-ی])(?=.*\d).{8,128}$/) newPassword!: string;
+}
+class UpdateProfileDto {
+  @IsOptional() @IsString() @Length(2, 120) name?: string;
+  @Transform(canonicalEmail) @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsString() avatar?: string;
+}
 
 @ApiTags('Authentication')
 @Controller('api/v1/auth')

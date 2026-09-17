@@ -47,6 +47,7 @@ const SendMessagePage = lazy(() => import('./pages/admin/SendMessagePage'));
 const ManageAnnouncementsPage = lazy(() => import('./pages/admin/ManageAnnouncementsPage'));
 const ApproveAdvertisementsPage = lazy(() => import('./pages/admin/ApproveAdvertisementsPage'));
 const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
+const PendingRegistrationsPage = lazy(() => import('./pages/admin/PendingRegistrationsPage'));
 const GuardGatePassesPage = lazy(() => import('./pages/guard/GuardGatePassesPage'));
 const VerifyGatePassPage = lazy(() => import('./pages/guard/VerifyGatePassPage'));
 const GuardEmergencyPage = lazy(() => import('./pages/guard/GuardEmergencyPage'));
@@ -203,6 +204,11 @@ function AppRoutes() {
         <Route path="admin/reports" element={
           <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'GOVERNMENT_OFFICIAL']}>
             <ReportsPage />
+          </RoleRoute>
+        } />
+        <Route path="admin/registrations" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER']}>
+            <PendingRegistrationsPage />
           </RoleRoute>
         } />
         

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -19,7 +19,17 @@ import {
   AlertDescription,
   Spinner,
 } from '@heroui/react';
-import { LineChart } from 'lucide-react';
+import { LineChart, RefreshCw } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart as ReLineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from 'recharts';
 import { marketApi } from '../../services/api/market.api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -27,9 +37,20 @@ import { getErrorMessage } from '../../utils/apiError';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { amountInputToNumber, formatAmountInput } from '../../utils/amountFormat';
 
+const chartKeys = ['USD', 'EUR', 'GOLD', 'COPPER', 'IRON', 'OIL'];
+const chartColors = {
+  USD: '#21aa58',
+  EUR: '#0ea5e9',
+  GOLD: '#f59e0b',
+  COPPER: '#ea580c',
+  IRON: '#64748b',
+  OIL: '#7c3aed',
+};
+
 export const MarketRatesPage = () => {
   const { user } = useAuth();
   const canEdit = user?.role === 'SUPER_ADMIN';
+  const canRefresh = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL'].includes(user?.role);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState({});
@@ -37,6 +58,12 @@ export const MarketRatesPage = () => {
   const { data: rates = [], isLoading, isError, error } = useQuery({
     queryKey: ['market-rates'],
     queryFn: () => marketApi.getRates().then((res) => res.data),
+    refetchInterval: 5 * 60_000,
+  });
+
+  const { data: history = [] } = useQuery({
+    queryKey: ['market-rates', 'history'],
+    queryFn: () => marketApi.getHistory(14).then((res) => res.data || []),
   });
 
   const updateMutation = useMutation({
@@ -46,6 +73,15 @@ export const MarketRatesPage = () => {
       queryClient.invalidateQueries({ queryKey: ['market-rates'] });
     },
     onError: (err) => showNotification(getErrorMessage(err, 'به‌روزرسانی نرخ ناموفق بود'), 'error'),
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () => marketApi.refreshRates(),
+    onSuccess: () => {
+      showNotification('نرخ‌های بازار از منبع آنلاین به‌روز شد', 'success');
+      queryClient.invalidateQueries({ queryKey: ['market-rates'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'به‌روزرسانی آنلاین ناموفق بود'), 'error'),
   });
 
   const draftValue = (rate) => {
@@ -62,17 +98,73 @@ export const MarketRatesPage = () => {
     updateMutation.mutate({ key: rate.key, value: next });
   };
 
+  const chartData = useMemo(() => {
+    const byDay = new Map();
+    for (const row of history) {
+      if (!chartKeys.includes(row.key)) continue;
+      const day = new Date(row.recordedAt).toLocaleDateString('fa-IR');
+      if (!byDay.has(day)) byDay.set(day, { day });
+      byDay.get(day)[row.key] = Number(row.value);
+    }
+    return [...byDay.values()];
+  }, [history]);
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="page-toolbar">
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">نرخ‌های بازار</h1>
-          <p className="mt-1 text-sm text-foreground-500">نرخ‌های مرجع ارز، فلزات و شاخص‌های مرتبط</p>
+          <p className="mt-1 text-sm text-foreground-500">
+            نرخ‌های مرجع ارز، فلزات و شاخص‌های صنعتی — به‌روزرسانی آنلاین
+          </p>
         </div>
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand)]">
-          <LineChart className="h-5 w-5" />
+        <div className="flex items-center gap-2">
+          {canRefresh && (
+            <Button
+              variant="secondary"
+              className="font-bold"
+              isDisabled={refreshMutation.isPending}
+              onPress={() => refreshMutation.mutate()}
+            >
+              {refreshMutation.isPending ? <Spinner size="sm" /> : <RefreshCw className="h-4 w-4" />}
+              به‌روزرسانی آنلاین
+            </Button>
+          )}
+          <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--color-brand-soft)] text-[var(--color-brand)]">
+            <LineChart className="h-5 w-5" />
+          </div>
         </div>
       </div>
+
+      {chartData.length > 0 && (
+        <Card className="rounded-2xl border border-default-200">
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="mb-4 text-sm font-bold">روند ۱۴ روز اخیر</h2>
+            <div className="h-72 w-full" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <ReLineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} width={70} />
+                  <Tooltip />
+                  <Legend />
+                  {chartKeys.map((key) => (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      stroke={chartColors[key]}
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                  ))}
+                </ReLineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="rounded-2xl border border-default-200">
         <CardContent className="p-0">

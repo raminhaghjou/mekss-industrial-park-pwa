@@ -41,14 +41,56 @@ export class AuthService {
     private readonly audit: AuditService,
   ) {}
 
-  async register(input: { phoneNumber: string; password: string; name: string; email?: string }): Promise<{ message: string; user: PublicUser }> {
+  async register(input: {
+    phoneNumber: string;
+    password: string;
+    name: string;
+    email?: string;
+    role: Role;
+    parkId?: string;
+    factoryId?: string;
+  }): Promise<{ message: string; user: PublicUser }> {
     const exists = await this.prisma.user.findUnique({ where: { phoneNumber: input.phoneNumber } });
     if (exists) throw new ConflictException('A user with this phone number already exists');
+
+    const role = input.role === Role.FACTORY_OWNER ? Role.FACTORY_OWNER : Role.EMPLOYEE;
+    let requestedParkId: string | null = null;
+    let employeeOfFactoryId: string | null = null;
+
+    if (role === Role.FACTORY_OWNER) {
+      if (!input.parkId) throw new BadRequestException('parkId is required for factory owner registration');
+      const park = await this.prisma.industrialPark.findFirst({
+        where: { id: input.parkId, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (!park) throw new NotFoundException('Industrial park not found');
+      requestedParkId = park.id;
+    } else {
+      if (!input.factoryId) throw new BadRequestException('factoryId is required for employee registration');
+      const factory = await this.prisma.factory.findFirst({
+        where: { id: input.factoryId, status: 'ACTIVE', isApproved: true },
+        select: { id: true, parkId: true },
+      });
+      if (!factory) throw new NotFoundException('Factory not found');
+      employeeOfFactoryId = factory.id;
+      requestedParkId = factory.parkId;
+    }
+
     const password = await bcrypt.hash(input.password, this.bcryptRounds());
     const user = await this.prisma.user.create({
-      data: { phoneNumber: input.phoneNumber, password, name: input.name, email: this.canonicalNullable(input.email), role: Role.EMPLOYEE, isApproved: false },
+      data: {
+        phoneNumber: input.phoneNumber,
+        password,
+        name: input.name,
+        email: this.canonicalNullable(input.email),
+        role,
+        isApproved: false,
+        isActive: true,
+        requestedParkId,
+        employeeOfFactoryId,
+      },
     });
-    await this.audit.record({ userId: user.id, action: 'REGISTER', entity: 'User', entityId: user.id });
+    await this.audit.record({ userId: user.id, action: 'REGISTER', entity: 'User', entityId: user.id, changes: { role, requestedParkId } });
     return { message: 'Registration submitted for approval', user: this.publicUser(user) };
   }
 

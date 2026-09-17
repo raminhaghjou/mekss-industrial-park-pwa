@@ -31,6 +31,7 @@ import {
   UpdateAnnouncementDto,
   UpdateFactoryDto,
   UpdateFactoryStaffDto,
+  UpdateInvoiceDto,
   UpdateManagedUserDto,
   UpdateMarketRateDto,
   UpdateParkDto,
@@ -47,6 +48,9 @@ const currentUser = (request: AuthenticatedRequest) => request.user;
 export class ManagementController {
   constructor(private readonly management: ManagementService) {}
 
+  @Get('users/pending-registrations') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') pendingRegistrations(@Req() req: AuthenticatedRequest) { return this.management.pendingRegistrations(currentUser(req)); }
+  @Post('users/:id/approve-registration') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') approveRegistration(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decideRegistration(currentUser(req), params.id, true); }
+  @Post('users/:id/reject-registration') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') rejectRegistration(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.decideRegistration(currentUser(req), params.id, false, body.reason); }
   @Get('users') @Roles(Role.SUPER_ADMIN) @ApiTags('Users') users(@Query() query: PaginationQueryDto) { return this.management.users(query); }
   @Get('users/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Users') userDetail(@Param() params: OpaqueIdParamDto) { return this.management.userDetail(params.id); }
   @Post('users') @Roles(Role.SUPER_ADMIN) @ApiTags('Users') createUser(@Req() req: AuthenticatedRequest, @Body() body: CreateManagedUserDto) { return this.management.createUser(currentUser(req), body); }
@@ -89,6 +93,7 @@ export class ManagementController {
 
   @Get('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoices(@Req() req: AuthenticatedRequest) { return this.management.listInvoices(currentUser(req)); }
   @Post('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') createInvoice(@Req() req: AuthenticatedRequest, @Body() body: CreateInvoiceDto) { return this.management.createInvoice(currentUser(req), body); }
+  @Put('invoices/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') updateInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateInvoiceDto) { return this.management.updateInvoice(currentUser(req), params.id, body); }
   @Post('invoices/:id/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Invoices') startPayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Headers('idempotency-key') idempotencyKey?: string) { return this.management.startPayment(currentUser(req), params.id, idempotencyKey); }
 
   @Get('requests') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Requests') requests(@Req() req: AuthenticatedRequest) { return this.management.listRequests(currentUser(req)); }
@@ -96,7 +101,7 @@ export class ManagementController {
   @Post('requests/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Requests') approveRequest(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.requestAction(currentUser(req), params.id, 'approve'); }
   @Post('requests/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Requests') rejectRequest(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.requestAction(currentUser(req), params.id, 'reject', body.reason); }
 
-  @Get('announcements') @ApiTags('Announcements') announcements() { return this.management.announcements(); }
+  @Get('announcements') @ApiTags('Announcements') announcements(@Req() req: AuthenticatedRequest) { return this.management.announcements(currentUser(req)); }
   @Post('announcements') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Announcements') createAnnouncement(@Req() req: AuthenticatedRequest, @Body() body: CreateAnnouncementDto) { return this.management.createAnnouncement(currentUser(req), body); }
   @Get('announcements/managed') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Announcements') managedAnnouncements(@Req() req: AuthenticatedRequest) { return this.management.managedAnnouncements(currentUser(req)); }
   @Put('announcements/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Announcements') updateAnnouncement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateAnnouncementDto) { return this.management.updateAnnouncement(currentUser(req), params.id, body); }
@@ -114,12 +119,15 @@ export class ManagementController {
 
   @Post('messages') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') sendDirectMessage(@Req() req: AuthenticatedRequest, @Body() body: SendDirectMessageDto) { return this.management.sendDirectMessage(currentUser(req), body); }
   @Post('messages/batch') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') sendBatchMessage(@Req() req: AuthenticatedRequest, @Body() body: SendMessageDto) { return this.management.sendMessage(currentUser(req), body.recipientIds, body.subject, body.body); }
+  @Get('messages/recipients') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') messageRecipients(@Req() req: AuthenticatedRequest) { return this.management.messageRecipients(currentUser(req)); }
   @Get('messages/inbox') @ApiTags('Messages') inboxMessages(@Req() req: AuthenticatedRequest) { return this.management.inboxMessages(currentUser(req)); }
   @Get('messages/sent') @ApiTags('Messages') sentMessages(@Req() req: AuthenticatedRequest) { return this.management.sentMessages(currentUser(req)); }
   @Get('messages/unread-count') @ApiTags('Messages') unreadMessageCount(@Req() req: AuthenticatedRequest) { return this.management.unreadMessageCount(currentUser(req)); }
   @Post('messages/:id/read') @ApiTags('Messages') markMessageRead(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.markMessageRead(currentUser(req), params.id); }
 
   @Get('market-rates') @ApiTags('Market rates') marketRates() { return this.management.listMarketRates(); }
+  @Get('market-rates/history') @ApiTags('Market rates') marketRateHistory(@Query('days') days?: string) { return this.management.marketRateHistory(Number(days) || 14); }
+  @Post('market-rates/refresh') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Market rates') refreshMarketRates(@Req() req: AuthenticatedRequest) { return this.management.refreshMarketRates(currentUser(req)); }
   @Put('market-rates/:key') @Roles(Role.SUPER_ADMIN) @ApiTags('Market rates') updateMarketRate(@Req() req: AuthenticatedRequest, @Param() params: MarketRateKeyParamDto, @Body() body: UpdateMarketRateDto) { return this.management.updateMarketRate(currentUser(req), params.key, body); }
 
   @Public()

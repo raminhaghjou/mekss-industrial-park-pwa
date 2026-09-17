@@ -41,10 +41,23 @@ export const MessagesPage = () => {
     enabled: tab === 'sent',
   });
 
+  const recipientsQuery = useQuery({
+    queryKey: ['messages', 'recipients'],
+    queryFn: () => messageApi.getRecipients().then((res) => res.data || []),
+    enabled: composeOpen,
+  });
+
   const messages = tab === 'inbox' ? (inboxQuery.data || []) : (sentQuery.data || []);
   const isLoading = tab === 'inbox' ? inboxQuery.isLoading : sentQuery.isLoading;
   const isError = tab === 'inbox' ? inboxQuery.isError : sentQuery.isError;
   const error = tab === 'inbox' ? inboxQuery.error : sentQuery.error;
+  const recipients = recipientsQuery.data || [];
+  const roleRecipientLabels = {
+    PARK_MANAGER: 'مدیر شهرک',
+    FACTORY_OWNER: 'مدیر واحد',
+    EMPLOYEE: 'کارمند',
+    SUPER_ADMIN: 'ادمین',
+  };
 
   const selected = useMemo(
     () => messages.find((msg) => msg.id === selectedId) || null,
@@ -196,15 +209,24 @@ export const MessagesPage = () => {
               >
                 <h2 className="text-lg font-bold">ارسال پیام</h2>
                 <div className="flex flex-col gap-1">
-                  <Label className="text-xs">شناسه گیرنده</Label>
-                  <Input
-                    dir="ltr"
+                  <Label className="text-xs">گیرنده</Label>
+                  <select
+                    required
                     value={compose.receiverId}
                     onChange={(e) => setCompose((p) => ({ ...p, receiverId: e.target.value }))}
-                    className="rounded-xl"
-                    placeholder="شناسه کاربر"
-                    required
-                  />
+                    className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                  >
+                    <option value="">انتخاب از لیست مجاز</option>
+                    {recipients.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.name} — {roleRecipientLabels[person.role] || person.role} ({person.phoneNumber})
+                      </option>
+                    ))}
+                  </select>
+                  {recipientsQuery.isLoading && <p className="text-[11px] text-foreground-400">در حال بارگذاری گیرندگان...</p>}
+                  {!recipientsQuery.isLoading && recipients.length === 0 && (
+                    <p className="text-[11px] text-danger">گیرنده‌ای در حوزه دسترسی شما یافت نشد.</p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">موضوع</Label>

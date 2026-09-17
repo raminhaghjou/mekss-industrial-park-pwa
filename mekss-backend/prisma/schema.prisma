@@ -400,20 +400,26 @@ model GatePass {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  amount        Decimal       @db.Decimal(15, 2)
-  taxAmount     Decimal       @default(0) @db.Decimal(15, 2)
-  totalAmount   Decimal       @db.Decimal(15, 2)
-  description   String
-  issueDate     DateTime      @default(now())
-  dueDate       DateTime
-  status        InvoiceStatus @default(PENDING)
-  paymentDate   DateTime?
-  paymentMethod String?
-  paymentRef    String?       @unique
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                 String        @id @default(cuid())
+  invoiceNumber      String        @unique
+  amount             Decimal       @db.Decimal(15, 2)
+  taxAmount          Decimal       @default(0) @db.Decimal(15, 2)
+  totalAmount        Decimal       @db.Decimal(15, 2)
+  /// Daily late-payment penalty (Rials) applied for each calendar day after dueDate until paid.
+  latePenaltyPerDay  Decimal       @default(0) @db.Decimal(15, 2)
+  /// Frozen late days at payment time (null while unpaid).
+  lateDays           Int?
+  /// Frozen accrued late penalty at payment time; while unpaid this is computed live.
+  latePenaltyAmount  Decimal       @default(0) @db.Decimal(15, 2)
+  description        String
+  issueDate          DateTime      @default(now())
+  dueDate            DateTime
+  status             InvoiceStatus @default(PENDING)
+  paymentDate        DateTime?
+  paymentMethod      String?
+  paymentRef         String?       @unique
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   factoryId   String
   factory     Factory              @relation(fields: [factoryId], references: [id], onDelete: Cascade)

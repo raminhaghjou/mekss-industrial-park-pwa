@@ -261,6 +261,8 @@ export class CreateInvoiceDto {
   @IsString() @Matches(opaqueId) factoryId!: string;
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) taxAmount?: number;
+  /** Daily late fee in Rials, accrued each calendar day after dueDate until payment. */
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) latePenaltyPerDay?: number;
   @IsString() @Length(2, 2000) description!: string;
   @IsDateString() dueDate!: string;
 }
@@ -268,6 +270,7 @@ export class CreateInvoiceDto {
 export class UpdateInvoiceDto {
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount?: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) taxAmount?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) latePenaltyPerDay?: number;
   @IsOptional() @IsString() @Length(2, 2000) description?: string;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsIn(['PENDING', 'OVERDUE', 'CANCELLED']) status?: 'PENDING' | 'OVERDUE' | 'CANCELLED';

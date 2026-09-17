@@ -1,0 +1,4 @@
+-- Invoice daily late-payment penalty
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "latePenaltyPerDay" DECIMAL(15,2) NOT NULL DEFAULT 0;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "lateDays" INTEGER;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "latePenaltyAmount" DECIMAL(15,2) NOT NULL DEFAULT 0;

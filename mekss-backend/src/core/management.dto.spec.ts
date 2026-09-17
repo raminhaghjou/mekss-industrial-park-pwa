@@ -186,8 +186,9 @@ describe('management DTO validation', () => {
       factoryId: 'cm12345678901234567890123',
       description: 'هزینه خدمات ماهانه',
       amount: 1500000,
+      latePenaltyPerDay: 25000,
       dueDate: '2026-04-04',
-    })).resolves.toMatchObject({ dueDate: '2026-04-04' });
+    })).resolves.toMatchObject({ dueDate: '2026-04-04', latePenaltyPerDay: 25000 });
 
     await expect(validate(CreateGatePassDto, {
       ...validGatePass,

@@ -665,11 +665,27 @@ describe('ManagementService advertisement moderation contract', () => {
 describe('ManagementService invoice and payment contract', () => {
   it('scopes the invoice list to the caller\'s accessible factories', async () => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
-    const invoice = { findMany: jest.fn().mockResolvedValue([{ id: 'invoice-1' }]) };
+    const invoiceRow = {
+      id: 'invoice-1',
+      amount: 1000,
+      taxAmount: 0,
+      totalAmount: 1000,
+      latePenaltyPerDay: 0,
+      lateDays: null,
+      latePenaltyAmount: 0,
+      dueDate: new Date('2099-01-01T00:00:00.000Z'),
+      status: InvoiceStatus.PENDING,
+    };
+    const invoice = {
+      findMany: jest.fn().mockResolvedValue([invoiceRow]),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    };
     const prisma = { factory, invoice } as any;
     const service = new ManagementService(prisma, { record: jest.fn() } as any, config);
 
-    await expect(service.listInvoices(actor(Role.FACTORY_OWNER))).resolves.toEqual([{ id: 'invoice-1' }]);
+    await expect(service.listInvoices(actor(Role.FACTORY_OWNER))).resolves.toEqual([
+      expect.objectContaining({ id: 'invoice-1', payableAmount: 1000, lateDays: 0 }),
+    ]);
     expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { factoryId: { in: ['factory-1'] } },
       orderBy: { issueDate: 'desc' },
@@ -682,18 +698,43 @@ describe('ManagementService invoice and payment contract', () => {
       findUnique: jest.fn().mockResolvedValue({ name: 'Factory', manager: { phoneNumber: '09120000000' } }),
     };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
-    const created = { id: 'invoice-1', totalAmount: 1090 };
+    const created = {
+      id: 'invoice-1',
+      amount: 1000,
+      taxAmount: 90,
+      totalAmount: 1090,
+      latePenaltyPerDay: 25000,
+      lateDays: null,
+      latePenaltyAmount: 0,
+      dueDate: new Date('2027-01-01T00:00:00.000Z'),
+      status: InvoiceStatus.PENDING,
+      description: 'Invoice description',
+    };
     const invoice = { create: jest.fn().mockResolvedValue(created) };
+    const notification = { create: jest.fn().mockResolvedValue({}) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const prisma = { factory, industrialPark, invoice } as any;
+    const prisma = { factory, industrialPark, invoice, notification } as any;
     const service = new ManagementService(prisma, audit, config);
 
     await expect(service.createInvoice(actor(Role.PARK_MANAGER), {
-      factoryId: 'factory-1', amount: 1000, taxAmount: 90, description: 'Invoice description', dueDate: '2027-01-01T00:00:00.000Z',
-    })).resolves.toEqual(created);
+      factoryId: 'factory-1', amount: 1000, taxAmount: 90, latePenaltyPerDay: 25000, description: 'Invoice description', dueDate: '2027-01-01T00:00:00.000Z',
+    })).resolves.toEqual(expect.objectContaining({
+      id: 'invoice-1',
+      totalAmount: 1090,
+      latePenaltyPerDay: 25000,
+      payableAmount: 1090,
+      lateDays: 0,
+      latePenaltyAmount: 0,
+    }));
 
     expect(invoice.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ factoryId: 'factory-1', amount: 1000, taxAmount: 90, totalAmount: 1090 }),
+      data: expect.objectContaining({
+        factoryId: 'factory-1',
+        amount: 1000,
+        taxAmount: 90,
+        totalAmount: 1090,
+        latePenaltyPerDay: 25000,
+      }),
     }));
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'INVOICE_CREATED', entity: 'Invoice', entityId: 'invoice-1' }));
   });
@@ -724,8 +765,20 @@ describe('ManagementService invoice and payment contract', () => {
 
   it('returns the cached payment response for a retried idempotency key instead of creating a duplicate transaction', async () => {
     const factory = { count: jest.fn().mockResolvedValue(1) };
-    const invoiceRow = { id: 'invoice-1', factoryId: 'factory-1', status: InvoiceStatus.PENDING, totalAmount: 1000, description: 'Invoice' };
-    const invoice = { findUnique: jest.fn().mockResolvedValue(invoiceRow) };
+    const invoiceRow = {
+      id: 'invoice-1',
+      factoryId: 'factory-1',
+      status: InvoiceStatus.PENDING,
+      amount: 1000,
+      taxAmount: 0,
+      totalAmount: 1000,
+      latePenaltyPerDay: 0,
+      lateDays: null,
+      latePenaltyAmount: 0,
+      dueDate: new Date('2099-01-01T00:00:00.000Z'),
+      description: 'Invoice',
+    };
+    const invoice = { findUnique: jest.fn().mockResolvedValue(invoiceRow), update: jest.fn() };
     const paymentTransaction = {
       findUnique: jest.fn().mockResolvedValue({ authority: 'cached-authority' }),
       create: jest.fn(),
@@ -738,6 +791,47 @@ describe('ManagementService invoice and payment contract', () => {
     expect(result.authority).toBe('cached-authority');
     expect(paymentTransaction.create).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('charges principal plus accrued late penalty when starting payment after due date', async () => {
+    const factory = { count: jest.fn().mockResolvedValue(1) };
+    const dueDate = new Date();
+    dueDate.setUTCDate(dueDate.getUTCDate() - 3);
+    const invoiceRow = {
+      id: 'invoice-1',
+      factoryId: 'factory-1',
+      status: InvoiceStatus.PENDING,
+      amount: 1000,
+      taxAmount: 0,
+      totalAmount: 1000,
+      latePenaltyPerDay: 100,
+      lateDays: null,
+      latePenaltyAmount: 0,
+      dueDate,
+      description: 'Invoice',
+    };
+    const invoice = {
+      findUnique: jest.fn().mockResolvedValue(invoiceRow),
+      update: jest.fn().mockResolvedValue({ ...invoiceRow, status: InvoiceStatus.OVERDUE }),
+    };
+    const paymentTransaction = {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ authority: 'auth-1' }),
+    };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({ factory, invoice, paymentTransaction } as any, audit, config);
+
+    const result = await service.startPayment(actor(Role.FACTORY_OWNER), 'invoice-1', 'pay-late-1');
+
+    expect(result.payableAmount).toBe(1300);
+    expect(result.lateDays).toBe(3);
+    expect(result.latePenaltyAmount).toBe(300);
+    expect(paymentTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ amount: 1300 }),
+    }));
+    expect(invoice.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: InvoiceStatus.OVERDUE },
+    }));
   });
 
   it('rejects starting payment on a non-pending invoice', async () => {
@@ -1076,13 +1170,13 @@ describe('ManagementService reports contract', () => {
   it('derives financial totals from real scoped invoice rows', async () => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]) };
     const invoice = { findMany: jest.fn().mockResolvedValue([
-      { status: InvoiceStatus.PAID, totalAmount: 1000, amount: 1000, taxAmount: 0, invoiceNumber: 'INV-1', description: 'a', issueDate: new Date(), dueDate: new Date(), paymentDate: null, id: 'i1', factory: { id: 'factory-1', name: 'F1' } },
-      { status: InvoiceStatus.PENDING, totalAmount: 500, amount: 500, taxAmount: 0, invoiceNumber: 'INV-2', description: 'b', issueDate: new Date(), dueDate: new Date(), paymentDate: null, id: 'i2', factory: { id: 'factory-1', name: 'F1' } },
+      { status: InvoiceStatus.PAID, totalAmount: 1000, amount: 1000, taxAmount: 0, latePenaltyPerDay: 0, lateDays: 0, latePenaltyAmount: 0, invoiceNumber: 'INV-1', description: 'a', issueDate: new Date(), dueDate: new Date(), paymentDate: null, id: 'i1', factory: { id: 'factory-1', name: 'F1' } },
+      { status: InvoiceStatus.PENDING, totalAmount: 500, amount: 500, taxAmount: 0, latePenaltyPerDay: 0, lateDays: null, latePenaltyAmount: 0, invoiceNumber: 'INV-2', description: 'b', issueDate: new Date(), dueDate: new Date(), paymentDate: null, id: 'i2', factory: { id: 'factory-1', name: 'F1' } },
     ]) };
     const service = new ManagementService({ factory, invoice } as any, { record: jest.fn() } as any, config);
 
     await expect(service.report(actor(Role.FACTORY_OWNER), 'financial')).resolves.toEqual(expect.objectContaining({
-      type: 'financial', count: 2, totalAmount: 1500, paidAmount: 1000, unpaidAmount: 500,
+      type: 'financial', count: 2, totalAmount: 1500, paidAmount: 1000, unpaidAmount: 500, latePenaltyAmount: 0,
     }));
     expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
   });

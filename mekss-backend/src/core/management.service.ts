@@ -972,39 +972,82 @@ export class ManagementService {
     return pass;
   }
 
-  async listInvoices(user: AuthenticatedUser) { return this.prisma.invoice.findMany({ where: { factoryId: { in: await this.factoryIds(user) } }, include: { factory: true, payments: true }, orderBy: { issueDate: 'desc' } }); }
+  async listInvoices(user: AuthenticatedUser) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { factoryId: { in: await this.factoryIds(user) } },
+      include: { factory: true, payments: true },
+      orderBy: { issueDate: 'desc' },
+    });
+    const overdueIds = invoices
+      .filter((invoice) => invoice.status === InvoiceStatus.PENDING && this.calendarDaysLate(invoice.dueDate) > 0)
+      .map((invoice) => invoice.id);
+    if (overdueIds.length) {
+      await this.prisma.invoice.updateMany({
+        where: { id: { in: overdueIds }, status: InvoiceStatus.PENDING },
+        data: { status: InvoiceStatus.OVERDUE },
+      });
+    }
+    return invoices.map((invoice) => this.presentInvoice({
+      ...invoice,
+      status: overdueIds.includes(invoice.id) ? InvoiceStatus.OVERDUE : invoice.status,
+    }));
+  }
 
   async createInvoice(actor: AuthenticatedUser, input: any) {
     for (const key of ['factoryId', 'amount', 'dueDate', 'description']) this.text(String(input[key] ?? ''), key);
     await this.assertFactoryAccess(actor, input.factoryId);
-    const amount = Number(input.amount); const taxAmount = Number(input.taxAmount || 0);
-    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(taxAmount)) throw new BadRequestException('Invalid invoice amount');
-    const invoice = await this.prisma.invoice.create({ data: { factoryId: input.factoryId, amount, taxAmount, totalAmount: amount + taxAmount, description: input.description, dueDate: new Date(input.dueDate), invoiceNumber: `INV-${Date.now()}-${randomBytes(3).toString('hex')}`, createdById: actor.id } });
+    const amount = Number(input.amount);
+    const taxAmount = Number(input.taxAmount || 0);
+    const latePenaltyPerDay = Number(input.latePenaltyPerDay || 0);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(taxAmount) || taxAmount < 0) {
+      throw new BadRequestException('Invalid invoice amount');
+    }
+    if (!Number.isFinite(latePenaltyPerDay) || latePenaltyPerDay < 0) {
+      throw new BadRequestException('Invalid late penalty per day');
+    }
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        factoryId: input.factoryId,
+        amount,
+        taxAmount,
+        totalAmount: amount + taxAmount,
+        latePenaltyPerDay,
+        latePenaltyAmount: 0,
+        description: input.description,
+        dueDate: new Date(input.dueDate),
+        invoiceNumber: `INV-${Date.now()}-${randomBytes(3).toString('hex')}`,
+        createdById: actor.id,
+      },
+    });
     await this.audit.record({ userId: actor.id, action: 'INVOICE_CREATED', entity: 'Invoice', entityId: invoice.id });
     const factory = await this.prisma.factory.findUnique({
       where: { id: input.factoryId },
       select: { name: true, managerId: true, manager: { select: { phoneNumber: true } } },
     });
+    const penaltyNote = latePenaltyPerDay > 0
+      ? ` در صورت تأخیر، جریمه روزانه ${latePenaltyPerDay} ریال اعمال می‌شود.`
+      : '';
     if (factory?.manager?.phoneNumber) {
       await this.safeSendSms(
         factory.manager.phoneNumber,
-        `MEKSS: صورتحساب جدید برای «${factory.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.`,
+        `MEKSS: صورتحساب جدید برای «${factory.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.${penaltyNote}`,
       );
     }
     if (factory?.managerId) {
       await this.notifyUser(
         factory.managerId,
         'صورتحساب جدید',
-        `صورتحساب «${invoice.invoiceNumber}» برای ${factory.name} به مبلغ ${Number(invoice.totalAmount)} ریال صادر شد.`,
+        `صورتحساب «${invoice.invoiceNumber}» برای ${factory.name} به مبلغ ${Number(invoice.totalAmount)} ریال صادر شد.${penaltyNote}`,
         'WARNING',
       );
     }
-    return invoice;
+    return this.presentInvoice(invoice);
   }
 
   async updateInvoice(actor: AuthenticatedUser, id: string, input: {
     amount?: number;
     taxAmount?: number;
+    latePenaltyPerDay?: number;
     description?: string;
     dueDate?: string;
     status?: 'PENDING' | 'OVERDUE' | 'CANCELLED';
@@ -1017,8 +1060,23 @@ export class ManagementService {
 
     const amount = input.amount !== undefined ? Number(input.amount) : Number(existing.amount);
     const taxAmount = input.taxAmount !== undefined ? Number(input.taxAmount) : Number(existing.taxAmount);
+    const latePenaltyPerDay = input.latePenaltyPerDay !== undefined
+      ? Number(input.latePenaltyPerDay)
+      : Number(existing.latePenaltyPerDay);
     if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(taxAmount) || taxAmount < 0) {
       throw new BadRequestException('Invalid invoice amount');
+    }
+    if (!Number.isFinite(latePenaltyPerDay) || latePenaltyPerDay < 0) {
+      throw new BadRequestException('Invalid late penalty per day');
+    }
+
+    const dueDate = input.dueDate !== undefined ? new Date(input.dueDate) : existing.dueDate;
+    let nextStatus = input.status !== undefined ? (input.status as InvoiceStatus) : existing.status;
+    if (nextStatus === InvoiceStatus.PENDING && this.calendarDaysLate(dueDate) > 0) {
+      nextStatus = InvoiceStatus.OVERDUE;
+    }
+    if (nextStatus === InvoiceStatus.OVERDUE && this.calendarDaysLate(dueDate) === 0 && input.status === undefined) {
+      nextStatus = InvoiceStatus.PENDING;
     }
 
     const updated = await this.prisma.invoice.update({
@@ -1027,43 +1085,107 @@ export class ManagementService {
         amount,
         taxAmount,
         totalAmount: amount + taxAmount,
+        latePenaltyPerDay,
         ...(input.description !== undefined ? { description: input.description } : {}),
-        ...(input.dueDate !== undefined ? { dueDate: new Date(input.dueDate) } : {}),
-        ...(input.status !== undefined ? { status: input.status as InvoiceStatus } : {}),
+        ...(input.dueDate !== undefined ? { dueDate } : {}),
+        status: nextStatus,
       },
       include: { factory: true },
     });
     await this.audit.record({ userId: actor.id, action: 'INVOICE_UPDATED', entity: 'Invoice', entityId: id, changes: input as any });
-    return updated;
+    return this.presentInvoice(updated);
   }
 
   async startPayment(actor: AuthenticatedUser, invoiceId: string, idempotencyKey?: string) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) throw new NotFoundException('Invoice not found');
     await this.assertFactoryAccess(actor, invoice.factoryId);
-    if (invoice.status !== InvoiceStatus.PENDING) throw new BadRequestException('Invoice cannot be paid');
-    const key = idempotencyKey || `${invoiceId}:${actor.id}`;
-    const existing = await this.prisma.paymentTransaction.findUnique({ where: { idempotencyKey: key } });
-    if (existing) return this.paymentResponse(existing.authority);
+    if (invoice.status === InvoiceStatus.PAID) throw new BadRequestException('Invoice already paid');
+    if (invoice.status === InvoiceStatus.CANCELLED) throw new BadRequestException('Cancelled invoices cannot be paid');
+    if (invoice.status !== InvoiceStatus.PENDING && invoice.status !== InvoiceStatus.OVERDUE) {
+      throw new BadRequestException('Invoice cannot be paid');
+    }
 
+    const settlement = this.computeInvoiceSettlement(invoice);
+    if (invoice.status === InvoiceStatus.PENDING && settlement.lateDays > 0) {
+      await this.prisma.invoice.update({ where: { id: invoice.id }, data: { status: InvoiceStatus.OVERDUE } });
+    }
+
+    const key = idempotencyKey || `${invoiceId}:${actor.id}:${settlement.payableAmount}:${settlement.lateDays}`;
+    const existing = await this.prisma.paymentTransaction.findUnique({ where: { idempotencyKey: key } });
+    if (existing) {
+      return {
+        ...this.paymentResponse(existing.authority),
+        payableAmount: Number(existing.amount),
+        lateDays: settlement.lateDays,
+        latePenaltyAmount: this.money(Number(existing.amount) - settlement.baseTotal),
+        baseTotal: settlement.baseTotal,
+      };
+    }
+
+    const payableAmount = settlement.payableAmount;
     const provider = this.config.get<string>('PAYMENT_PROVIDER', 'mock').toLowerCase();
     let authority = randomBytes(18).toString('hex');
     let paymentUrl: string | undefined;
+    const gatewayDescription = settlement.latePenaltyAmount > 0
+      ? `${invoice.description} | اصل: ${settlement.baseTotal} + جریمه تأخیر ${settlement.lateDays} روز: ${settlement.latePenaltyAmount}`
+      : invoice.description;
     if (provider === 'zarinpal') {
       const merchantId = this.config.get<string>('ZARINPAL_MERCHANT_ID');
       const callbackUrl = this.config.get<string>('ZARINPAL_CALLBACK_URL');
       if (!merchantId || !callbackUrl) throw new BadRequestException('ZarinPal is not configured');
       const sandbox = this.config.get<string>('ZARINPAL_SANDBOX', 'true') === 'true';
       const baseUrl = sandbox ? 'https://sandbox.zarinpal.com' : 'https://payment.zarinpal.com';
-      const response = await fetch(`${baseUrl}/pg/v4/payment/request.json`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ merchant_id: merchantId, amount: Number(invoice.totalAmount), callback_url: callbackUrl, description: invoice.description }) });
+      const response = await fetch(`${baseUrl}/pg/v4/payment/request.json`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          merchant_id: merchantId,
+          amount: payableAmount,
+          callback_url: callbackUrl,
+          description: gatewayDescription,
+        }),
+      });
       const result: any = await response.json();
       if (!response.ok || result?.data?.code !== 100 || !result?.data?.authority) throw new BadRequestException('Unable to initialize ZarinPal payment');
       authority = result.data.authority;
       paymentUrl = `${baseUrl}/pg/StartPay/${authority}`;
     }
-    await this.prisma.paymentTransaction.create({ data: { authority, amount: invoice.totalAmount, invoiceId, initiatedById: actor.id, idempotencyKey: key, provider: provider === 'zarinpal' ? 'ZARINPAL' : 'MOCK' } });
-    await this.audit.record({ userId: actor.id, action: 'PAYMENT_INITIATED', entity: 'Invoice', entityId: invoiceId });
-    return this.paymentResponse(authority, paymentUrl);
+    await this.prisma.paymentTransaction.create({
+      data: {
+        authority,
+        amount: payableAmount,
+        invoiceId,
+        initiatedById: actor.id,
+        idempotencyKey: key,
+        provider: provider === 'zarinpal' ? 'ZARINPAL' : 'MOCK',
+        providerStatus: {
+          baseTotal: settlement.baseTotal,
+          lateDays: settlement.lateDays,
+          latePenaltyPerDay: settlement.latePenaltyPerDay,
+          latePenaltyAmount: settlement.latePenaltyAmount,
+          payableAmount,
+        },
+      },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'PAYMENT_INITIATED',
+      entity: 'Invoice',
+      entityId: invoiceId,
+      changes: {
+        payableAmount,
+        lateDays: settlement.lateDays,
+        latePenaltyAmount: settlement.latePenaltyAmount,
+      },
+    });
+    return {
+      ...this.paymentResponse(authority, paymentUrl),
+      payableAmount,
+      lateDays: settlement.lateDays,
+      latePenaltyAmount: settlement.latePenaltyAmount,
+      baseTotal: settlement.baseTotal,
+    };
   }
 
   async verifyPayment(authority: string, status: string) {
@@ -1090,12 +1212,57 @@ export class ManagementService {
       referenceId = String(result.data.ref_id);
       providerStatus = result;
     }
+
+    const invoice = transaction.invoice;
+    const baseTotal = Number(invoice.totalAmount);
+    const paidAmount = Number(transaction.amount);
+    const latePenaltyAmount = Math.max(0, Math.round((paidAmount - baseTotal) * 100) / 100);
+    const perDay = Number(invoice.latePenaltyPerDay || 0);
+    const meta = (transaction.providerStatus && typeof transaction.providerStatus === 'object' && !Array.isArray(transaction.providerStatus))
+      ? (transaction.providerStatus as Record<string, unknown>)
+      : {};
+    const lateDaysFromMeta = Number(meta.lateDays);
+    const lateDays = Number.isFinite(lateDaysFromMeta) && lateDaysFromMeta >= 0
+      ? Math.floor(lateDaysFromMeta)
+      : (perDay > 0 ? Math.round(latePenaltyAmount / perDay) : this.calendarDaysLate(invoice.dueDate));
+
     await this.prisma.$transaction([
-      this.prisma.paymentTransaction.update({ where: { id: transaction.id }, data: { status: PaymentStatus.VERIFIED, referenceId, verifiedAt: new Date(), providerStatus } }),
-      this.prisma.invoice.update({ where: { id: transaction.invoiceId }, data: { status: InvoiceStatus.PAID, paymentDate: new Date(), paymentMethod: transaction.provider, paymentRef: referenceId, paidById: transaction.initiatedById } }),
+      this.prisma.paymentTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: PaymentStatus.VERIFIED,
+          referenceId,
+          verifiedAt: new Date(),
+          providerStatus: {
+            ...meta,
+            verify: providerStatus,
+            frozenLateDays: lateDays,
+            frozenLatePenaltyAmount: latePenaltyAmount,
+            paidAmount,
+          },
+        },
+      }),
+      this.prisma.invoice.update({
+        where: { id: transaction.invoiceId },
+        data: {
+          status: InvoiceStatus.PAID,
+          paymentDate: new Date(),
+          paymentMethod: transaction.provider,
+          paymentRef: referenceId,
+          paidById: transaction.initiatedById,
+          lateDays,
+          latePenaltyAmount,
+        },
+      }),
     ]);
-    await this.audit.record({ userId: transaction.initiatedById || undefined, action: 'PAYMENT_VERIFIED', entity: 'Invoice', entityId: transaction.invoiceId });
-    return { status: 'verified', invoiceId: transaction.invoiceId, referenceId };
+    await this.audit.record({
+      userId: transaction.initiatedById || undefined,
+      action: 'PAYMENT_VERIFIED',
+      entity: 'Invoice',
+      entityId: transaction.invoiceId,
+      changes: { paidAmount, lateDays, latePenaltyAmount },
+    });
+    return { status: 'verified', invoiceId: transaction.invoiceId, referenceId, paidAmount, lateDays, latePenaltyAmount };
   }
 
   async listRequests(user: AuthenticatedUser) { return this.prisma.request.findMany({ where: { factoryId: { in: await this.factoryIds(user) } }, include: { factory: true, creator: { select: { name: true, phoneNumber: true } } }, orderBy: { createdAt: 'desc' } }); }
@@ -2089,12 +2256,15 @@ export class ManagementService {
         take: 2000,
       });
       const totals = invoices.reduce((acc, invoice) => {
-        acc.total += Number(invoice.totalAmount);
-        if (invoice.status === InvoiceStatus.PAID) acc.paid += Number(invoice.totalAmount);
+        const settlement = this.computeInvoiceSettlement(invoice);
+        acc.total += settlement.payableAmount;
+        if (invoice.status === InvoiceStatus.PAID) acc.paid += settlement.payableAmount;
+        acc.latePenalty += settlement.latePenaltyAmount;
         return acc;
-      }, { total: 0, paid: 0 });
+      }, { total: 0, paid: 0, latePenalty: 0 });
       const byStatusMap = invoices.reduce((acc, invoice) => {
-        acc[invoice.status] = (acc[invoice.status] || 0) + 1;
+        const presented = this.presentInvoice(invoice);
+        acc[presented.status] = (acc[presented.status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       return {
@@ -2106,20 +2276,28 @@ export class ManagementService {
         totalAmount: totals.total,
         paidAmount: totals.paid,
         unpaidAmount: totals.total - totals.paid,
+        latePenaltyAmount: totals.latePenalty,
         byStatus: Object.entries(byStatusMap).map(([status, count]) => ({ status, count })),
-        items: invoices.map((invoice) => ({
-          id: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          factoryName: invoice.factory?.name || '',
-          description: invoice.description,
-          amount: Number(invoice.amount),
-          taxAmount: Number(invoice.taxAmount),
-          totalAmount: Number(invoice.totalAmount),
-          status: invoice.status,
-          issueDate: invoice.issueDate,
-          dueDate: invoice.dueDate,
-          paymentDate: invoice.paymentDate,
-        })),
+        items: invoices.map((invoice) => {
+          const settlement = this.computeInvoiceSettlement(invoice);
+          return {
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            factoryName: invoice.factory?.name || '',
+            description: invoice.description,
+            amount: Number(invoice.amount),
+            taxAmount: Number(invoice.taxAmount),
+            totalAmount: Number(invoice.totalAmount),
+            latePenaltyPerDay: settlement.latePenaltyPerDay,
+            lateDays: settlement.lateDays,
+            latePenaltyAmount: settlement.latePenaltyAmount,
+            payableAmount: settlement.payableAmount,
+            status: settlement.status,
+            issueDate: invoice.issueDate,
+            dueDate: invoice.dueDate,
+            paymentDate: invoice.paymentDate,
+          };
+        }),
       };
     }
 
@@ -2797,4 +2975,76 @@ export class ManagementService {
 
   private paymentResponse(authority: string, paymentUrl?: string) { const callback = this.config.get<string>('ZARINPAL_CALLBACK_URL') || 'http://localhost:3000/api/v1/invoices/payment/callback'; return { authority, paymentUrl: paymentUrl || `${callback}?Authority=${authority}&Status=OK` }; }
   private text(value: unknown, field: string) { if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`); }
+
+  /** Calendar days past dueDate (UTC date-only). Due day itself is not late. */
+  private calendarDaysLate(dueDate: Date, asOf: Date = new Date()): number {
+    const due = Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+    const now = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
+    const diff = Math.floor((now - due) / 86_400_000);
+    return diff > 0 ? diff : 0;
+  }
+
+  private money(value: number): number {
+    return Math.round((Number(value) || 0) * 100) / 100;
+  }
+
+  private computeInvoiceSettlement(invoice: {
+    amount: Prisma.Decimal | number;
+    taxAmount: Prisma.Decimal | number;
+    totalAmount: Prisma.Decimal | number;
+    latePenaltyPerDay?: Prisma.Decimal | number | null;
+    lateDays?: number | null;
+    latePenaltyAmount?: Prisma.Decimal | number | null;
+    dueDate: Date;
+    status: InvoiceStatus;
+    paymentDate?: Date | null;
+  }) {
+    const baseTotal = this.money(Number(invoice.totalAmount));
+    const latePenaltyPerDay = this.money(Number(invoice.latePenaltyPerDay || 0));
+    const isPaid = invoice.status === InvoiceStatus.PAID;
+
+    let lateDays: number;
+    let latePenaltyAmount: number;
+    if (isPaid) {
+      lateDays = Math.max(0, Number(invoice.lateDays ?? 0));
+      latePenaltyAmount = this.money(Number(invoice.latePenaltyAmount || 0));
+    } else if (invoice.status === InvoiceStatus.CANCELLED) {
+      lateDays = 0;
+      latePenaltyAmount = 0;
+    } else {
+      lateDays = this.calendarDaysLate(invoice.dueDate);
+      latePenaltyAmount = this.money(lateDays * latePenaltyPerDay);
+    }
+
+    let status = invoice.status;
+    if (!isPaid && status !== InvoiceStatus.CANCELLED && lateDays > 0 && status === InvoiceStatus.PENDING) {
+      status = InvoiceStatus.OVERDUE;
+    }
+
+    return {
+      baseAmount: this.money(Number(invoice.amount)),
+      taxAmount: this.money(Number(invoice.taxAmount)),
+      baseTotal,
+      latePenaltyPerDay,
+      lateDays,
+      latePenaltyAmount,
+      payableAmount: this.money(baseTotal + latePenaltyAmount),
+      status,
+    };
+  }
+
+  private presentInvoice<T extends Record<string, any>>(invoice: T) {
+    const settlement = this.computeInvoiceSettlement(invoice as any);
+    return {
+      ...invoice,
+      amount: settlement.baseAmount,
+      taxAmount: settlement.taxAmount,
+      totalAmount: settlement.baseTotal,
+      latePenaltyPerDay: settlement.latePenaltyPerDay,
+      lateDays: settlement.lateDays,
+      latePenaltyAmount: settlement.latePenaltyAmount,
+      payableAmount: settlement.payableAmount,
+      status: settlement.status,
+    };
+  }
 }

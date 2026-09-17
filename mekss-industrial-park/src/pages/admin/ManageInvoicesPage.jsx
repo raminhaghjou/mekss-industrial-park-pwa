@@ -23,7 +23,7 @@ export const ManageInvoicesPage = () => {
   const { showNotification } = useNotification();
   const [tab, setTab] = useState('all');
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ amount: '', taxAmount: '', description: '', dueDate: '', status: 'PENDING' });
+  const [form, setForm] = useState({ amount: '', taxAmount: '', latePenaltyPerDay: '', description: '', dueDate: '', status: 'PENDING' });
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['invoices', 'managed'],
@@ -57,6 +57,7 @@ export const ManageInvoicesPage = () => {
     setForm({
       amount: formatAmountInput(String(invoice.amount)),
       taxAmount: formatAmountInput(String(invoice.taxAmount || 0)),
+      latePenaltyPerDay: formatAmountInput(String(invoice.latePenaltyPerDay || 0)),
       description: invoice.description || '',
       dueDate: invoice.dueDate ? String(invoice.dueDate).slice(0, 10) : '',
       status: invoice.status === 'CANCELLED' ? 'CANCELLED' : invoice.status === 'OVERDUE' ? 'OVERDUE' : 'PENDING',
@@ -67,8 +68,13 @@ export const ManageInvoicesPage = () => {
     e.preventDefault();
     const amount = amountInputToNumber(form.amount);
     const taxAmount = amountInputToNumber(form.taxAmount) || 0;
+    const latePenaltyPerDay = amountInputToNumber(form.latePenaltyPerDay) || 0;
     if (!Number.isFinite(amount) || amount <= 0 || !form.description.trim() || !form.dueDate) {
       showNotification('مقادیر قبض معتبر نیست', 'error');
+      return;
+    }
+    if (!Number.isFinite(latePenaltyPerDay) || latePenaltyPerDay < 0) {
+      showNotification('جریمه روزانه تأخیر معتبر نیست', 'error');
       return;
     }
     updateMutation.mutate({
@@ -76,6 +82,7 @@ export const ManageInvoicesPage = () => {
       payload: {
         amount,
         taxAmount,
+        latePenaltyPerDay,
         description: form.description.trim(),
         dueDate: form.dueDate,
         status: form.status,
@@ -138,7 +145,8 @@ export const ManageInvoicesPage = () => {
                     <TableColumn isRowHeader>شماره قبض</TableColumn>
                     <TableColumn>واحد صنعتی</TableColumn>
                     <TableColumn>شرح</TableColumn>
-                    <TableColumn>مبلغ (ریال)</TableColumn>
+                    <TableColumn>مبلغ پایه</TableColumn>
+                    <TableColumn>جریمه / قابل پرداخت</TableColumn>
                     <TableColumn>وضعیت</TableColumn>
                     <TableColumn>عملیات</TableColumn>
                   </TableHeader>
@@ -149,6 +157,18 @@ export const ManageInvoicesPage = () => {
                         <TableCell>{invoice.factory?.name || '—'}</TableCell>
                         <TableCell>{invoice.description}</TableCell>
                         <TableCell dir="ltr">{Number(invoice.totalAmount).toLocaleString('fa-IR')}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5 text-xs" dir="ltr">
+                            {Number(invoice.latePenaltyAmount) > 0 ? (
+                              <span className="text-danger">+{Number(invoice.latePenaltyAmount).toLocaleString('fa-IR')} ({invoice.lateDays || 0} روز)</span>
+                            ) : Number(invoice.latePenaltyPerDay) > 0 ? (
+                              <span className="text-foreground-500">{Number(invoice.latePenaltyPerDay).toLocaleString('fa-IR')}/روز</span>
+                            ) : (
+                              <span className="text-foreground-400">بدون جریمه</span>
+                            )}
+                            <span className="font-bold text-foreground">{Number(invoice.payableAmount ?? invoice.totalAmount).toLocaleString('fa-IR')}</span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="soft">
                             {statusLabels[invoice.status] || invoice.status}
@@ -198,6 +218,24 @@ export const ManageInvoicesPage = () => {
                   onChange={(e) => setForm((p) => ({ ...p, taxAmount: formatAmountInput(e.target.value) }))}
                 />
               </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">جریمه روزانه تأخیر (ریال)</Label>
+                <Input
+                  dir="ltr"
+                  className="rounded-xl font-mono"
+                  value={form.latePenaltyPerDay}
+                  onChange={(e) => setForm((p) => ({ ...p, latePenaltyPerDay: formatAmountInput(e.target.value) }))}
+                />
+              </div>
+              {editing && Number(editing.lateDays) > 0 && (
+                <div className="md:col-span-2 rounded-xl bg-danger-50 dark:bg-danger-950/30 border border-danger-200/60 p-3 text-sm">
+                  جریمه فعلی: {Number(editing.lateDays).toLocaleString('fa-IR')} روز ×{' '}
+                  {Number(editing.latePenaltyPerDay || 0).toLocaleString('fa-IR')} ={' '}
+                  <strong>{Number(editing.latePenaltyAmount || 0).toLocaleString('fa-IR')}</strong> ریال
+                  {' — '}
+                  قابل پرداخت: <strong>{Number(editing.payableAmount || editing.totalAmount).toLocaleString('fa-IR')}</strong> ریال
+                </div>
+              )}
               <div className="flex flex-col gap-1 md:col-span-2">
                 <Label className="text-xs">شرح</Label>
                 <Input

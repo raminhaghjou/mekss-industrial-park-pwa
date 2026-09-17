@@ -37,6 +37,7 @@ const CreateInvoicePage = () => {
   const [description, setDescription] = React.useState('');
   const [amount, setAmount] = React.useState('');
   const [taxAmount, setTaxAmount] = React.useState('');
+  const [latePenaltyPerDay, setLatePenaltyPerDay] = React.useState('');
   const [dueDate, setDueDate] = React.useState('');
 
   const { data: factories, isLoading: loadingFactories, isError: factoriesError } = useQuery({
@@ -45,7 +46,7 @@ const CreateInvoicePage = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (/** @type {{factoryId: string, description: string, amount: number, taxAmount: number, dueDate: string}} */ payload) => invoiceApi.createInvoice(payload),
+    mutationFn: (/** @type {{factoryId: string, description: string, amount: number, taxAmount: number, latePenaltyPerDay: number, dueDate: string}} */ payload) => invoiceApi.createInvoice(payload),
     onSuccess: () => {
       showNotification('قبض با موفقیت صادر شد.', 'success');
       queryClient.invalidateQueries({ queryKey: ['invoices', 'managed'] });
@@ -65,6 +66,7 @@ const CreateInvoicePage = () => {
       description,
       amount: Number(amount),
       taxAmount: taxAmount ? Number(taxAmount) : 0,
+      latePenaltyPerDay: latePenaltyPerDay ? Number(latePenaltyPerDay) : 0,
       dueDate,
     });
   };
@@ -162,6 +164,22 @@ const CreateInvoicePage = () => {
                   className="rounded-xl"
                 />
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">جریمه تأخیر روزانه (ریال)</Label>
+              <Input
+                type="number"
+                placeholder="مثلاً ۵۰۰۰۰ — پس از سررسید به ازای هر روز محاسبه می‌شود"
+                value={latePenaltyPerDay}
+                onChange={(e) => setLatePenaltyPerDay(e.target.value)}
+                variant="primary"
+                dir="ltr"
+                className="rounded-xl"
+              />
+              <p className="text-[11px] text-foreground-500 mt-1 leading-relaxed">
+                اگر مهلت پرداخت بگذرد، تا روز پرداخت توسط مدیر واحد صنعتی، جریمه به‌صورت روزشمار جمع می‌شود و به مبلغ اصل + مالیات اضافه می‌گردد.
+              </p>
             </div>
 
             <JalaliDatePicker

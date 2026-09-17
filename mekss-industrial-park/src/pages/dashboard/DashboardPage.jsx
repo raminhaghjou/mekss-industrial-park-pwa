@@ -9,6 +9,7 @@ import { announcementApi } from '../../services/api/announcement.api';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { HomeFeedSlider } from '../../components/dashboard/HomeFeedSlider';
+import { GatePassWalletSettingCard } from '../../components/settings/GatePassWalletSettingCard';
 
 const roleTitles = {
   SUPER_ADMIN: 'داشبورد ادمین کل',
@@ -168,6 +169,8 @@ export const DashboardPage = () => {
       )}
 
       <HomeFeedSlider items={feedItems} />
+
+      {user?.role === 'SUPER_ADMIN' && <GatePassWalletSettingCard />}
 
       {featuredAnnouncements.length > 0 && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 animate-slide-up">

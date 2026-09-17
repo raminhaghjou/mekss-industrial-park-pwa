@@ -856,11 +856,13 @@ describe('ManagementService gate-pass state machine contract', () => {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     };
     const gatePass = { create: jest.fn().mockResolvedValue({ id: 'pass-1' }) };
+    const appSetting = { findUnique: jest.fn().mockResolvedValue(null) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
     const prisma = {
       factory,
       gatePass,
-      $transaction: jest.fn(async (callback) => callback({ factory, gatePass })),
+      appSetting,
+      $transaction: jest.fn(async (callback) => callback({ factory, gatePass, appSetting })),
     } as any;
     const service = new ManagementService(prisma, audit, config);
 
@@ -870,6 +872,56 @@ describe('ManagementService gate-pass state machine contract', () => {
     })).resolves.toEqual({ id: 'pass-1' });
     expect(factory.updateMany).toHaveBeenCalled();
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'GATE_PASS_CREATED', entityId: 'pass-1' }));
+  });
+
+  it('skips wallet deduction when admin disables the wallet requirement', async () => {
+    const factory = {
+      findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
+      count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', gatePassWalletBalance: 0 }),
+      updateMany: jest.fn(),
+    };
+    const gatePass = { create: jest.fn().mockResolvedValue({ id: 'pass-2' }) };
+    const appSetting = { findUnique: jest.fn().mockResolvedValue({ value: { requireWalletBalance: false } }) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const prisma = {
+      factory,
+      gatePass,
+      appSetting,
+      $transaction: jest.fn(async (callback) => callback({ factory, gatePass, appSetting })),
+    } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
+      factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
+      driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+    })).resolves.toEqual({ id: 'pass-2' });
+    expect(factory.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects create when wallet is required and balance is insufficient', async () => {
+    const factory = {
+      findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
+      count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', gatePassWalletBalance: 0 }),
+      updateMany: jest.fn(),
+    };
+    const gatePass = { create: jest.fn() };
+    const appSetting = { findUnique: jest.fn().mockResolvedValue({ value: { requireWalletBalance: true } }) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const prisma = {
+      factory,
+      gatePass,
+      appSetting,
+      $transaction: jest.fn(async (callback) => callback({ factory, gatePass, appSetting })),
+    } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
+      factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
+      driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(gatePass.create).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementDto, UpdateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 import { SmsGateway } from './sms.gateway';
@@ -864,27 +864,89 @@ export class ManagementService {
 
   async listGatePasses(user: AuthenticatedUser) { return this.prisma.gatePass.findMany({ where: { factoryId: { in: await this.factoryIds(user) } }, include: { factory: true }, orderBy: { createdAt: 'desc' } }); }
 
+  private static readonly REQUIRE_GATE_PASS_WALLET_KEY = 'require_gate_pass_wallet';
+  private static readonly INSUFFICIENT_WALLET_MESSAGE = 'موجودی کیف‌پول برگ خروج کافی نیست. ابتدا کیف‌پول واحد صنعتی را شارژ کنید.';
+
+  private gatePassFee(): number {
+    const fee = Number(this.config.get<string>('GATE_PASS_FEE', '50000'));
+    if (!Number.isFinite(fee) || fee < 0) throw new BadRequestException('Invalid gate pass fee configuration');
+    return fee;
+  }
+
+  private async isGatePassWalletRequired(tx?: { appSetting: { findUnique: (args: any) => Promise<{ value: Prisma.JsonValue } | null> } }): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const row = await client.appSetting.findUnique({ where: { key: ManagementService.REQUIRE_GATE_PASS_WALLET_KEY } });
+    if (!row) return true;
+    const value = row.value;
+    if (typeof value === 'boolean') return value;
+    if (value && typeof value === 'object' && !Array.isArray(value) && 'requireWalletBalance' in value) {
+      return Boolean((value as { requireWalletBalance?: unknown }).requireWalletBalance);
+    }
+    return true;
+  }
+
+  async getGatePassWalletSettings() {
+    return {
+      requireWalletBalance: await this.isGatePassWalletRequired(),
+      fee: this.gatePassFee(),
+    };
+  }
+
+  async updateGatePassWalletSettings(actor: AuthenticatedUser, requireWalletBalance: boolean) {
+    if (typeof requireWalletBalance !== 'boolean') {
+      throw new BadRequestException('requireWalletBalance must be a boolean');
+    }
+    await this.prisma.appSetting.upsert({
+      where: { key: ManagementService.REQUIRE_GATE_PASS_WALLET_KEY },
+      create: {
+        key: ManagementService.REQUIRE_GATE_PASS_WALLET_KEY,
+        value: { requireWalletBalance },
+        updatedById: actor.id,
+      },
+      update: {
+        value: { requireWalletBalance },
+        updatedById: actor.id,
+      },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'GATE_PASS_WALLET_SETTING_UPDATED',
+      entity: 'AppSetting',
+      entityId: ManagementService.REQUIRE_GATE_PASS_WALLET_KEY,
+      changes: { requireWalletBalance },
+    });
+    return this.getGatePassWalletSettings();
+  }
+
+  private insufficientWalletError() {
+    return new BadRequestException({
+      message: ManagementService.INSUFFICIENT_WALLET_MESSAGE,
+      error: 'INSUFFICIENT_GATE_PASS_WALLET',
+    });
+  }
+
   async createGatePass(actor: AuthenticatedUser, input: any) {
     for (const key of ['factoryId', 'cargoType', 'driverName', 'driverNationalId', 'driverPhone', 'vehicleType', 'licensePlate', 'exitDate']) this.text(input[key], key);
     await this.assertFactoryAccess(actor, input.factoryId);
-    const fee = Number(this.config.get<string>('GATE_PASS_FEE', '50000'));
-    if (!Number.isFinite(fee) || fee < 0) throw new BadRequestException('Invalid gate pass fee configuration');
-    const feeNote = fee > 0 ? `هزینه مجوز عبور: ${fee}` : undefined;
+    const fee = this.gatePassFee();
+    const requireWallet = await this.isGatePassWalletRequired();
+    const shouldCharge = requireWallet && fee > 0;
+    const feeNote = shouldCharge ? `هزینه مجوز عبور: ${fee}` : undefined;
     const pass = await this.prisma.$transaction(async (tx) => {
-      if (fee > 0) {
+      if (shouldCharge) {
         const factory = await tx.factory.findUnique({
           where: { id: input.factoryId },
           select: { id: true, gatePassWalletBalance: true },
         });
         if (!factory) throw new NotFoundException('Factory not found');
         if (Number(factory.gatePassWalletBalance) < fee) {
-          throw new BadRequestException('موجودی کیف‌پول برگ خروج کافی نیست. ابتدا کیف‌پول واحد صنعتی را شارژ کنید.');
+          throw this.insufficientWalletError();
         }
         const deducted = await tx.factory.updateMany({
           where: { id: input.factoryId, gatePassWalletBalance: { gte: fee } },
           data: { gatePassWalletBalance: { decrement: fee } },
         });
-        if (deducted.count !== 1) throw new BadRequestException('موجودی کیف‌پول برگ خروج کافی نیست. ابتدا کیف‌پول واحد صنعتی را شارژ کنید.');
+        if (deducted.count !== 1) throw this.insufficientWalletError();
       }
       return tx.gatePass.create({
         data: {
@@ -904,7 +966,13 @@ export class ManagementService {
         },
       });
     });
-    await this.audit.record({ userId: actor.id, action: 'GATE_PASS_CREATED', entity: 'GatePass', entityId: pass.id, changes: { fee } });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'GATE_PASS_CREATED',
+      entity: 'GatePass',
+      entityId: pass.id,
+      changes: { fee: shouldCharge ? fee : 0, requireWallet },
+    });
     return pass;
   }
 
@@ -1501,6 +1569,80 @@ export class ManagementService {
           select: ADVERTISEMENT_MODERATION_SELECT,
         });
         return this.safeAdvertisement(created);
+      },
+    );
+  }
+
+  async myAdvertisements(actor: AuthenticatedUser) {
+    const records = await this.prisma.advertisement.findMany({
+      where: { createdById: actor.id },
+      select: ADVERTISEMENT_MODERATION_SELECT,
+      orderBy: { createdAt: 'desc' },
+    });
+    return records.map((record) => this.safeAdvertisement(record));
+  }
+
+  async myAdvertisementDetail(actor: AuthenticatedUser, id: string) {
+    const item = await this.prisma.advertisement.findFirst({
+      where: { id, createdById: actor.id },
+      select: ADVERTISEMENT_MODERATION_SELECT,
+    });
+    if (!item) throw new NotFoundException('Advertisement not found');
+    return this.safeAdvertisement(item);
+  }
+
+  async updateMyAdvertisement(actor: AuthenticatedUser, id: string, input: UpdateAdvertisementDto) {
+    for (const key of ['title', 'category', 'province', 'city', 'content'] as const) this.text(input[key], key);
+    return this.auditedTransaction(
+      actor,
+      { action: 'ADVERTISEMENT_UPDATED', entity: 'Advertisement', entityId: id },
+      async (tx) => {
+        const existing = await tx.advertisement.findFirst({
+          where: { id, createdById: actor.id },
+          select: { id: true, status: true },
+        });
+        if (!existing) throw new NotFoundException('Advertisement not found');
+        if (existing.status !== AdvertisementStatus.PENDING) {
+          throw new ConflictException('Only pending advertisements can be edited');
+        }
+        const category = await tx.advertisementCategoryDef.findUnique({ where: { key: input.category.trim() } });
+        if (!category?.isActive) throw new BadRequestException('Advertisement category is invalid or inactive');
+        const updated = await tx.advertisement.update({
+          where: { id },
+          data: {
+            title: input.title.trim(),
+            categoryId: category.id,
+            province: input.province.trim(),
+            city: input.city.trim(),
+            address: input.address?.trim() || null,
+            content: input.content.trim(),
+            price: input.price ?? null,
+            contactInfo: this.safeAdvertisementContact(input.contactInfo as unknown as Prisma.JsonValue),
+            images: input.images ?? [],
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+          },
+          select: ADVERTISEMENT_MODERATION_SELECT,
+        });
+        return this.safeAdvertisement(updated);
+      },
+    );
+  }
+
+  async deleteMyAdvertisement(actor: AuthenticatedUser, id: string) {
+    return this.auditedTransaction(
+      actor,
+      { action: 'ADVERTISEMENT_DELETED', entity: 'Advertisement', entityId: id },
+      async (tx) => {
+        const existing = await tx.advertisement.findFirst({
+          where: { id, createdById: actor.id },
+          select: { id: true, status: true },
+        });
+        if (!existing) throw new NotFoundException('Advertisement not found');
+        if (existing.status !== AdvertisementStatus.PENDING) {
+          throw new ConflictException('Only pending advertisements can be deleted');
+        }
+        await tx.advertisement.delete({ where: { id } });
+        return { id, deleted: true };
       },
     );
   }

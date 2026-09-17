@@ -55,13 +55,21 @@ describe('IranProvinceCityFields', () => {
     expect(container.querySelector('[data-testid="city"]')?.textContent).toBe('');
 
     const citySelect = container.querySelectorAll('select')[1];
-    expect([...citySelect.options].some((option) => option.value === 'تهران')).toBe(true);
-    expect([...citySelect.options].some((option) => option.value === 'کرج')).toBe(false);
+    const cityValues = [...citySelect.options].map((option) => option.value).filter(Boolean);
+    expect(cityValues.length).toBeGreaterThan(10);
+    expect(cityValues).toContain('تهران');
+    expect(cityValues).not.toContain('کرج');
 
     await act(async () => {
       citySelect.value = 'تهران';
       citySelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(container.querySelector('[data-testid="city"]')?.textContent).toBe('تهران');
+  });
+
+  it('stacks province above city so selection order is unambiguous', () => {
+    const labels = [...container.querySelectorAll('label span')].map((node) => node.textContent);
+    expect(labels[0]).toBe('استان');
+    expect(labels[1]).toBe('شهر');
   });
 });

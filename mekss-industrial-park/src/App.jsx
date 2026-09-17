@@ -162,6 +162,11 @@ function AppRoutes() {
             <NewAdvertisementPage />
           </RoleRoute>
         } />
+        <Route path="advertisements/:id/edit" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER']}>
+            <NewAdvertisementPage />
+          </RoleRoute>
+        } />
         <Route path="emergency" element={<EmergencyPage />} />
         
         {/* Admin Routes */}

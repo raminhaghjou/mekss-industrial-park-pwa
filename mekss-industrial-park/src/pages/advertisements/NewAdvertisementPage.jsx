@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -37,61 +37,106 @@ const categories = [
   { value: 'OTHER', label: 'سایر' },
 ];
 
+const emptyForm = {
+  title: '', category: 'OTHER', province: '', city: '', content: '', contact: '', parkId: '',
+};
+
 const NewAdvertisementPage = () => {
+  const { id: editId } = useParams();
+  const isEdit = Boolean(editId);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showNotification } = useNotification();
-  const [form, setForm] = React.useState({
-    title: '', category: 'OTHER', province: '', city: '', content: '', contact: '', parkId: '',
-  });
+  const [form, setForm] = React.useState(emptyForm);
+  const [hydrated, setHydrated] = React.useState(!isEdit);
 
   const scopeQuery = useQuery({
     queryKey: ['advertisements', 'creation-scope'],
     queryFn: () => advertisementApi.getCreationScope().then((response) => response.data),
+    enabled: !isEdit,
+  });
+
+  const detailQuery = useQuery({
+    queryKey: ['advertisements', 'mine', editId],
+    queryFn: () => advertisementApi.getMyAdvertisement(editId).then((response) => response.data),
+    enabled: isEdit,
   });
 
   React.useEffect(() => {
-    if (scopeQuery.data?.autoSelectedParkId) {
-      setForm((current) => current.parkId ? current : { ...current, parkId: scopeQuery.data.autoSelectedParkId });
+    if (!isEdit && scopeQuery.data?.autoSelectedParkId) {
+      setForm((current) => (current.parkId ? current : { ...current, parkId: scopeQuery.data.autoSelectedParkId }));
     }
-  }, [scopeQuery.data?.autoSelectedParkId]);
+  }, [isEdit, scopeQuery.data?.autoSelectedParkId]);
 
-  const createMutation = useMutation({
-    mutationFn: (/** @type {{title: string, category: string, province: string, city: string, content: string, contactInfo: {phone: string}, parkId: string}} */ payload) => advertisementApi.createAdvertisement(payload),
+  React.useEffect(() => {
+    if (!detailQuery.data || hydrated) return;
+    const ad = detailQuery.data;
+    if (ad.status !== 'PENDING') {
+      showNotification('فقط آگهی‌های در انتظار بررسی قابل ویرایش هستند.', 'error');
+      navigate('/advertisements', { replace: true });
+      return;
+    }
+    const contact = ad.contactInfo?.phone || ad.contactInfo?.phoneNumber || '';
+    setForm({
+      title: ad.title || '',
+      category: ad.category?.key || 'OTHER',
+      province: ad.province || '',
+      city: ad.city || '',
+      content: ad.content || '',
+      contact,
+      parkId: ad.park?.id || ad.parkId || '',
+    });
+    setHydrated(true);
+  }, [detailQuery.data, hydrated, navigate, showNotification, isEdit]);
+
+  const saveMutation = useMutation({
+    mutationFn: (payload) => (
+      isEdit
+        ? advertisementApi.updateMyAdvertisement(editId, payload)
+        : advertisementApi.createAdvertisement(payload)
+    ),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['advertisements'] }),
         queryClient.invalidateQueries({ queryKey: ['analytics', 'dashboard'] }),
       ]);
-      showNotification('آگهی با scope معتبر ثبت شد و پس از تایید نمایش داده می‌شود.', 'success');
+      showNotification(
+        isEdit ? 'آگهی با موفقیت به‌روز شد.' : 'آگهی ثبت شد و تا تایید مدیریت در لیست شما قابل ویرایش است.',
+        'success',
+      );
       navigate('/advertisements');
     },
-    onError: (error) => showNotification(getErrorMessage(error, 'ثبت آگهی ناموفق بود.'), 'error'),
+    onError: (error) => showNotification(getErrorMessage(error, isEdit ? 'ویرایش آگهی ناموفق بود.' : 'ثبت آگهی ناموفق بود.'), 'error'),
   });
 
   const update = (field, val) => setForm((current) => ({ ...current, [field]: val }));
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    const required = [form.title, form.content, form.contact, form.province, form.city, form.parkId];
-    if (required.some((value) => !value.trim())) {
-      showNotification('لطفاً همه فیلدهای الزامی و شهرک صنعتی را تکمیل کنید.', 'error');
+    const required = [form.title, form.content, form.contact, form.province, form.city];
+    if (!isEdit) required.push(form.parkId);
+    if (required.some((value) => !String(value || '').trim())) {
+      showNotification('لطفاً همه فیلدهای الزامی را تکمیل کنید.', 'error');
       return;
     }
     const location = toPersistedLocation(form.province, form.city);
-    createMutation.mutate({
+    const payload = {
       title: form.title,
       category: form.category,
       province: location.province,
       city: location.city,
       content: form.content,
       contactInfo: { phone: form.contact },
-      parkId: form.parkId,
-    });
+    };
+    if (!isEdit) payload.parkId = form.parkId;
+    saveMutation.mutate(payload);
   };
 
   const scope = scopeQuery.data;
-  const unavailable = scope && !scope.canCreate;
+  const unavailable = !isEdit && scope && !scope.canCreate;
+  const loading = isEdit ? (detailQuery.isLoading || !hydrated) : scopeQuery.isLoading;
+  const loadError = isEdit ? detailQuery.isError : scopeQuery.isError;
+  const loadErrorObj = isEdit ? detailQuery.error : scopeQuery.error;
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
@@ -109,24 +154,35 @@ const NewAdvertisementPage = () => {
               <Megaphone className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">ثبت آگهی جدید</h1>
-              <p className="text-xs text-foreground-500 mt-0.5">شهرک صنعتی از دسترسی واقعی حساب شما تعیین می‌شود و پس از ثبت قابل جابه‌جایی نیست.</p>
+              <h1 className="text-xl font-bold text-foreground">{isEdit ? 'ویرایش آگهی' : 'ثبت آگهی جدید'}</h1>
+              <p className="text-xs text-foreground-500 mt-0.5">
+                {isEdit
+                  ? 'فقط تا قبل از تایید مدیریت می‌توانید این آگهی را ویرایش کنید.'
+                  : 'ابتدا استان را انتخاب کنید، سپس شهر همان استان. پس از ثبت تا تایید قابل ویرایش است.'}
+              </p>
             </div>
           </div>
 
-          {scopeQuery.isLoading && (
+          {loading && (
             <div className="flex min-h-[180px] items-center justify-center">
               <Spinner size="lg" />
             </div>
           )}
 
-          {scopeQuery.isError && (
+          {loadError && (
             <Alert status="danger" className="flex flex-wrap items-center justify-between gap-3">
               <AlertContent>
                 <AlertTitle>خطا</AlertTitle>
-                <AlertDescription>{getErrorMessage(scopeQuery.error, 'دریافت محدوده مجاز ثبت آگهی ناموفق بود.')}</AlertDescription>
+                <AlertDescription>
+                  {getErrorMessage(loadErrorObj, isEdit ? 'دریافت آگهی ناموفق بود.' : 'دریافت محدوده مجاز ثبت آگهی ناموفق بود.')}
+                </AlertDescription>
               </AlertContent>
-              <Button size="sm" variant="secondary" onPress={() => scopeQuery.refetch()} className="rounded-xl flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => (isEdit ? detailQuery.refetch() : scopeQuery.refetch())}
+                className="rounded-xl flex items-center gap-2"
+              >
                 <RotateCw className="h-4 w-4" />
                 تلاش دوباره
               </Button>
@@ -144,7 +200,7 @@ const NewAdvertisementPage = () => {
             </Alert>
           )}
 
-          {!scopeQuery.isLoading && !scopeQuery.isError && !unavailable && (
+          {!loading && !loadError && !unavailable && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-medium text-foreground-600">عنوان آگهی</Label>
@@ -182,29 +238,32 @@ const NewAdvertisementPage = () => {
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی</Label>
-                <Select
-                  value={form.parkId}
-                  onChange={(val) => update('parkId', String(val || ''))}
-                  variant="primary"
-                  isDisabled={!scope?.requiresSelection}
-                  isRequired
-                  className="rounded-xl"
-                 placeholder={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'}>
-      <SelectTrigger>
-        <SelectValue />
-                    <SelectIndicator />
-                  </SelectTrigger>
-                  <SelectPopover>
-                    <ListBox>
-                      {(scope?.parks || []).map((park) => (
-                        <ListBoxItem key={park.id} id={park.id}>{`${park.name} (${park.code})`}</ListBoxItem>
-                      ))}
-                    </ListBox>
-                  </SelectPopover>
-                </Select>
-              </div>
+              {!isEdit && (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی</Label>
+                  <Select
+                    value={form.parkId}
+                    onChange={(val) => update('parkId', String(val || ''))}
+                    variant="primary"
+                    isDisabled={!scope?.requiresSelection}
+                    isRequired
+                    className="rounded-xl"
+                    placeholder={scope?.requiresSelection ? 'یکی از محدوده‌های مجاز حساب را انتخاب کنید.' : 'شهرک مرتبط به‌صورت خودکار تعیین شده است.'}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                      <SelectIndicator />
+                    </SelectTrigger>
+                    <SelectPopover>
+                      <ListBox>
+                        {(scope?.parks || []).map((park) => (
+                          <ListBoxItem key={park.id} id={park.id}>{`${park.name} (${park.code})`}</ListBoxItem>
+                        ))}
+                      </ListBox>
+                    </SelectPopover>
+                  </Select>
+                </div>
+              )}
 
               <IranProvinceCityFields
                 province={form.province}
@@ -245,10 +304,10 @@ const NewAdvertisementPage = () => {
                 <Button
                   type="submit"
                   variant="primary"
-                  isDisabled={createMutation.isPending || !form.parkId}
+                  isDisabled={saveMutation.isPending || (!isEdit && !form.parkId)}
                   className="rounded-xl font-bold px-8 shadow-md shadow-primary/20"
                 >
-                  {createMutation.isPending ? <Spinner size="sm" /> : 'ثبت برای بررسی'}
+                  {saveMutation.isPending ? <Spinner size="sm" /> : (isEdit ? 'ذخیره تغییرات' : 'ثبت برای بررسی')}
                 </Button>
               </div>
             </form>

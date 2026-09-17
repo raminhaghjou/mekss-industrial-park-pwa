@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -23,11 +24,13 @@ import {
 import { ArrowRight } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { gatePassApi } from '../../services/api/gatePass.api';
+import { settingsApi } from '../../services/api/settings.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import JalaliDatePicker from '../common/JalaliDatePicker';
 import IranLicensePlateInput from '../common/IranLicensePlateInput';
 import { isCompleteIranLicensePlate } from '../../utils/iranLicensePlate';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 const cargoTypes = [
   { value: 'RAW_MATERIALS', label: 'مواد اولیه' },
@@ -85,10 +88,18 @@ const FormInput = ({ label, isRequired, ...props }) => (
   </div>
 );
 
+const isInsufficientWalletError = (err) => {
+  const errorCode = err?.response?.data?.error;
+  const message = String(err?.response?.data?.message || '');
+  return errorCode === 'INSUFFICIENT_GATE_PASS_WALLET' || message.includes('موجودی کیف‌پول برگ خروج کافی نیست');
+};
+
 const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
   const isEdit = Boolean(initialPass?.id);
+  const navigate = useNavigate();
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [form, setForm] = useState(() => (initialPass ? {
     factoryId: initialPass.factoryId || '',
     cargoType: initialPass.cargoType || 'RAW_MATERIALS',
@@ -105,6 +116,39 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
     queryKey: ['factories', 'managed'],
     queryFn: () => factoryApi.getFactories().then((res) => res.data),
   });
+
+  const { data: walletSettings } = useQuery({
+    queryKey: ['settings', 'gate-pass-wallet'],
+    queryFn: () => settingsApi.getGatePassWallet().then((res) => res.data),
+    enabled: !isEdit,
+  });
+
+  const { data: wallet } = useQuery({
+    queryKey: ['factory-wallet', form.factoryId],
+    queryFn: () => factoryApi.getWallet(form.factoryId).then((res) => res.data),
+    enabled: !isEdit && Boolean(form.factoryId),
+  });
+
+  const requireWallet = walletSettings?.requireWalletBalance !== false;
+  const fee = Number(walletSettings?.fee || 0);
+  const balance = Number(wallet?.balance ?? NaN);
+  const walletBlocked = !isEdit
+    && requireWallet
+    && fee > 0
+    && form.factoryId
+    && Number.isFinite(balance)
+    && balance < fee;
+
+  useEffect(() => {
+    if (walletBlocked) setWalletModalOpen(true);
+  }, [walletBlocked]);
+
+  useEffect(() => {
+    if (isEdit || form.factoryId || !factories?.length) return;
+    if (factories.length === 1) {
+      setForm((prev) => ({ ...prev, factoryId: factories[0].id }));
+    }
+  }, [factories, form.factoryId, isEdit]);
 
   const saveMutation = useMutation({
     mutationFn: (/** @type {typeof emptyForm} */ payload) => (
@@ -129,9 +173,16 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
         'success',
       );
       queryClient.invalidateQueries({ queryKey: ['gate-passes'] });
+      queryClient.invalidateQueries({ queryKey: ['factory-wallet'] });
       handleBack();
     },
-    onError: (err) => showNotification(getErrorMessage(err, isEdit ? 'ویرایش برگ خروج ناموفق بود.' : 'ثبت برگ خروج ناموفق بود.'), 'error'),
+    onError: (err) => {
+      if (isInsufficientWalletError(err)) {
+        setWalletModalOpen(true);
+        return;
+      }
+      showNotification(getErrorMessage(err, isEdit ? 'ویرایش برگ خروج ناموفق بود.' : 'ثبت برگ خروج ناموفق بود.'), 'error');
+    },
   });
 
   const handleChange = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
@@ -145,6 +196,10 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
     }
     if (!isCompleteIranLicensePlate(form.licensePlate)) {
       showNotification('شماره پلاک را کامل و صحیح انتخاب کنید.', 'error');
+      return;
+    }
+    if (walletBlocked) {
+      setWalletModalOpen(true);
       return;
     }
     const toAscii = (value) => String(value || '')
@@ -172,120 +227,154 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
   };
 
   const factoryOptions = (factories || []).map((factory) => ({ value: factory.id, label: factory.name }));
+  const feeLabel = fee > 0 ? fee.toLocaleString('fa-IR') : '—';
+  const balanceLabel = Number.isFinite(balance) ? balance.toLocaleString('fa-IR') : '—';
 
   return (
-    <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
-      <CardContent className="p-6">
-        <div className="flex items-center gap-3 mb-6 border-b border-default-100 pb-4 dark:border-white/5">
-          <Button isIconOnly variant="ghost" onPress={handleBack} aria-label="بازگشت به لیست" className="rounded-xl">
-            <ArrowRight className="h-5 w-5" />
-          </Button>
-          <h2 className="text-xl font-bold text-foreground">
-            {isEdit ? 'ویرایش برگ خروج' : 'فرم ایجاد برگ خروج جدید'}
-          </h2>
-        </div>
-
-        {factoriesError && (
-          <Alert status="danger" className="mb-4">
-            <AlertContent>
-              <AlertTitle>خطا</AlertTitle>
-              <AlertDescription>دریافت لیست واحدهای صنعتی ناموفق بود.</AlertDescription>
-            </AlertContent>
-          </Alert>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormSelect
-              label="واحد صنعتی"
-              value={form.factoryId}
-              onChange={(value) => handleChange('factoryId', value)}
-              options={factoryOptions}
-              isDisabled={loadingFactories || isEdit}
-              isRequired
-              placeholder="واحد صنعتی را انتخاب کنید..."
-            />
-
-            <FormSelect
-              label="نوع بار"
-              value={form.cargoType}
-              onChange={(value) => handleChange('cargoType', value)}
-              options={cargoTypes}
-              isRequired
-            />
-
-            <FormInput
-              label="نام راننده"
-              placeholder="نام و نام خانوادگی راننده"
-              value={form.driverName}
-              onChange={(e) => handleChange('driverName', e.target.value)}
-              isRequired
-            />
-
-            <FormInput
-              label="کد ملی راننده"
-              placeholder="کد ملی ۱۰ رقمی"
-              value={form.driverNationalId}
-              onChange={(e) => handleChange('driverNationalId', e.target.value)}
-              dir="ltr"
-              isRequired
-            />
-
-            <FormInput
-              label="تلفن راننده"
-              placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-              value={form.driverPhone}
-              onChange={(e) => handleChange('driverPhone', e.target.value)}
-              dir="ltr"
-              isRequired
-            />
-
-            <FormSelect
-              label="نوع خودرو"
-              value={form.vehicleType}
-              onChange={(value) => handleChange('vehicleType', value)}
-              options={vehicleTypes}
-              isRequired
-            />
-
-            <IranLicensePlateInput
-              value={form.licensePlate}
-              onChange={(value) => handleChange('licensePlate', value)}
-              required
-            />
-
-            <JalaliDatePicker
-              label="تاریخ و ساعت خروج"
-              value={form.exitDate}
-              onChange={(value) => handleChange('exitDate', value)}
-              includeTime
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs font-medium text-foreground-600">توضیحات بار (اختیاری)</Label>
-            <TextArea
-              placeholder="شرح جزئیات محموله..."
-              value={form.cargoDescription}
-              onChange={(e) => handleChange('cargoDescription', e.target.value)}
-              variant="primary"
-              rows={3}
-              className="rounded-xl"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-3 mt-4">
-            <Button variant="tertiary" onPress={handleBack} isDisabled={saveMutation.isPending} className="rounded-xl font-medium">
-              انصراف
+    <>
+      <Card className="border border-default-200 shadow-sm rounded-2xl p-2 dark:border-white/10">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-6 border-b border-default-100 pb-4 dark:border-white/5">
+            <Button isIconOnly variant="ghost" onPress={handleBack} aria-label="بازگشت به لیست" className="rounded-xl">
+              <ArrowRight className="h-5 w-5" />
             </Button>
-            <Button type="submit" className="rounded-xl font-bold" variant="primary" isDisabled={saveMutation.isPending}>
-              {saveMutation.isPending ? <Spinner size="sm" /> : (isEdit ? 'ذخیره تغییرات' : 'ثبت و ارسال برای تایید نگهبان')}
-            </Button>
+            <h2 className="text-xl font-bold text-foreground">
+              {isEdit ? 'ویرایش برگ خروج' : 'فرم ایجاد برگ خروج جدید'}
+            </h2>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+
+          {factoriesError && (
+            <Alert status="danger" className="mb-4">
+              <AlertContent>
+                <AlertTitle>خطا</AlertTitle>
+                <AlertDescription>دریافت لیست واحدهای صنعتی ناموفق بود.</AlertDescription>
+              </AlertContent>
+            </Alert>
+          )}
+
+          {walletBlocked && (
+            <Alert status="warning" className="mb-4">
+              <AlertContent>
+                <AlertTitle>موجودی کیف‌پول کافی نیست</AlertTitle>
+                <AlertDescription>
+                  برای ثبت برگ خروج باید کیف‌پول واحد صنعتی شارژ شود. موجودی فعلی {balanceLabel} ریال است
+                  {fee > 0 ? ` و هزینه هر برگ خروج ${feeLabel} ریال است` : ''}.
+                </AlertDescription>
+              </AlertContent>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormSelect
+                label="واحد صنعتی"
+                value={form.factoryId}
+                onChange={(value) => handleChange('factoryId', value)}
+                options={factoryOptions}
+                isDisabled={loadingFactories || isEdit}
+                isRequired
+                placeholder="واحد صنعتی را انتخاب کنید..."
+              />
+
+              <FormSelect
+                label="نوع بار"
+                value={form.cargoType}
+                onChange={(value) => handleChange('cargoType', value)}
+                options={cargoTypes}
+                isRequired
+              />
+
+              <FormInput
+                label="نام راننده"
+                placeholder="نام و نام خانوادگی راننده"
+                value={form.driverName}
+                onChange={(e) => handleChange('driverName', e.target.value)}
+                isRequired
+              />
+
+              <FormInput
+                label="کد ملی راننده"
+                placeholder="کد ملی ۱۰ رقمی"
+                value={form.driverNationalId}
+                onChange={(e) => handleChange('driverNationalId', e.target.value)}
+                dir="ltr"
+                isRequired
+              />
+
+              <FormInput
+                label="تلفن راننده"
+                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                value={form.driverPhone}
+                onChange={(e) => handleChange('driverPhone', e.target.value)}
+                dir="ltr"
+                isRequired
+              />
+
+              <FormSelect
+                label="نوع خودرو"
+                value={form.vehicleType}
+                onChange={(value) => handleChange('vehicleType', value)}
+                options={vehicleTypes}
+                isRequired
+              />
+
+              <IranLicensePlateInput
+                value={form.licensePlate}
+                onChange={(value) => handleChange('licensePlate', value)}
+                required
+              />
+
+              <JalaliDatePicker
+                label="تاریخ و ساعت خروج"
+                value={form.exitDate}
+                onChange={(value) => handleChange('exitDate', value)}
+                includeTime
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs font-medium text-foreground-600">توضیحات بار (اختیاری)</Label>
+              <TextArea
+                placeholder="شرح جزئیات محموله..."
+                value={form.cargoDescription}
+                onChange={(e) => handleChange('cargoDescription', e.target.value)}
+                variant="primary"
+                rows={3}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-4">
+              <Button variant="tertiary" onPress={handleBack} isDisabled={saveMutation.isPending} className="rounded-xl font-medium">
+                انصراف
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isDisabled={saveMutation.isPending || loadingFactories || walletBlocked}
+                className="rounded-xl font-bold min-w-32 flex items-center justify-center gap-2"
+              >
+                {saveMutation.isPending ? <Spinner size="sm" color="current" /> : (isEdit ? 'ذخیره تغییرات' : 'ثبت برگ خروج')}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog
+        open={walletModalOpen}
+        title="موجودی کیف‌پول کافی نیست"
+        description={`ثبت برگ خروج ممکن نیست چون موجودی کیف‌پول واحد صنعتی کافی نیست. ابتدا کیف‌پول را شارژ کنید${fee > 0 ? ` (هزینه هر برگ خروج: ${feeLabel} ریال)` : ''}. موجودی فعلی: ${balanceLabel} ریال.`}
+        confirmLabel="رفتن به کیف پول"
+        cancelLabel="بستن"
+        onConfirm={() => {
+          setWalletModalOpen(false);
+          navigate('/factory/wallet');
+        }}
+        onClose={() => setWalletModalOpen(false)}
+      />
+    </>
   );
 };
 

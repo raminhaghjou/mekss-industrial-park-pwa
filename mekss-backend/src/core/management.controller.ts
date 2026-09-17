@@ -7,6 +7,7 @@ import {
   AdvertisementModerationDto,
   CreateAnnouncementDto,
   CreateAdvertisementDto,
+  UpdateAdvertisementDto,
   CreateEmergencyDto,
   CreateFactoryDto,
   CreateFactoryStaffDto,
@@ -40,6 +41,7 @@ import {
   UpdateParkDto,
   UpdateParkStaffDto,
   WalletTopUpDto,
+  UpdateGatePassWalletSettingDto,
 } from './management.dto';
 import { ManagementService } from './management.service';
 
@@ -93,6 +95,8 @@ export class ManagementController {
 
   @Get('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePasses(@Req() req: AuthenticatedRequest) { return this.management.listGatePasses(currentUser(req)); }
   @Get('gate-passes/by-qr/:code') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') gatePassByQr(@Req() req: AuthenticatedRequest, @Param() params: QrCodeParamDto) { return this.management.gatePassByQr(currentUser(req), params.code); }
+  @Get('settings/gate-pass-wallet') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Settings') gatePassWalletSettings() { return this.management.getGatePassWalletSettings(); }
+  @Patch('settings/gate-pass-wallet') @Roles(Role.SUPER_ADMIN) @ApiTags('Settings') updateGatePassWalletSettings(@Req() req: AuthenticatedRequest, @Body() body: UpdateGatePassWalletSettingDto) { return this.management.updateGatePassWalletSettings(currentUser(req), body.requireWalletBalance); }
   @Post('gate-passes') @Roles(Role.SUPER_ADMIN, Role.FACTORY_OWNER) @ApiTags('Gate passes') createGatePass(@Req() req: AuthenticatedRequest, @Body() body: CreateGatePassDto) { return this.management.createGatePass(currentUser(req), body); }
   @Put('gate-passes/:id') @Roles(Role.SUPER_ADMIN, Role.FACTORY_OWNER) @ApiTags('Gate passes') updateGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateGatePassDto) { return this.management.updateGatePass(currentUser(req), params.id, body); }
   @Post('gate-passes/:id/approve') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') approveGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassAction(currentUser(req), params.id, 'approve'); }
@@ -120,6 +124,10 @@ export class ManagementController {
   @Public()
   @Get('advertisements') @ApiTags('Advertisements') advertisements() { return this.management.advertisements(); }
   @Get('advertisements/creation-scope') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') advertisementCreationScope(@Req() req: AuthenticatedRequest) { return this.management.advertisementCreationScope(currentUser(req)); }
+  @Get('advertisements/mine') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') myAdvertisements(@Req() req: AuthenticatedRequest) { return this.management.myAdvertisements(currentUser(req)); }
+  @Get('advertisements/mine/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') myAdvertisementDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.myAdvertisementDetail(currentUser(req), params.id); }
+  @Put('advertisements/mine/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') updateMyAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateAdvertisementDto) { return this.management.updateMyAdvertisement(currentUser(req), params.id, body); }
+  @Delete('advertisements/mine/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') deleteMyAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteMyAdvertisement(currentUser(req), params.id); }
   @Post('advertisements') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') createAdvertisement(@Req() req: AuthenticatedRequest, @Body() body: CreateAdvertisementDto) { return this.management.createAdvertisement(currentUser(req), body); }
   @Get('advertisements/managed/pending') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') managedPendingAdvertisements(@Req() req: AuthenticatedRequest) { return this.management.managedAdvertisements(currentUser(req), 'PENDING'); }
   @Get('advertisements/managed/history') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') managedHistoryAdvertisements(@Req() req: AuthenticatedRequest) { return this.management.managedAdvertisements(currentUser(req), 'HISTORY'); }

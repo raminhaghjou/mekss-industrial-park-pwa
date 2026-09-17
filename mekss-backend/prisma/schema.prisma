@@ -819,3 +819,11 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([correlationId])
 }
+
+/// Platform-wide key/value settings (e.g. require wallet for gate-pass creation).
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}

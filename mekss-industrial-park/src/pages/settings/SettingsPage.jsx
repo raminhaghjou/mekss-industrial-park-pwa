@@ -1,41 +1,21 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { Moon, Bell, Sun } from 'lucide-react';
 import { Card, CardContent, CardHeader, Separator } from '@heroui/react';
 import { useTheme } from '../../providers/ThemeProvider';
-
-/** Visible RTL-friendly toggle — HeroUI Switch needs compound slots and renders empty alone. */
-const ThemeToggle = ({ checked, onChange, label }) => {
-  const id = useId();
-  return (
-    <button
-      id={id}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] focus-visible:ring-offset-2 ${
-        checked
-          ? 'border-[var(--color-brand)] bg-[var(--color-brand)]'
-          : 'border-default-300 bg-default-200 dark:border-white/20 dark:bg-white/15'
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-          checked ? 'start-0.5 translate-x-0' : 'start-[calc(100%-1.625rem)]'
-        }`}
-      />
-    </button>
-  );
-};
+import { useAuth } from '../../providers/AuthProvider';
+import { SettingToggle } from '../../components/common/SettingToggle';
+import { GatePassWalletSettingCard } from '../../components/settings/GatePassWalletSettingCard';
 
 export const SettingsPage = () => {
   const { isDark, setTheme } = useTheme();
+  const { user } = useAuth();
   const [notificationsOn, setNotificationsOn] = useState(true);
 
   return (
-    <div className="mx-auto max-w-2xl animate-fade-in">
-      <h1 className="mb-6 text-2xl font-bold text-foreground">تنظیمات</h1>
+    <div className="mx-auto max-w-2xl animate-fade-in flex flex-col gap-6">
+      <h1 className="text-2xl font-bold text-foreground">تنظیمات</h1>
+
+      {user?.role === 'SUPER_ADMIN' && <GatePassWalletSettingCard />}
 
       <Card className="border border-default-200 dark:border-white/10">
         <CardHeader className="p-6">
@@ -58,7 +38,7 @@ export const SettingsPage = () => {
                   </p>
                 </div>
               </div>
-              <ThemeToggle
+              <SettingToggle
                 checked={isDark}
                 label="تغییر حالت تاریک"
                 onChange={(on) => setTheme(on ? 'dark' : 'light')}
@@ -75,7 +55,7 @@ export const SettingsPage = () => {
                   <p className="text-sm text-foreground-500">دریافت اعلان‌های push</p>
                 </div>
               </div>
-              <ThemeToggle
+              <SettingToggle
                 checked={notificationsOn}
                 label="اعلان‌ها"
                 onChange={setNotificationsOn}

@@ -373,6 +373,19 @@ export class CreateAdvertisementDto {
   @IsOptional() @IsDateString() expiresAt?: string;
 }
 
+export class UpdateAdvertisementDto {
+  @IsString() @Length(2, 200) title!: string;
+  @IsString() @Length(2, 80) category!: string;
+  @IsString() @Length(2, 80) province!: string;
+  @IsString() @Length(2, 80) city!: string;
+  @IsOptional() @IsString() @Length(2, 240) address?: string;
+  @IsString() @Length(2, 8000) content!: string;
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) price?: number;
+  @IsObject() @ValidateNested() @Type(() => AdvertisementContactInfoDto) contactInfo!: AdvertisementContactInfoDto;
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) @MaxLength(1000, { each: true }) images?: string[];
+  @IsOptional() @IsDateString() expiresAt?: string;
+}
+
 export class AdvertisementAdminQueryDto {
   @IsOptional() @IsIn(['PENDING', 'HISTORY']) view?: 'PENDING' | 'HISTORY';
   @IsOptional() @IsEnum(AdvertisementStatus) status?: AdvertisementStatus;
@@ -428,6 +441,10 @@ export class CreateEmergencyDto {
   @IsOptional() @IsEnum(EmergencySeverity) severity?: EmergencySeverity;
   @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
   @IsOptional() @IsObject() @ValidateNested() @Type(() => EmergencyLocationDto) location?: EmergencyLocationDto;
+}
+
+export class UpdateGatePassWalletSettingDto {
+  @IsBoolean() requireWalletBalance!: boolean;
 }
 
 export class PaginationQueryDto {

@@ -27,13 +27,16 @@ export const LoginPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [loginMethod, setLoginMethod] = useState('password');
+  const [formError, setFormError] = useState('');
 
   const handleSendOtp = async () => {
     if (!formData.phoneNumber) {
+      setFormError('لطفاً شماره تلفن را وارد کنید');
       showNotification('لطفاً شماره تلفن را وارد کنید', 'error');
       return;
     }
 
+    setFormError('');
     setLoading(true);
     const result = await sendOtp(formData.phoneNumber);
     setLoading(false);
@@ -42,16 +45,19 @@ export const LoginPage = () => {
       setOtpSent(true);
       showNotification('کد تایید ارسال شد', 'success');
     } else {
+      setFormError(result.error || 'ارسال کد تایید ناموفق بود');
       showNotification(result.error || 'ارسال کد تایید ناموفق بود', 'error');
     }
   };
 
   const handleOtpLogin = async () => {
     if (!otpCode || otpCode.length !== 6) {
+      setFormError('لطفاً کد تایید ۶ رقمی را وارد کنید');
       showNotification('لطفاً کد تایید ۶ رقمی را وارد کنید', 'error');
       return;
     }
 
+    setFormError('');
     setLoading(true);
     const result = await verifyOtp(formData.phoneNumber, otpCode);
     setLoading(false);
@@ -60,16 +66,19 @@ export const LoginPage = () => {
       showNotification('ورود با موفقیت انجام شد', 'success');
       navigate('/dashboard');
     } else {
+      setFormError(result.error || 'کد تایید اشتباه است');
       showNotification(result.error || 'کد تایید اشتباه است', 'error');
     }
   };
 
   const handlePasswordLogin = async () => {
     if (!formData.phoneNumber || !formData.password) {
+      setFormError('لطفاً تمام فیلدها را پر کنید');
       showNotification('لطفاً تمام فیلدها را پر کنید', 'error');
       return;
     }
 
+    setFormError('');
     setLoading(true);
     const result = await login(formData);
     setLoading(false);
@@ -78,6 +87,7 @@ export const LoginPage = () => {
       showNotification('ورود با موفقیت انجام شد', 'success');
       navigate('/dashboard');
     } else {
+      setFormError(result.error || 'ورود ناموفق بود');
       showNotification(result.error || 'ورود ناموفق بود', 'error');
     }
   };
@@ -125,6 +135,15 @@ export const LoginPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {formError ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
+            >
+              {formError}
+            </div>
+          ) : null}
+
           <label className="flex flex-col gap-1.5">
             <span className={authLabelClass}>شماره تلفن همراه</span>
             <span className="relative block">

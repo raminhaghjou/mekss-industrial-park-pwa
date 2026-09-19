@@ -135,6 +135,9 @@ enum MarketRateKey {
   ALUMINUM
   OIL
   BITUMEN
+  USDT
+  BTC
+  ETH
 }
 
 enum OtpPurpose {

@@ -72,6 +72,29 @@ export const RegisterFactoryPage = () => {
       showNotification('لطفاً فیلدهای الزامی را تکمیل کنید', 'error');
       return;
     }
+
+    const ensureHttpUrl = (value, label) => {
+      const trimmed = String(value || '').trim();
+      if (!trimmed) return '';
+      if (!/^https?:\/\//i.test(trimmed)) {
+        showNotification(`آدرس ${label} باید با http:// یا https:// شروع شود`, 'error');
+        return null;
+      }
+      try {
+        // eslint-disable-next-line no-new
+        new URL(trimmed);
+      } catch {
+        showNotification(`آدرس ${label} معتبر نیست`, 'error');
+        return null;
+      }
+      return trimmed;
+    };
+
+    const website = ensureHttpUrl(form.website, 'وب‌سایت');
+    if (website === null) return;
+    const shopUrl = ensureHttpUrl(form.shopUrl, 'فروشگاه آنلاین');
+    if (shopUrl === null) return;
+
     const payload = {
       name: form.name.trim(),
       licenseNumber: form.licenseNumber.trim(),
@@ -81,12 +104,20 @@ export const RegisterFactoryPage = () => {
       phoneNumber: form.phoneNumber.trim(),
       parkId: form.parkId,
     };
-    ['phoneNumber2', 'landline', 'fax', 'email', 'website', 'description', 'ceoName', 'shopUrl'].forEach((key) => {
+    ['phoneNumber2', 'landline', 'fax', 'email', 'description', 'ceoName'].forEach((key) => {
       const value = form[key]?.trim();
       if (value) payload[key] = value;
     });
+    if (website) payload.website = website;
+    if (shopUrl) payload.shopUrl = shopUrl;
     if (form.employees !== '') payload.employees = Number(form.employees);
     mutation.mutate(payload);
+  };
+
+  const normalizeUrlField = (key) => {
+    const raw = String(form[key] || '').trim();
+    if (!raw || /^https?:\/\//i.test(raw)) return;
+    update(key, `https://${raw}`);
   };
 
   return (
@@ -177,10 +208,28 @@ export const RegisterFactoryPage = () => {
             <section className="grid gap-4">
               <h2 className="text-sm font-semibold text-[var(--color-brand)]">اطلاعات تکمیلی</h2>
               <Field label="وب‌سایت">
-                <Input dir="ltr" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://" className="rounded-xl" />
+                <Input
+                  dir="ltr"
+                  type="url"
+                  value={form.website}
+                  onChange={(e) => update('website', e.target.value)}
+                  onBlur={() => normalizeUrlField('website')}
+                  placeholder="https://example.com"
+                  className="rounded-xl"
+                />
+                <p className="mt-1 text-[11px] text-foreground-400">باید با http:// یا https:// شروع شود</p>
               </Field>
               <Field label="آدرس فروشگاه آنلاین">
-                <Input dir="ltr" value={form.shopUrl} onChange={(e) => update('shopUrl', e.target.value)} placeholder="https://" className="rounded-xl" />
+                <Input
+                  dir="ltr"
+                  type="url"
+                  value={form.shopUrl}
+                  onChange={(e) => update('shopUrl', e.target.value)}
+                  onBlur={() => normalizeUrlField('shopUrl')}
+                  placeholder="https://shop.example.com"
+                  className="rounded-xl"
+                />
+                <p className="mt-1 text-[11px] text-foreground-400">باید با http:// یا https:// شروع شود</p>
               </Field>
               <Field label="توضیحات">
                 <TextArea value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} className="rounded-xl" />

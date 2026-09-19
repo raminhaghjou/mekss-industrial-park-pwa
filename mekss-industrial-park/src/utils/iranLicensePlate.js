@@ -181,4 +181,22 @@ export function isCompleteIranLicensePlate(value) {
   return Boolean(formatIranLicensePlate(parseIranLicensePlate(value)));
 }
 
+/**
+ * Human-readable Iranian plate for UI (lists, confirm dialogs, toasts).
+ * Example: `13ب87863` → `13 ب 878-63`
+ * @param {string} value
+ * @param {{ persianDigits?: boolean }} [options]
+ * @returns {string}
+ */
+export function displayIranLicensePlate(value = '', options = {}) {
+  const parts = parseIranLicensePlate(value);
+  if (!parts.series || !parts.letter || !parts.middle || !parts.region) {
+    return String(value || '').trim() || '—';
+  }
+  const letterMeta = IRAN_PLATE_LETTERS.find((item) => item.value === parts.letter);
+  const letterLabel = letterMeta?.label || parts.letter;
+  const text = `${parts.series} ${letterLabel} ${parts.middle}-${parts.region}`;
+  return options.persianDigits ? toPersianDigits(text) : text;
+}
+
 export { CUSTOM_REGION };

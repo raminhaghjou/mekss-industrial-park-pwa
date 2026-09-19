@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../services/api/auth.api';
+import { getErrorMessage } from '../utils/apiError';
 
 const AuthContext = createContext(null);
 export const useAuth = () => {
@@ -46,14 +47,18 @@ export const AuthProvider = ({ children }) => {
       setSession(data);
       navigate('/dashboard');
       return { success: true, mustChangePassword: data.mustChangePassword };
-    } catch (error) { return { success: false, error: error.response?.data?.message || 'ورود ناموفق بود.' }; }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error, 'ورود ناموفق بود. لطفاً اطلاعات را بررسی کنید.') };
+    }
   };
   const register = async (userData) => {
     try {
       const { data } = await authApi.register(userData);
       navigate('/login');
       return { success: true, message: data.message || 'ثبت‌نام انجام شد؛ حساب شما پس از تأیید فعال می‌شود.' };
-    } catch (error) { return { success: false, error: error.response?.data?.message || 'ثبت‌نام ناموفق بود.' }; }
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error, 'ثبت‌نام ناموفق بود. لطفاً دوباره تلاش کنید.') };
+    }
   };
   const logout = async () => {
     const refreshToken = localStorage.getItem('refreshToken');
@@ -72,11 +77,11 @@ export const AuthProvider = ({ children }) => {
   };
   const sendOtp = async (phoneNumber) => {
     try { await authApi.sendOtp({ phoneNumber }); return { success: true }; }
-    catch (error) { return { success: false, error: error.response?.data?.message || 'ارسال رمز یک‌بار مصرف ناموفق بود.' }; }
+    catch (error) { return { success: false, error: getErrorMessage(error, 'ارسال رمز یک‌بار مصرف ناموفق بود.') }; }
   };
   const verifyOtp = async (phoneNumber, otp) => {
     try { const { data } = await authApi.verifyOtp({ phoneNumber, otp }); setSession(data); return { success: true, data }; }
-    catch (error) { return { success: false, error: error.response?.data?.message || 'رمز یک‌بار مصرف نامعتبر است.' }; }
+    catch (error) { return { success: false, error: getErrorMessage(error, 'رمز یک‌بار مصرف نامعتبر است.') }; }
   };
   const refreshProfile = useCallback(async () => {
     const response = await authApi.getProfile();

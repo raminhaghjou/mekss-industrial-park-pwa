@@ -197,7 +197,23 @@ const FactoryFormFields = ({ form, setForm, editing, parks, owners, disabled }) 
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor={fieldId('website')} className="text-xs font-medium text-foreground-600">وب‌سایت</label>
-        <Input id={fieldId('website')} type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} disabled={disabled} maxLength={300} variant="primary" dir="ltr" className="rounded-xl" />
+        <Input
+          id={fieldId('website')}
+          type="url"
+          value={form.website}
+          onChange={(e) => setField('website', e.target.value)}
+          onBlur={() => {
+            const raw = String(form.website || '').trim();
+            if (raw && !/^https?:\/\//i.test(raw)) setField('website', `https://${raw}`);
+          }}
+          disabled={disabled}
+          maxLength={300}
+          variant="primary"
+          dir="ltr"
+          placeholder="https://example.com"
+          className="rounded-xl"
+        />
+        <p className="text-[11px] text-foreground-400">باید با http:// یا https:// شروع شود</p>
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor={fieldId('employees')} className="text-xs font-medium text-foreground-600">تعداد کارکنان</label>
@@ -412,6 +428,11 @@ const ManageFactoriesPage = () => {
       .some((field) => !String(form[field] || '').trim());
     if (missingRequired) {
       showNotification('لطفاً همه فیلدهای الزامی را تکمیل کنید.', 'error');
+      return;
+    }
+    const website = String(form.website || '').trim();
+    if (website && !/^https?:\/\//i.test(website)) {
+      showNotification('آدرس وب‌سایت باید با http:// یا https:// شروع شود', 'error');
       return;
     }
     if (editing) runMutation({ type: 'update', id: editing.id, payload: profilePayload(form) });

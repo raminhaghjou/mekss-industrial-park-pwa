@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
+import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 
 const statusColors = {
   PENDING: 'warning',
@@ -87,7 +88,7 @@ export const ApproveGatePassesPage = () => {
                       <TableRow key={pass.id} id={pass.id}>
                         <TableCell>{pass.factory?.name || '—'}</TableCell>
                         <TableCell>{pass.driverName}</TableCell>
-                        <TableCell dir="ltr">{pass.licensePlate}</TableCell>
+                        <TableCell dir="ltr">{displayIranLicensePlate(pass.licensePlate)}</TableCell>
                         <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
                         <TableCell>
                           <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   IRAN_PLATE_REGIONS,
+  displayIranLicensePlate,
   findIranPlateRegion,
   formatIranLicensePlate,
   isCompleteIranLicensePlate,
@@ -38,6 +39,12 @@ describe('iranLicensePlate', () => {
     })).toBe('');
     expect(isCompleteIranLicensePlate('12ب34567')).toBe(true);
     expect(isCompleteIranLicensePlate('12ب34')).toBe(false);
+  });
+
+  it('displays plates in readable Iranian format for UI', () => {
+    expect(displayIranLicensePlate('13ب87863')).toBe('13 ب 878-63');
+    expect(displayIranLicensePlate('12ا12345')).toBe('12 الف 123-45');
+    expect(displayIranLicensePlate('bad')).toBe('bad');
   });
 
   it('maps Fars and West Azerbaijan region codes correctly from official tables', () => {

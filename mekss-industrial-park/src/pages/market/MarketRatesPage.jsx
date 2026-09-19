@@ -37,13 +37,13 @@ import { getErrorMessage } from '../../utils/apiError';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { amountInputToNumber, formatAmountInput } from '../../utils/amountFormat';
 
-const chartKeys = ['USD', 'EUR', 'GOLD', 'COPPER', 'IRON', 'OIL'];
+const chartKeys = ['USD', 'EUR', 'USDT', 'GOLD', 'BTC', 'OIL'];
 const chartColors = {
   USD: '#21aa58',
   EUR: '#0ea5e9',
+  USDT: '#14b8a6',
   GOLD: '#f59e0b',
-  COPPER: '#ea580c',
-  IRON: '#64748b',
+  BTC: '#f97316',
   OIL: '#7c3aed',
 };
 
@@ -115,7 +115,7 @@ export const MarketRatesPage = () => {
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">نرخ‌های بازار</h1>
           <p className="mt-1 text-sm text-foreground-500">
-            نرخ‌های مرجع ارز، فلزات و شاخص‌های صنعتی — به‌روزرسانی آنلاین
+            نرخ‌های زنده ارز، طلا، تتر و رمزارزها از منابع معتبر (TGJU و بازارهای جهانی)
           </p>
         </div>
         <div className="flex items-center gap-2">

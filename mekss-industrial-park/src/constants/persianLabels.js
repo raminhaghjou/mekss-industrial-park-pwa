@@ -89,10 +89,17 @@ export const marketRateKeyLabels = {
   EUR: 'یورو',
   CNY: 'یوان چین',
   IRON: 'آهن',
-  GOLD: 'طلا',
+  GOLD: 'طلای ۱۸ عیار',
   SILVER: 'نقره',
   PLATINUM: 'پلاتین',
-  COIN: 'سکه',
+  COIN: 'سکه امامی',
+  COPPER: 'مس',
+  ALUMINUM: 'آلومینیوم',
+  OIL: 'نفت برنت',
+  BITUMEN: 'قیر',
+  USDT: 'تتر (USDT)',
+  BTC: 'بیت‌کوین',
+  ETH: 'اتریوم',
 };
 
 /**

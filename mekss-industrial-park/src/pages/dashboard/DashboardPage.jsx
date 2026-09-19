@@ -2,7 +2,26 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
-import { Building2, Ticket, Receipt, FileText, AlertTriangle, Megaphone, ChevronLeft } from 'lucide-react';
+import {
+  Building2,
+  Ticket,
+  Receipt,
+  FileText,
+  AlertTriangle,
+  Megaphone,
+  ChevronLeft,
+  ShieldCheck,
+  ScanLine,
+  Users,
+  UserCheck,
+  LineChart,
+  Wallet,
+  Factory,
+  MessageSquare,
+  Bell,
+  LayoutDashboard,
+  Landmark,
+} from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
 import { announcementApi } from '../../services/api/announcement.api';
@@ -17,7 +36,16 @@ const roleTitles = {
   FACTORY_OWNER: 'داشبورد مالک واحد صنعتی',
   SECURITY_GUARD: 'داشبورد نگهبان',
   GOVERNMENT_OFFICIAL: 'داشبورد نماینده دولت',
-  EMPLOYEE: 'داشبورد',
+  EMPLOYEE: 'داشبورد کارمند',
+};
+
+const roleSubtitles = {
+  SUPER_ADMIN: 'نظارت سراسری بر شهرک‌ها، کاربران و پیکربندی سامانه',
+  PARK_MANAGER: 'مدیریت واحدها، درخواست‌ها، قبض‌ها و تاییدهای شهرک',
+  FACTORY_OWNER: 'مدیریت واحد صنعتی، برگ خروج، قبض و درخواست‌ها',
+  SECURITY_GUARD: 'تایید خروج، اسکن QR و رسیدگی به هشدارهای اضطراری',
+  GOVERNMENT_OFFICIAL: 'مشاهده گزارش‌ها، اطلاعیه‌ها و شاخص‌های شهرک',
+  EMPLOYEE: 'دسترسی به درخواست‌ها، پیام‌ها و اطلاعیه‌های واحد',
 };
 
 const colorMap = {
@@ -28,31 +56,311 @@ const colorMap = {
   secondary: 'bg-gradient-to-br from-slate-500 to-slate-600',
 };
 
-const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge = null, index }) => (
-  <Card
-    className={`${onClick ? 'cursor-pointer' : ''} animate-slide-up p-4`}
-    style={{ animationDelay: `${index * 70}ms` }}
-    onClick={onClick}
-  >
-    <CardContent className="p-0">
-      <div className="flex items-center gap-4">
-        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-white ${colorMap[color]}`}>
-          <Icon className="h-7 w-7" />
+const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge = null, index }) => {
+  const displayValue = typeof value === 'number'
+    ? value.toLocaleString('fa-IR')
+    : (value ?? '—');
+
+  return (
+    <Card
+      className={`${onClick ? 'cursor-pointer' : ''} animate-slide-up p-4`}
+      style={{ animationDelay: `${index * 70}ms` }}
+      onClick={onClick}
+    >
+      <CardContent className="p-0">
+        <div className="flex items-center gap-4">
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-white ${colorMap[color]}`}>
+            <Icon className="h-7 w-7" />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <span className="text-2xl font-bold text-foreground">{displayValue}</span>
+            <span className="text-sm text-foreground-500">{label}</span>
+          </div>
+          {badge && (
+            <span className="rounded-full bg-warning-100 px-2 py-1 text-xs font-medium text-warning-700">{badge}</span>
+          )}
+          {onClick && !badge && (
+            <ChevronLeft className="h-5 w-5 text-default-400" />
+          )}
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <span className="text-2xl font-bold text-foreground">{value}</span>
-          <span className="text-sm text-foreground-500">{label}</span>
-        </div>
-        {badge && (
-          <span className="rounded-full bg-warning-100 px-2 py-1 text-xs font-medium text-warning-700">{badge}</span>
-        )}
-        {onClick && !badge && (
-          <ChevronLeft className="h-5 w-5 text-default-400" />
-        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const QuickAction = ({ icon: Icon, title, description, onClick, tone = 'primary' }) => {
+  const toneClass = {
+    primary: 'bg-[var(--color-brand-soft)] text-[var(--color-brand)]',
+    success: 'bg-success-50 text-success-700',
+    warning: 'bg-warning-50 text-warning-700',
+    danger: 'bg-danger-50 text-danger-700',
+    secondary: 'bg-default-100 text-foreground-600',
+  }[tone];
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-start gap-3 rounded-2xl border border-default-200 bg-content1 p-4 text-start transition hover:border-[var(--color-brand)]/40 hover:bg-default-50 dark:border-white/10"
+    >
+      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneClass}`}>
+        <Icon className="h-5 w-5" />
       </div>
-    </CardContent>
-  </Card>
-);
+      <div className="min-w-0 flex-1">
+        <p className="font-bold text-foreground">{title}</p>
+        <p className="mt-0.5 text-xs leading-5 text-foreground-500">{description}</p>
+      </div>
+      <ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-default-400" />
+    </button>
+  );
+};
+
+const buildRoleWorkspace = (role, data, navigate) => {
+  const pendingPasses = data?.pendingWork?.gatePasses || 0;
+  const pendingRequests = data?.pendingWork?.requests || 0;
+  const pendingAds = data?.pendingWork?.advertisements || 0;
+  const openEmergencies = data?.openEmergencies || 0;
+
+  const workspaces = {
+    SECURITY_GUARD: {
+      stats: [
+        {
+          icon: ShieldCheck,
+          label: 'برگ خروج در انتظار',
+          value: pendingPasses,
+          color: 'success',
+          badge: pendingPasses ? `${pendingPasses.toLocaleString('fa-IR')} مورد` : undefined,
+          onClick: () => navigate('/guard/gate-passes'),
+        },
+        {
+          icon: Ticket,
+          label: 'کل برگ‌های خروج',
+          value: data?.gatePasses ?? 0,
+          color: 'primary',
+          onClick: () => navigate('/guard/gate-passes'),
+        },
+        {
+          icon: AlertTriangle,
+          label: 'هشدار اضطراری باز',
+          value: openEmergencies,
+          color: 'danger',
+          onClick: () => navigate('/emergency'),
+        },
+        {
+          icon: ScanLine,
+          label: 'اسکن QR',
+          value: 'آماده',
+          color: 'secondary',
+          onClick: () => navigate('/guard/scan'),
+        },
+      ].map((item, index) => ({ ...item, index })),
+      actions: [
+        { icon: ShieldCheck, title: 'تایید برگ خروج', description: 'بررسی و تایید/رد خروج خودروهای در صف', onClick: () => navigate('/guard/gate-passes'), tone: 'success' },
+        { icon: ScanLine, title: 'اسکن QR', description: 'خواندن سریع برگ خروج با دوربین', onClick: () => navigate('/guard/scan'), tone: 'primary' },
+        { icon: AlertTriangle, title: 'هشدار اضطراری', description: 'ثبت یا پیگیری وضعیت اضطراری گیت', onClick: () => navigate('/emergency'), tone: 'danger' },
+      ],
+    },
+    FACTORY_OWNER: {
+      stats: [
+        {
+          icon: Receipt,
+          label: 'قبض‌ها',
+          value: data?.invoices ?? 0,
+          color: 'secondary',
+          onClick: () => navigate('/invoices'),
+        },
+        {
+          icon: Ticket,
+          label: 'برگ‌های خروج',
+          value: data?.gatePasses ?? 0,
+          color: 'success',
+          badge: pendingPasses ? `${pendingPasses.toLocaleString('fa-IR')} در انتظار` : undefined,
+          onClick: () => navigate('/gate-passes'),
+        },
+        {
+          icon: FileText,
+          label: 'درخواست‌ها',
+          value: data?.requests ?? 0,
+          color: 'warning',
+          badge: pendingRequests ? `${pendingRequests.toLocaleString('fa-IR')} در انتظار` : undefined,
+          onClick: () => navigate('/requests'),
+        },
+        {
+          icon: Building2,
+          label: 'واحدهای صنعتی',
+          value: data?.factories ?? 0,
+          color: 'primary',
+          onClick: () => navigate('/factory/register'),
+        },
+      ].map((item, index) => ({ ...item, index })),
+      actions: [
+        { icon: Ticket, title: 'ثبت برگ خروج', description: 'صدور مجوز خروج خودرو و محموله', onClick: () => navigate('/gate-passes'), tone: 'success' },
+        { icon: Receipt, title: 'قبض‌های من', description: 'مشاهده و پرداخت بدهی‌های معوق', onClick: () => navigate('/invoices'), tone: 'warning' },
+        { icon: Factory, title: 'ثبت واحد صنعتی', description: 'ثبت یا پیگیری واحد صنعتی جدید', onClick: () => navigate('/factory/register'), tone: 'primary' },
+        { icon: Wallet, title: 'کیف پول خروج', description: 'موجودی و شارژ کیف پول برگ خروج', onClick: () => navigate('/factory/wallet'), tone: 'secondary' },
+        { icon: UserCheck, title: 'پرسنل واحد', description: 'مدیریت دسترسی کارکنان واحد', onClick: () => navigate('/factory/staff'), tone: 'secondary' },
+        { icon: LineChart, title: 'نرخ بازار', description: 'مشاهده نرخ ارز، طلا و تتر', onClick: () => navigate('/market-rates'), tone: 'primary' },
+      ],
+    },
+    PARK_MANAGER: {
+      stats: [
+        {
+          icon: Building2,
+          label: 'واحدهای صنعتی',
+          value: data?.factories ?? 0,
+          color: 'primary',
+          onClick: () => navigate('/admin/factories'),
+        },
+        {
+          icon: Ticket,
+          label: 'برگ‌های خروج',
+          value: data?.gatePasses ?? 0,
+          color: 'success',
+          badge: pendingPasses ? `${pendingPasses.toLocaleString('fa-IR')} در انتظار نگهبان` : undefined,
+          onClick: () => navigate('/admin/gate-passes'),
+        },
+        {
+          icon: FileText,
+          label: 'درخواست‌ها',
+          value: data?.requests ?? 0,
+          color: 'warning',
+          badge: pendingRequests ? `${pendingRequests.toLocaleString('fa-IR')} در انتظار` : undefined,
+          onClick: () => navigate('/admin/requests'),
+        },
+        {
+          icon: Megaphone,
+          label: 'آگهی در انتظار',
+          value: pendingAds,
+          color: 'primary',
+          onClick: () => navigate('/admin/advertisements'),
+        },
+      ].map((item, index) => ({ ...item, index })),
+      actions: [
+        { icon: UserCheck, title: 'تایید ثبت‌نام‌ها', description: 'بررسی درخواست عضویت مالکان و پرسنل', onClick: () => navigate('/admin/registrations'), tone: 'warning' },
+        { icon: Building2, title: 'مدیریت واحدها', description: 'مشاهده و تایید واحدهای صنعتی شهرک', onClick: () => navigate('/admin/factories'), tone: 'primary' },
+        { icon: FileText, title: 'درخواست‌های شهرک', description: 'رسیدگی به درخواست‌های واحدها', onClick: () => navigate('/admin/requests'), tone: 'success' },
+        { icon: Receipt, title: 'قبض‌ها', description: 'صدور و پیگیری قبض‌های شهرک', onClick: () => navigate('/admin/invoices'), tone: 'secondary' },
+        { icon: Bell, title: 'اطلاعیه‌ها', description: 'انتشار اطلاعیه رسمی برای واحدها', onClick: () => navigate('/admin/announcements'), tone: 'primary' },
+        { icon: LineChart, title: 'نرخ بازار', description: 'نرخ‌های به‌روز ارز و کالا', onClick: () => navigate('/market-rates'), tone: 'secondary' },
+      ],
+    },
+    SUPER_ADMIN: {
+      stats: [
+        {
+          icon: Landmark,
+          label: 'شهرک‌ها / واحدها',
+          value: data?.factories ?? 0,
+          color: 'primary',
+          onClick: () => navigate('/superadmin/parks'),
+        },
+        {
+          icon: Users,
+          label: 'کاربران و دسترسی',
+          value: data?.requests ?? 0,
+          color: 'secondary',
+          onClick: () => navigate('/superadmin/users'),
+        },
+        {
+          icon: Megaphone,
+          label: 'آگهی در انتظار',
+          value: pendingAds,
+          color: 'warning',
+          onClick: () => navigate('/superadmin/advertisements'),
+        },
+        {
+          icon: AlertTriangle,
+          label: 'هشدار اضطراری باز',
+          value: openEmergencies,
+          color: 'danger',
+          onClick: () => navigate('/emergency'),
+        },
+      ].map((item, index) => ({ ...item, index })),
+      actions: [
+        { icon: Landmark, title: 'مدیریت شهرک‌ها', description: 'ایجاد و پیکربندی شهرک‌های صنعتی', onClick: () => navigate('/superadmin/parks'), tone: 'primary' },
+        { icon: Users, title: 'مدیریت کاربران', description: 'نقش‌ها، تایید و وضعیت حساب‌ها', onClick: () => navigate('/superadmin/users'), tone: 'secondary' },
+        { icon: Megaphone, title: 'آگهی‌های سراسری', description: 'نظارت و تایید آگهی‌ها', onClick: () => navigate('/superadmin/advertisements'), tone: 'warning' },
+        { icon: LineChart, title: 'نرخ بازار', description: 'به‌روزرسانی و ویرایش نرخ‌ها', onClick: () => navigate('/market-rates'), tone: 'success' },
+      ],
+    },
+    GOVERNMENT_OFFICIAL: {
+      stats: [
+        {
+          icon: Building2,
+          label: 'واحدهای صنعتی',
+          value: data?.factories ?? 0,
+          color: 'primary',
+          onClick: () => navigate('/admin/reports'),
+        },
+        {
+          icon: Ticket,
+          label: 'برگ‌های خروج',
+          value: data?.gatePasses ?? 0,
+          color: 'success',
+          onClick: () => navigate('/admin/reports'),
+        },
+        {
+          icon: LineChart,
+          label: 'نرخ بازار',
+          value: '—',
+          color: 'secondary',
+          onClick: () => navigate('/market-rates'),
+        },
+        {
+          icon: Bell,
+          label: 'اطلاعیه‌ها',
+          value: '—',
+          color: 'warning',
+          onClick: () => navigate('/announcements'),
+        },
+      ].map((item, index) => ({ ...item, index, value: item.value === '—' ? '—' : item.value })),
+      actions: [
+        { icon: LayoutDashboard, title: 'گزارش‌ها', description: 'شاخص‌ها و عملکرد شهرک صنعتی', onClick: () => navigate('/admin/reports'), tone: 'primary' },
+        { icon: LineChart, title: 'نرخ بازار', description: 'نرخ ارز، طلا، تتر و کالا', onClick: () => navigate('/market-rates'), tone: 'success' },
+        { icon: Bell, title: 'اطلاعیه‌ها', description: 'مشاهده اطلاعیه‌های رسمی', onClick: () => navigate('/announcements'), tone: 'secondary' },
+        { icon: MessageSquare, title: 'پیام‌ها', description: 'ارتباط با مدیریت شهرک', onClick: () => navigate('/messages'), tone: 'secondary' },
+      ],
+    },
+    EMPLOYEE: {
+      stats: [
+        {
+          icon: FileText,
+          label: 'درخواست‌های من',
+          value: data?.requests ?? 0,
+          color: 'warning',
+          onClick: () => navigate('/requests'),
+        },
+        {
+          icon: MessageSquare,
+          label: 'پیام‌ها',
+          value: '—',
+          color: 'primary',
+          onClick: () => navigate('/messages'),
+        },
+        {
+          icon: Bell,
+          label: 'اطلاعیه‌ها',
+          value: '—',
+          color: 'secondary',
+          onClick: () => navigate('/announcements'),
+        },
+        {
+          icon: AlertTriangle,
+          label: 'هشدار اضطراری',
+          value: openEmergencies,
+          color: 'danger',
+          onClick: () => navigate('/emergency'),
+        },
+      ].map((item, index) => ({ ...item, index, value: item.value === '—' ? '—' : item.value })),
+      actions: [
+        { icon: FileText, title: 'ثبت درخواست', description: 'مرخصی، ماموریت و سایر درخواست‌ها', onClick: () => navigate('/requests'), tone: 'warning' },
+        { icon: MessageSquare, title: 'پیام‌ها', description: 'گفتگو با مدیریت واحد و شهرک', onClick: () => navigate('/messages'), tone: 'primary' },
+        { icon: Bell, title: 'اطلاعیه‌ها', description: 'آخرین اطلاعیه‌های رسمی', onClick: () => navigate('/announcements'), tone: 'secondary' },
+      ],
+    },
+  };
+
+  return workspaces[role] || workspaces.EMPLOYEE;
+};
 
 export const DashboardPage = () => {
   const { user } = useAuth();
@@ -71,13 +379,13 @@ export const DashboardPage = () => {
   const { data: advertisements = [] } = useQuery({
     queryKey: ['advertisements', 'feed'],
     queryFn: () => advertisementApi.getPublicAdvertisements().then((res) => res.data),
+    enabled: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role),
   });
 
   const announcementsHref = user?.role === 'PARK_MANAGER' || user?.role === 'SUPER_ADMIN'
     ? '/admin/announcements'
     : '/announcements';
 
-  // Ads-only slider — announcements have a dedicated panel to avoid duplicate banners.
   const feedItems = useMemo(() => (
     (advertisements || []).slice(0, 6).map((item) => ({
       id: `ad-${item.id}`,
@@ -97,6 +405,11 @@ export const DashboardPage = () => {
       })
       .slice(0, 3);
   }, [announcements]);
+
+  const workspace = useMemo(
+    () => buildRoleWorkspace(user?.role, data, navigate),
+    [user?.role, data, navigate],
+  );
 
   if (isLoading) {
     return (
@@ -132,26 +445,24 @@ export const DashboardPage = () => {
     );
   }
 
-  const capabilities = data?.capabilities || [];
-  const canManageFactories = capabilities.includes('manage_factories');
-  const canViewGatePasses = capabilities.includes('view_gate_passes')
-    || capabilities.includes('approve_gate_passes')
-    || capabilities.includes('verify_gate_passes');
-  const canApproveRequests = capabilities.includes('approve_requests');
-  const canModerateAds = capabilities.includes('moderate_advertisements') || capabilities.includes('manage_advertisements');
   const unpaidTotal = Number(data?.unpaidInvoiceTotal || 0);
   const unpaidCount = Number(data?.unpaidInvoiceCount || 0);
+  const showUnpaid = unpaidTotal > 0 && ['FACTORY_OWNER', 'PARK_MANAGER', 'SUPER_ADMIN'].includes(user?.role);
+  const showAds = feedItems.length > 0 && ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="page-toolbar">
-        <h1 className="text-xl font-bold text-foreground sm:text-2xl">{roleTitles[user?.role] || 'داشبورد'}</h1>
-        {user?.name && (
-          <span className="text-sm text-foreground-500">خوش آمدید، {user.name}</span>
-        )}
+        <div>
+          <h1 className="text-xl font-bold text-foreground sm:text-2xl">{roleTitles[user?.role] || 'داشبورد'}</h1>
+          <p className="mt-1 text-sm text-foreground-500">
+            {roleSubtitles[user?.role] || 'خلاصه وضعیت و دسترسی‌های شما'}
+            {user?.name ? ` — خوش آمدید، ${user.name}` : ''}
+          </p>
+        </div>
       </div>
 
-      {unpaidTotal > 0 && (
+      {showUnpaid && (
         <button
           type="button"
           onClick={() => navigate('/invoices')}
@@ -168,9 +479,34 @@ export const DashboardPage = () => {
         </button>
       )}
 
-      <HomeFeedSlider items={feedItems} />
+      {showAds && <HomeFeedSlider items={feedItems} />}
 
       {user?.role === 'SUPER_ADMIN' && <GatePassWalletSettingCard />}
+
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-base font-bold text-foreground">دسترسی‌های سریع نقش شما</h2>
+          <p className="text-xs text-foreground-500">فقط ابزارهای مرتبط با نقش فعلی نمایش داده می‌شود</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {workspace.actions.map((action) => (
+            <QuickAction key={action.title} {...action} />
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-bold text-foreground">شاخص‌های کاری</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {workspace.stats.map((stat) => (
+            <StatCard
+              key={`${stat.label}-${stat.index}`}
+              {...stat}
+              value={stat.value === '—' ? '—' : stat.value}
+            />
+          ))}
+        </div>
+      </section>
 
       {featuredAnnouncements.length > 0 && (
         <Card className="border border-default-200 shadow-sm rounded-2xl dark:border-white/10 animate-slide-up">
@@ -217,70 +553,6 @@ export const DashboardPage = () => {
           </CardContent>
         </Card>
       )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        <StatCard
-          index={0}
-          icon={Building2}
-          label="واحدهای صنعتی"
-          value={data?.factories ?? 0}
-          color="primary"
-          onClick={canManageFactories ? () => navigate('/admin/factories') : undefined}
-        />
-
-        <StatCard
-          index={1}
-          icon={Ticket}
-          label="برگ‌های خروج"
-          value={data?.gatePasses ?? 0}
-          color="success"
-          badge={data?.pendingWork?.gatePasses ? `${data.pendingWork.gatePasses} در انتظار` : undefined}
-          onClick={() => {
-            if (capabilities.includes('verify_gate_passes')) navigate('/guard/gate-passes');
-            else if (canViewGatePasses) navigate('/admin/gate-passes');
-            else navigate('/gate-passes');
-          }}
-        />
-
-        <StatCard
-          index={2}
-          icon={Receipt}
-          label="قبض‌ها"
-          value={data?.invoices ?? 0}
-          color="secondary"
-          onClick={() => navigate('/invoices')}
-        />
-
-        <StatCard
-          index={3}
-          icon={FileText}
-          label="درخواست‌ها"
-          value={data?.requests ?? 0}
-          color="warning"
-          badge={data?.pendingWork?.requests ? `${data.pendingWork.requests} در انتظار` : undefined}
-          onClick={canApproveRequests ? () => navigate('/admin/requests') : () => navigate('/requests')}
-        />
-
-        <StatCard
-          index={4}
-          icon={AlertTriangle}
-          label="هشدارهای اضطراری باز"
-          value={data?.openEmergencies ?? 0}
-          color="danger"
-          onClick={() => navigate('/emergency')}
-        />
-
-        {canModerateAds && (
-          <StatCard
-            index={5}
-            icon={Megaphone}
-            label="آگهی‌های در انتظار تایید"
-            value={data?.pendingWork?.advertisements ?? 0}
-            color="primary"
-            onClick={() => navigate(user?.role === 'SUPER_ADMIN' ? '/superadmin/advertisements' : '/admin/advertisements')}
-          />
-        )}
-      </div>
     </div>
   );
 };

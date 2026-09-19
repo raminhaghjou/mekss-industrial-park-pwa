@@ -4,6 +4,45 @@ const normalizeServerMessage = (message) => {
 };
 
 /**
+ * Known English (and a few Persian) API messages mapped to clear Persian UI copy.
+ * Matching is case-insensitive and ignores trailing punctuation.
+ */
+const SERVER_MESSAGE_FA = {
+  'a user with this phone number already exists':
+    'کاربری با این شماره تلفن قبلاً ثبت‌نام کرده است. لطفاً وارد شوید یا بازیابی رمز عبور را امتحان کنید.',
+  'user with this phone number already exists':
+    'کاربری با این شماره تلفن قبلاً ثبت‌نام کرده است. لطفاً وارد شوید یا بازیابی رمز عبور را امتحان کنید.',
+  'account is awaiting approval':
+    'حساب شما در انتظار تأیید مدیر است. پس از تأیید می‌توانید وارد شوید.',
+  'account not approved yet':
+    'حساب شما در انتظار تأیید مدیر است. پس از تأیید می‌توانید وارد شوید.',
+  'account is disabled':
+    'حساب کاربری شما غیرفعال شده است. با پشتیبانی سامانه تماس بگیرید.',
+  'invalid credentials':
+    'شماره تلفن یا رمز عبور نادرست است.',
+  'invalid phone number or password':
+    'شماره تلفن یا رمز عبور نادرست است.',
+  'phone number or password is incorrect':
+    'شماره تلفن یا رمز عبور نادرست است.',
+  'otp is invalid or expired':
+    'کد یک‌بارمصرف نامعتبر یا منقضی شده است.',
+  'invalid otp':
+    'کد یک‌بارمصرف نامعتبر است.',
+  'too many requests':
+    'تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.',
+};
+
+const localizeServerMessage = (message) => {
+  const normalized = normalizeServerMessage(message);
+  if (!normalized) return null;
+  const key = normalized.trim().replace(/[.!]+$/g, '').toLowerCase();
+  if (SERVER_MESSAGE_FA[key]) return SERVER_MESSAGE_FA[key];
+  // Already Persian (contains Arabic/Persian letters) — keep as-is.
+  if (/[\u0600-\u06FF]/.test(normalized)) return normalized;
+  return normalized;
+};
+
+/**
  * Persian guidance for the HTTP statuses management pages classify explicitly.
  * Used only as a last-resort fallback when the server did not return a usable
  * message; a specific server message always takes precedence.
@@ -46,8 +85,8 @@ export const classifyApiError = (error) => {
  * @returns {string}
  */
 export const getErrorMessage = (error, fallback) => {
-  const serverMessage = normalizeServerMessage(error?.response?.data?.message);
-  if (serverMessage) return serverMessage;
+  const localized = localizeServerMessage(error?.response?.data?.message);
+  if (localized) return localized;
 
   if (error?.code === 'ERR_CANCELED' || String(error?.message || '').startsWith('Offline:')) {
     return 'اتصال اینترنت برقرار نیست. پس از اتصال دوباره تلاش کنید.';
@@ -72,8 +111,8 @@ export const getErrorMessage = (error, fallback) => {
  * @returns {string}
  */
 export const getClassifiedErrorMessage = (error, fallback) => {
-  const serverMessage = normalizeServerMessage(error?.response?.data?.message);
-  if (serverMessage) return serverMessage;
+  const message = getErrorMessage(error, null);
+  if (message) return message;
 
   const kind = classifyApiError(error);
   if (kind === 'offline') return 'اتصال اینترنت برقرار نیست. پس از اتصال دوباره تلاش کنید.';

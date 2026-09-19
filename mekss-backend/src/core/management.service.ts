@@ -152,6 +152,9 @@ const MARKET_RATE_DEFAULTS: Record<MarketRateKey, { label: string; value: number
   ALUMINUM: { label: 'آلومینیوم', value: 0, unit: 'ریال/کیلو' },
   OIL: { label: 'نفت برنت', value: 0, unit: 'دلار/بشکه' },
   BITUMEN: { label: 'قیر', value: 0, unit: 'ریال/کیلو' },
+  USDT: { label: 'تتر (USDT)', value: 0, unit: 'ریال' },
+  BTC: { label: 'بیت‌کوین', value: 0, unit: 'ریال' },
+  ETH: { label: 'اتریوم', value: 0, unit: 'ریال' },
 };
 
 const SMS_REQUEST_CODE_MAP: Record<string, RequestType> = {
@@ -862,7 +865,17 @@ export class ManagementService {
     return item;
   }
 
-  async listGatePasses(user: AuthenticatedUser) { return this.prisma.gatePass.findMany({ where: { factoryId: { in: await this.factoryIds(user) } }, include: { factory: true }, orderBy: { createdAt: 'desc' } }); }
+  async listGatePasses(user: AuthenticatedUser) {
+    return this.prisma.gatePass.findMany({
+      where: { factoryId: { in: await this.factoryIds(user) } },
+      include: {
+        factory: { select: { id: true, name: true } },
+        verifiedBy: { select: { id: true, name: true } },
+        approvedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   private static readonly REQUIRE_GATE_PASS_WALLET_KEY = 'require_gate_pass_wallet';
   private static readonly INSUFFICIENT_WALLET_MESSAGE = 'موجودی کیف‌پول برگ خروج کافی نیست. ابتدا کیف‌پول واحد صنعتی را شارژ کنید.';
@@ -3576,48 +3589,137 @@ export class ManagementService {
     return { id: userId, rejected: true };
   }
 
+  private parseMarketNumber(raw: unknown): number | null {
+    if (raw == null) return null;
+    if (typeof raw === 'number') return Number.isFinite(raw) && raw > 0 ? raw : null;
+    const cleaned = String(raw).replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+    const value = Number(cleaned);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  private async fetchTgjuAjax(): Promise<Record<string, { p?: string | number }>> {
+    const hosts = [
+      'https://call5.tgju.org/ajax.json',
+      'https://call3.tgju.org/ajax.json',
+      'https://call1.tgju.org/ajax.json',
+    ];
+    for (const url of hosts) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'MEKSS-MarketRates/1.0',
+          },
+        });
+        if (!res.ok) continue;
+        const body = await res.json() as { current?: Record<string, { p?: string | number }> };
+        if (body?.current && typeof body.current === 'object') return body.current;
+      } catch {
+        /* try next host */
+      }
+    }
+    return {};
+  }
+
   private async refreshMarketRatesFromProviders(updatedById?: string): Promise<number> {
     const quotes: Partial<Record<MarketRateKey, number>> = {};
 
+    // Primary source: TGJU live board (Iranian market prices in Rial).
     try {
-      const fxRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,CNY');
-      if (fxRes.ok) {
-        const fx = await fxRes.json() as { rates?: Record<string, number> };
-        const existingUsd = await this.prisma.marketRate.findUnique({ where: { key: MarketRateKey.USD } });
-        const usdIrr = Number(existingUsd?.value) > 0 ? Number(existingUsd!.value) : 920000;
-        quotes.USD = usdIrr;
-        if (fx.rates?.EUR) quotes.EUR = Math.round(usdIrr / fx.rates.EUR);
-        if (fx.rates?.CNY) quotes.CNY = Math.round(usdIrr / fx.rates.CNY);
-      }
-    } catch { /* ignore */ }
+      const current = await this.fetchTgjuAjax();
+      const pick = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = this.parseMarketNumber(current[key]?.p);
+          if (value != null) return value;
+        }
+        return null;
+      };
 
-    try {
-      const metalsRes = await fetch('https://api.metals.live/v1/spot');
-      if (metalsRes.ok) {
-        const metals = await metalsRes.json() as Array<Record<string, number>>;
-        const map: Record<string, number> = {};
-        for (const row of metals) Object.assign(map, row);
-        const usdIrr = quotes.USD || 920000;
-        if (map.gold) quotes.GOLD = Math.round((map.gold / 31.1035) * usdIrr);
-        if (map.silver) quotes.SILVER = Math.round((map.silver / 31.1035) * usdIrr);
-        if (map.platinum) quotes.PLATINUM = Math.round((map.platinum / 31.1035) * usdIrr);
-        if (map.copper) quotes.COPPER = Math.round((map.copper / 1000) * usdIrr);
-      }
-    } catch { /* ignore */ }
+      const usd = pick('price_dollar_rl', 'price_dollar_dt');
+      const eur = pick('price_eur');
+      const cny = pick('price_cny');
+      const gold = pick('geram18');
+      const coin = pick('sekee', 'retail_sekee');
+      const silver = pick('silver_999', 'silver_925');
+      const usdt = pick('crypto-tether-irr');
+      const btc = pick('crypto-bitcoin-irr');
+      const eth = pick('crypto-ethereum-irr');
+      const oil = pick('oil_brent');
+      const copperUsdTon = pick('copper', 'base_global_copper');
+      const aluminumUsdTon = pick('base-us-aluminum');
+      const ironUsdTon = pick('base_global_iron_ore', 'base-us-iron-ore');
+      const bitumen = pick('commodity_bitumen');
+      const platinumUsdOz = pick('platinum');
 
-    try {
-      const oilRes = await fetch('https://api.metals.live/v1/spot/oil');
-      if (oilRes.ok) {
-        const oil = await oilRes.json() as { price?: number } | number;
-        const price = typeof oil === 'number' ? oil : oil.price;
-        if (price && Number.isFinite(price)) quotes.OIL = Number(price);
+      if (usd) quotes.USD = Math.round(usd);
+      if (eur) quotes.EUR = Math.round(eur);
+      if (cny) quotes.CNY = Math.round(cny);
+      if (gold) quotes.GOLD = Math.round(gold);
+      if (coin) quotes.COIN = Math.round(coin);
+      if (silver) quotes.SILVER = Math.round(silver);
+      if (usdt) quotes.USDT = Math.round(usdt);
+      if (btc) quotes.BTC = Math.round(btc);
+      if (eth) quotes.ETH = Math.round(eth);
+      if (oil) quotes.OIL = Number(oil);
+      // TGJU bitumen index is often a small commodity index; only trust large Rial-like values.
+      if (bitumen && bitumen >= 100_000) quotes.BITUMEN = Math.round(bitumen);
+
+      const usdIrr = quotes.USD || 0;
+      if (usdIrr > 0) {
+        if (copperUsdTon) quotes.COPPER = Math.round((copperUsdTon / 1000) * usdIrr);
+        if (aluminumUsdTon) quotes.ALUMINUM = Math.round((aluminumUsdTon / 1000) * usdIrr);
+        if (ironUsdTon) quotes.IRON = Math.round((ironUsdTon / 1000) * usdIrr);
+        if (platinumUsdOz) quotes.PLATINUM = Math.round((platinumUsdOz / 31.1035) * usdIrr);
+        if (bitumen && bitumen < 100_000) quotes.BITUMEN = Math.round((bitumen / 1000) * usdIrr);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* continue with fallbacks */
+    }
+
+    // Crypto fallback via CoinGecko (USD) × USD/IRR when TGJU crypto keys are missing.
+    if (!quotes.USDT || !quotes.BTC || !quotes.ETH) {
+      try {
+        const cgRes = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=tether,bitcoin,ethereum&vs_currencies=usd',
+        );
+        if (cgRes.ok) {
+          const cg = await cgRes.json() as Record<string, { usd?: number }>;
+          const existingUsd = await this.prisma.marketRate.findUnique({ where: { key: MarketRateKey.USD } });
+          const usdIrr = quotes.USD
+            || this.parseMarketNumber(existingUsd?.value != null ? String(existingUsd.value) : null)
+            || 0;
+          if (usdIrr > 0) {
+            if (!quotes.USDT && cg.tether?.usd) quotes.USDT = Math.round(cg.tether.usd * usdIrr);
+            if (!quotes.BTC && cg.bitcoin?.usd) quotes.BTC = Math.round(cg.bitcoin.usd * usdIrr);
+            if (!quotes.ETH && cg.ethereum?.usd) quotes.ETH = Math.round(cg.ethereum.usd * usdIrr);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Secondary FX fallback if TGJU was unreachable.
+    if (!quotes.USD || !quotes.EUR || !quotes.CNY) {
+      try {
+        const fxRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR,CNY');
+        if (fxRes.ok) {
+          const fx = await fxRes.json() as { rates?: Record<string, number> };
+          const existingUsd = await this.prisma.marketRate.findUnique({ where: { key: MarketRateKey.USD } });
+          const usdIrr = quotes.USD
+            || (Number(existingUsd?.value) > 0 ? Number(existingUsd!.value) : 0);
+          if (usdIrr > 0) {
+            quotes.USD = Math.round(usdIrr);
+            if (!quotes.EUR && fx.rates?.EUR) quotes.EUR = Math.round(usdIrr / fx.rates.EUR);
+            if (!quotes.CNY && fx.rates?.CNY) quotes.CNY = Math.round(usdIrr / fx.rates.CNY);
+          }
+        }
+      } catch { /* ignore */ }
+    }
 
     if (quotes.COPPER && !quotes.ALUMINUM) quotes.ALUMINUM = Math.round(quotes.COPPER * 0.55);
     if (quotes.COPPER && !quotes.IRON) quotes.IRON = Math.round(quotes.COPPER * 0.12);
     if (quotes.GOLD && !quotes.COIN) quotes.COIN = Math.round(quotes.GOLD * 8.13);
     if (quotes.IRON && !quotes.BITUMEN) quotes.BITUMEN = Math.round(quotes.IRON * 0.8);
+    if (quotes.USD && !quotes.USDT) quotes.USDT = quotes.USD;
 
     let updated = 0;
     for (const key of Object.keys(quotes) as MarketRateKey[]) {
@@ -3633,7 +3735,12 @@ export class ManagementService {
             value,
             updatedById: updatedById || null,
           },
-          update: { value, updatedById: updatedById || null },
+          update: {
+            value,
+            label: MARKET_RATE_DEFAULTS[key].label,
+            unit: MARKET_RATE_DEFAULTS[key].unit,
+            updatedById: updatedById || null,
+          },
         });
         await this.prisma.marketRateHistory.create({
           data: { key, value, marketRateId: row.id },

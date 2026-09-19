@@ -28,6 +28,7 @@ import {
   Label,
 } from '@heroui/react';
 import { Download, Pencil, Plus, Ticket } from 'lucide-react';
+import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 import { semanticFilter } from '../../utils/semanticSearch';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -207,7 +208,7 @@ export const GatePassesPage = () => {
                       return (
                         <TableRow key={pass.id} id={pass.id}>
                           <TableCell>{pass.driverName}</TableCell>
-                          <TableCell dir="ltr">{pass.licensePlate}</TableCell>
+                          <TableCell dir="ltr">{displayIranLicensePlate(pass.licensePlate)}</TableCell>
                           <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
                           <TableCell>
                             <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">

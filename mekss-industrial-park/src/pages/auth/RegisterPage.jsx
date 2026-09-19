@@ -32,6 +32,7 @@ export const RegisterPage = () => {
   const [factories, setFactories] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     publicApi.getParks().then((res) => setParks(res.data || [])).catch(() => setParks([]));
@@ -40,25 +41,36 @@ export const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
 
     if (!formData.name || !formData.phoneNumber || !formData.password) {
-      showNotification('لطفاً تمام فیلدها را پر کنید', 'error');
+      const msg = 'لطفاً تمام فیلدها را پر کنید';
+      setFormError(msg);
+      showNotification(msg, 'error');
       return;
     }
     if (formData.password.length < 8 || !/[A-Za-zآ-ی]/.test(formData.password) || !/\d/.test(formData.password)) {
-      showNotification('رمز عبور حداقل ۸ کاراکتر و شامل حرف و عدد باشد', 'error');
+      const msg = 'رمز عبور حداقل ۸ کاراکتر و شامل حرف و عدد باشد';
+      setFormError(msg);
+      showNotification(msg, 'error');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      showNotification('رمز عبور و تکرار آن یکسان نیستند', 'error');
+      const msg = 'رمز عبور و تکرار آن یکسان نیستند';
+      setFormError(msg);
+      showNotification(msg, 'error');
       return;
     }
     if (formData.role === 'FACTORY_OWNER' && !formData.parkId) {
-      showNotification('شهرک صنعتی را انتخاب کنید', 'error');
+      const msg = 'شهرک صنعتی را انتخاب کنید';
+      setFormError(msg);
+      showNotification(msg, 'error');
       return;
     }
     if (formData.role === 'EMPLOYEE' && !formData.factoryId) {
-      showNotification('واحد صنعتی را انتخاب کنید', 'error');
+      const msg = 'واحد صنعتی را انتخاب کنید';
+      setFormError(msg);
+      showNotification(msg, 'error');
       return;
     }
 
@@ -77,6 +89,7 @@ export const RegisterPage = () => {
       showNotification(result.message || 'ثبت‌نام ارسال شد و پس از تایید مدیر فعال می‌شود', 'success');
       navigate('/login');
     } else {
+      setFormError(result.error || 'ثبت‌نام ناموفق بود');
       showNotification(result.error || 'ثبت‌نام ناموفق بود', 'error');
     }
   };
@@ -94,6 +107,15 @@ export const RegisterPage = () => {
         />
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {formError ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
+            >
+              {formError}
+            </div>
+          ) : null}
+
           <label className="flex flex-col gap-1.5">
             <span className={authLabelClass}>نام و نام خانوادگی</span>
             <span className="relative block">

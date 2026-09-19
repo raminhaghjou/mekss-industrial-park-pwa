@@ -97,8 +97,8 @@ describe('VerifyGatePassPage', () => {
   });
 
   it('requires explicit confirmation before registering exit, and does not mutate on cancel', async () => {
-    await click(button('ثبت خروج'));
-    expect(document.body.textContent).toContain('12ب34567');
+    await click(button('تایید و ثبت خروج'));
+    expect(document.body.textContent).toContain('12 ب 345-67');
     expect(mocks.verifyGatePass).not.toHaveBeenCalled();
 
     await click(button('انصراف'));
@@ -106,8 +106,8 @@ describe('VerifyGatePassPage', () => {
   });
 
   it('verifies the exit only after the confirmation dialog is explicitly confirmed', async () => {
-    await click(button('ثبت خروج'));
-    const confirmButtons = [...document.querySelectorAll('button')].filter((el) => el.textContent?.trim() === 'ثبت خروج');
+    await click(button('تایید و ثبت خروج'));
+    const confirmButtons = [...document.querySelectorAll('button')].filter((el) => el.textContent?.trim() === 'تایید خروج');
     await click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => expect(mocks.verifyGatePass).toHaveBeenCalledTimes(1));
@@ -115,8 +115,8 @@ describe('VerifyGatePassPage', () => {
   });
 
   it('still requires a discrepancy reason before denying exit', async () => {
-    await click(button('اعلام مغایرت'));
-    const confirmDeny = button('ثبت مغایرت');
+    await click(button('رد / اعلام مغایرت'));
+    const confirmDeny = button('ثبت رد');
     expect(confirmDeny.disabled).toBe(true);
 
     const reasonField = document.querySelector('textarea');
@@ -127,8 +127,7 @@ describe('VerifyGatePassPage', () => {
     });
     await flush();
 
-    await click(button('ثبت مغایرت'));
+    await click(button('ثبت رد'));
     await waitFor(() => expect(mocks.denyGatePassExit).toHaveBeenCalledWith('pass-1', { reason: 'پلاک مطابقت ندارد' }));
   });
 });
-

@@ -18,6 +18,8 @@ import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
+import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
+import { gatePassStatusLabels } from '../../constants/persianLabels';
 
 const VerifyGatePassPage = () => {
   const { id } = useParams();
@@ -31,10 +33,12 @@ const VerifyGatePassPage = () => {
     queryFn: () => gatePassApi.getGatePass(id).then((res) => res.data),
   });
 
+  const plateLabel = displayIranLicensePlate(pass?.licensePlate || '');
+
   const verifyMutation = useMutation({
     mutationFn: () => gatePassApi.verifyGatePass(id),
     onSuccess: () => {
-      showNotification(`خروج خودرو با پلاک ${pass?.licensePlate} با موفقیت ثبت شد.`, 'success');
+      showNotification(`خروج خودرو با پلاک ${plateLabel} با موفقیت ثبت شد.`, 'success');
       setVerifyOpen(false);
       navigate('/guard/gate-passes');
     },
@@ -76,6 +80,7 @@ const VerifyGatePassPage = () => {
   }
 
   const canDecide = pass.status === 'PENDING' || pass.status === 'APPROVED';
+  const decisionAt = pass.verifiedAt || pass.updatedAt;
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
@@ -93,8 +98,14 @@ const VerifyGatePassPage = () => {
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">بررسی جزئیات و تایید خروج</h1>
-              <p className="text-xs text-foreground-500 mt-0.5">استعلام و تطبیق فیزیکی اطلاعات محموله در ورودی/خروجی نگهبانی</p>
+              <h1 className="text-xl font-bold text-foreground">
+                {canDecide ? 'بررسی جزئیات و تایید خروج' : 'جزئیات برگ خروج'}
+              </h1>
+              <p className="text-xs text-foreground-500 mt-0.5">
+                {canDecide
+                  ? 'استعلام و تطبیق فیزیکی اطلاعات محموله در ورودی/خروجی نگهبانی'
+                  : `وضعیت: ${gatePassStatusLabels[pass.status] || pass.status}`}
+              </p>
             </div>
           </div>
 
@@ -116,55 +127,77 @@ const VerifyGatePassPage = () => {
 
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
               <span className="text-xs text-foreground-500 font-medium">شماره پلاک</span>
-              <span className="font-bold text-foreground">{pass.licensePlate}</span>
+              <span className="font-bold text-foreground tracking-wide" dir="ltr">{plateLabel}</span>
+            </div>
+
+            <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
+              <span className="text-xs text-foreground-500 font-medium">وضعیت</span>
+              <span className="font-bold text-foreground">{gatePassStatusLabels[pass.status] || pass.status}</span>
+            </div>
+
+            <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
+              <span className="text-xs text-foreground-500 font-medium">زمان ثبت تصمیم</span>
+              <span className="font-bold text-foreground">
+                {decisionAt ? new Date(decisionAt).toLocaleString('fa-IR') : '—'}
+              </span>
             </div>
 
             <div className="sm:col-span-2 flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
               <span className="text-xs text-foreground-500 font-medium">توضیحات بار</span>
               <span className="font-semibold text-foreground leading-relaxed">{pass.cargoDescription || '—'}</span>
             </div>
+
+            {pass.notes ? (
+              <div className="sm:col-span-2 flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
+                <span className="text-xs text-foreground-500 font-medium">یادداشت / دلیل</span>
+                <span className="font-semibold text-foreground leading-relaxed">{pass.notes}</span>
+              </div>
+            ) : null}
           </div>
 
           <Separator />
 
-          <Alert status="accent">
-            <AlertIndicator><ShieldCheck className="h-5 w-5" /></AlertIndicator>
-            <AlertContent>
-              <AlertTitle>راهنمایی بررسی</AlertTitle>
-              <AlertDescription>
-                لطفاً اطلاعات فوق را دقیقاً با مشخصات راننده، خودرو و بار حاضر در گیت نگهبانی تطبیق دهید.
-              </AlertDescription>
-            </AlertContent>
-          </Alert>
+          {canDecide ? (
+            <>
+              <Alert status="accent">
+                <AlertIndicator><ShieldCheck className="h-5 w-5" /></AlertIndicator>
+                <AlertContent>
+                  <AlertTitle>راهنمایی بررسی</AlertTitle>
+                  <AlertDescription>
+                    لطفاً اطلاعات فوق را دقیقاً با مشخصات راننده، خودرو و بار حاضر در گیت نگهبانی تطبیق دهید.
+                  </AlertDescription>
+                </AlertContent>
+              </Alert>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
-            <Button
-              variant="primary"
-              size="lg"
-              onPress={() => setVerifyOpen(true)}
-              isDisabled={verifyMutation.isPending || !canDecide}
-              className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20 flex items-center gap-2"
-            >
-              {verifyMutation.isPending ? <Spinner size="sm" /> : <CheckCircle2 className="h-5 w-5" />}
-              تایید و ثبت خروج
-            </Button>
-            <Button
-              variant="secondary"
-              size="lg"
-              onPress={() => setDenyOpen(true)}
-              isDisabled={!canDecide}
-              className="rounded-2xl font-bold px-8 flex items-center gap-2"
-            >
-              <AlertTriangle className="h-5 w-5" />
-              رد / اعلام مغایرت
-            </Button>
-          </div>
-
-          {!canDecide && (
+              <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  onPress={() => setVerifyOpen(true)}
+                  isDisabled={verifyMutation.isPending}
+                  className="rounded-2xl text-white font-bold px-8 shadow-md shadow-success/20 flex items-center gap-2"
+                >
+                  {verifyMutation.isPending ? <Spinner size="sm" /> : <CheckCircle2 className="h-5 w-5" />}
+                  تایید و ثبت خروج
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  onPress={() => setDenyOpen(true)}
+                  className="rounded-2xl font-bold px-8 flex items-center gap-2"
+                >
+                  <AlertTriangle className="h-5 w-5" />
+                  رد / اعلام مغایرت
+                </Button>
+              </div>
+            </>
+          ) : (
             <Alert status="warning" className="mt-2">
               <AlertContent>
-                <AlertTitle>هشدار عدم امکان خروج</AlertTitle>
-                <AlertDescription>این برگ خروج در وضعیت قابل تایید نیست.</AlertDescription>
+                <AlertTitle>این برگ خروج قبلاً رسیدگی شده</AlertTitle>
+                <AlertDescription>
+                  وضعیت فعلی قابل تایید یا رد مجدد نیست. جزئیات کامل در بالا نمایش داده شده است.
+                </AlertDescription>
               </AlertContent>
             </Alert>
           )}
@@ -174,7 +207,7 @@ const VerifyGatePassPage = () => {
       <ConfirmDialog
         open={verifyOpen}
         title="تایید خروج"
-        description={`با تایید این عملیات، خروج خودرو با پلاک «${pass.licensePlate}» ثبت نهایی می‌شود. آیا اطمینان دارید؟`}
+        description={`با تایید این عملیات، خروج خودرو با پلاک «${plateLabel}» ثبت نهایی می‌شود. آیا اطمینان دارید؟`}
         confirmLabel="تایید خروج"
         confirmColor="primary"
         loading={verifyMutation.isPending}

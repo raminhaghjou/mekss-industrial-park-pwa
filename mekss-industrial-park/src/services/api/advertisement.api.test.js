@@ -17,7 +17,7 @@ describe('advertisement API contract', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('preserves public and legacy reads while using paginated managed list/detail routes', () => {
-    advertisementApi.getPublicAdvertisements();
+    advertisementApi.getPublicAdvertisements({ view: 'fresh' });
     advertisementApi.getMyAdvertisements();
     advertisementApi.getMyAdvertisement('ad_1');
     advertisementApi.getCreationScope();
@@ -27,7 +27,7 @@ describe('advertisement API contract', () => {
     advertisementApi.getManagedAdvertisement('ad_1');
 
     expect(mocks.get.mock.calls).toEqual([
-      ['/advertisements'],
+      ['/advertisements', { params: { view: 'fresh' } }],
       ['/advertisements/mine'],
       ['/advertisements/mine/ad_1'],
       ['/advertisements/creation-scope'],
@@ -43,12 +43,12 @@ describe('advertisement API contract', () => {
     advertisementApi.createAdvertisement(payload);
     advertisementApi.updateMyAdvertisement('ad_1', payload);
     advertisementApi.deleteMyAdvertisement('ad_1');
-    advertisementApi.approveAdvertisement('ad_1');
+    advertisementApi.approveAdvertisement('ad_1', true);
     advertisementApi.rejectAdvertisement('ad_2', 'دلیل معتبر');
 
     expect(mocks.post.mock.calls).toEqual([
       ['/advertisements', payload],
-      ['/advertisements/ad_1/approve', { approved: true }],
+      ['/advertisements/ad_1/approve', { approved: true, promoteFeatured: true }],
       ['/advertisements/ad_2/approve', { approved: false, rejectionReason: 'دلیل معتبر' }],
     ]);
     expect(mocks.put.mock.calls).toEqual([['/advertisements/mine/ad_1', payload]]);

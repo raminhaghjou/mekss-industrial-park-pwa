@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -14,6 +15,7 @@ import { userApi } from '../../services/api/user.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { useAuth } from '../../providers/AuthProvider';
+import { StaffAccessLevelPicker } from '../../components/staff/StaffAccessLevelPicker';
 
 const roleLabels = {
   FACTORY_OWNER: 'مالک واحد صنعتی',
@@ -24,6 +26,7 @@ export const PendingRegistrationsPage = () => {
   const { user } = useAuth();
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
+  const [accessByUser, setAccessByUser] = useState({});
 
   const { data = [], isLoading, isError, error } = useQuery({
     queryKey: ['users', 'pending-registrations'],
@@ -31,7 +34,7 @@ export const PendingRegistrationsPage = () => {
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id) => userApi.approveRegistration(id),
+    mutationFn: ({ id, canApproveRequestTypes }) => userApi.approveRegistration(id, { canApproveRequestTypes }),
     onSuccess: () => {
       showNotification('ثبت‌نام تایید شد', 'success');
       queryClient.invalidateQueries({ queryKey: ['users', 'pending-registrations'] });
@@ -97,6 +100,14 @@ export const PendingRegistrationsPage = () => {
                   {item.requestedPark?.name ? ` · شهرک ${item.requestedPark.name}` : ''}
                   {item.employeeOfFactory?.name ? ` · واحد ${item.employeeOfFactory.name}` : ''}
                 </p>
+                {item.role === 'EMPLOYEE' && user?.role === 'FACTORY_OWNER' && (
+                  <div className="mt-3 rounded-xl border border-default-200 p-3">
+                    <StaffAccessLevelPicker
+                      value={accessByUser[item.id] || []}
+                      onChange={(types) => setAccessByUser((prev) => ({ ...prev, [item.id]: types }))}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -104,7 +115,10 @@ export const PendingRegistrationsPage = () => {
                   variant="primary"
                   className="font-bold"
                   isDisabled={approveMutation.isPending || rejectMutation.isPending}
-                  onPress={() => approveMutation.mutate(item.id)}
+                  onPress={() => approveMutation.mutate({
+                    id: item.id,
+                    canApproveRequestTypes: item.role === 'EMPLOYEE' ? (accessByUser[item.id] || []) : undefined,
+                  })}
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   تایید

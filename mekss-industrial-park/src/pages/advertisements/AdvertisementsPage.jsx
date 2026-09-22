@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Chip } from '@heroui/react';
-import { Plus, Megaphone, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Megaphone, Pencil, Trash2, ExternalLink, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -28,6 +29,12 @@ export const AdvertisementsPage = () => {
     queryFn: () => advertisementApi.getMyAdvertisements().then((res) => res.data),
   });
 
+  const featuredMutation = useMutation({
+    mutationFn: (id) => advertisementApi.requestFeatured(id),
+    onSuccess: (res) => showNotification(res.data?.message || 'درخواست جایگاه ویژه ثبت شد', 'success'),
+    onError: (err) => showNotification(getErrorMessage(err, 'درخواست ویژه ناموفق بود'), 'error'),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id) => advertisementApi.deleteMyAdvertisement(id),
     onSuccess: async () => {
@@ -49,10 +56,16 @@ export const AdvertisementsPage = () => {
             تا قبل از تایید مدیریت می‌توانید آگهی را ویرایش یا حذف کنید.
           </p>
         </div>
-        <Button variant="primary" onPress={() => navigate('/advertisements/new')} className="flex w-full items-center justify-center gap-2 sm:w-auto">
-          <Plus className="h-4 w-4" />
-          ثبت آگهی جدید
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Link to="/ads" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-default-200 px-4 text-sm font-medium">
+            <ExternalLink className="h-4 w-4" />
+            دیوار آگهی
+          </Link>
+          <Button variant="primary" onPress={() => navigate('/advertisements/new')} className="flex w-full items-center justify-center gap-2 sm:w-auto">
+            <Plus className="h-4 w-4" />
+            ثبت آگهی جدید
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -112,6 +125,18 @@ export const AdvertisementsPage = () => {
                     <p className="rounded-xl bg-danger-50 px-3 py-2 text-xs text-danger-700 dark:bg-danger-950/40">
                       دلیل رد: {ad.rejectionReason}
                     </p>
+                  )}
+                  {ad.status === 'APPROVED' && !ad.isFeatured && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-xl font-medium gap-1.5"
+                      isDisabled={featuredMutation.isPending}
+                      onPress={() => featuredMutation.mutate(ad.id)}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      درخواست جایگاه ویژه (پرداخت)
+                    </Button>
                   )}
                   {pending && (
                     <div className="flex flex-wrap gap-2 pt-1">

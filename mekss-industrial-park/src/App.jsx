@@ -16,6 +16,8 @@ const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
 const LandingPage = lazy(() => import('./pages/public/LandingPage'));
+const AdsWallPage = lazy(() => import('./pages/advertisements/AdsWallPage'));
+const FeedbackPage = lazy(() => import('./pages/feedback/FeedbackPage'));
 const FactoryDirectoryPage = lazy(() => import('./pages/public/FactoryDirectoryPage'));
 const FactoryPublicDetailPage = lazy(() => import('./pages/public/FactoryPublicDetailPage'));
 const ShopsPage = lazy(() => import('./pages/public/ShopsPage'));
@@ -35,6 +37,7 @@ const InvoicePaymentPage = lazy(() => import('./pages/invoices/InvoicePaymentPag
 const MessagesPage = lazy(() => import('./pages/messages/MessagesPage'));
 const RequestsPage = lazy(() => import('./pages/requests/RequestsPage'));
 const NewRequestPage = lazy(() => import('./pages/requests/NewRequestPage'));
+const RequestToolsPage = lazy(() => import('./pages/requests/RequestToolsPage'));
 const AnnouncementsPage = lazy(() => import('./pages/announcements/AnnouncementsPage'));
 const AdvertisementsPage = lazy(() => import('./pages/advertisements/AdvertisementsPage'));
 const NewAdvertisementPage = lazy(() => import('./pages/advertisements/NewAdvertisementPage'));
@@ -56,6 +59,7 @@ const GuardEmergencyPage = lazy(() => import('./pages/guard/GuardEmergencyPage')
 const ManageParksPage = lazy(() => import('./pages/superadmin/ManageParksPage'));
 const ManageUsersPage = lazy(() => import('./pages/superadmin/ManageUsersPage'));
 const SuperAdminAdsPage = lazy(() => import('./pages/superadmin/SuperAdminAdsPage'));
+const ManageAdCategoriesPage = lazy(() => import('./pages/superadmin/ManageAdCategoriesPage'));
 const SmsConfigPage = lazy(() => import('./pages/superadmin/SmsConfigPage'));
 
 const queryClient = new QueryClient({ 
@@ -87,6 +91,7 @@ function AppRoutes() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/ads" element={<AdsWallPage />} />
       <Route path="/directory" element={<FactoryDirectoryPage />} />
       <Route path="/directory/:id" element={<FactoryPublicDetailPage />} />
       <Route path="/shops" element={<ShopsPage />} />
@@ -108,6 +113,7 @@ function AppRoutes() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="about" element={<AboutPage />} />
+        <Route path="feedback" element={<FeedbackPage />} />
         
         <Route path="factory/register" element={
           <RoleRoute roles={['FACTORY_OWNER']}>
@@ -152,6 +158,11 @@ function AppRoutes() {
         <Route path="requests/new/:type" element={
           <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE']}>
             <NewRequestPage />
+          </RoleRoute>
+        } />
+        <Route path="requests/tools" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE']}>
+            <RequestToolsPage />
           </RoleRoute>
         } />
         
@@ -267,6 +278,11 @@ function AppRoutes() {
         <Route path="superadmin/advertisements" element={
           <RoleRoute roles={['SUPER_ADMIN']}>
             <SuperAdminAdsPage />
+          </RoleRoute>
+        } />
+        <Route path="superadmin/ad-categories" element={
+          <RoleRoute roles={['SUPER_ADMIN']}>
+            <ManageAdCategoriesPage />
           </RoleRoute>
         } />
         <Route path="superadmin/sms-config" element={

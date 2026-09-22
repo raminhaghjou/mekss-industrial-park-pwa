@@ -46,6 +46,7 @@ export const requestPriorityLabels = {
 
 export const invoiceStatusLabels = {
   PENDING: 'پرداخت نشده',
+  AWAITING_CONFIRMATION: 'در انتظار تایید مدیر شهرک',
   PAID: 'پرداخت شده',
   OVERDUE: 'سررسید گذشته',
   CANCELLED: 'لغو شده',

@@ -1,31 +1,63 @@
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell,
-  Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Button,
+  Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Button, Input, Label,
 } from '@heroui/react';
-import { CreditCard, Receipt } from 'lucide-react';
-import { invoiceApi } from '../../services/api/invoice.api';
+import { CreditCard, Printer, Receipt } from 'lucide-react';
+import { invoiceApi, printInvoicePayload } from '../../services/api/invoice.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { useAuth } from '../../providers/AuthProvider';
+import { invoiceStatusLabels } from '../../constants/persianLabels';
+import { useNotification } from '../../providers/NotificationProvider';
 
-const statusColors = { PENDING: 'warning', PAID: 'success', OVERDUE: 'danger', CANCELLED: 'default' };
-const statusLabels = { PENDING: 'پرداخت نشده', PAID: 'پرداخت شده', OVERDUE: 'سررسید گذشته', CANCELLED: 'لغو شده' };
+const statusColors = {
+  PENDING: 'warning',
+  AWAITING_CONFIRMATION: 'accent',
+  PAID: 'success',
+  OVERDUE: 'danger',
+  CANCELLED: 'default',
+};
 const canPayRoles = new Set(['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER']);
 
 export const InvoicesPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showNotification } = useNotification();
   const canPay = canPayRoles.has(user?.role);
+  const [status, setStatus] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+
+  const params = useMemo(() => ({
+    scope: 'payable',
+    ...(status ? { status } : {}),
+    ...(fromDate ? { fromDate } : {}),
+    ...(toDate ? { toDate } : {}),
+    ...(minAmount !== '' ? { minAmount: Number(minAmount) } : {}),
+    ...(maxAmount !== '' ? { maxAmount: Number(maxAmount) } : {}),
+  }), [status, fromDate, toDate, minAmount, maxAmount]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['invoices', 'payable'],
-    queryFn: () => invoiceApi.getInvoices({ scope: 'payable' }).then((res) => res.data),
+    queryKey: ['invoices', 'payable', params],
+    queryFn: () => invoiceApi.getInvoices(params).then((res) => res.data),
   });
 
   const invoices = data || [];
+
+  const handlePrint = async (id) => {
+    try {
+      const { data: payload } = await invoiceApi.getInvoicePdf(id);
+      printInvoicePayload(payload);
+    } catch (err) {
+      showNotification(getErrorMessage(err, 'دریافت قبض برای پرینت ناموفق بود'), 'error');
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -39,6 +71,36 @@ export const InvoicesPage = () => {
             : 'صورتحساب‌های واحد صنعتی شما برای پرداخت'}
         </p>
       </div>
+
+      <Card className="rounded-2xl border border-default-200">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">وضعیت</Label>
+            <select className="rounded-xl border border-default-200 bg-background px-3 py-2 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">همه</option>
+              {Object.entries(invoiceStatusLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">از تاریخ</Label>
+            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">تا تاریخ</Label>
+            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">حداقل مبلغ</Label>
+            <Input type="number" dir="ltr" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">حداکثر مبلغ</Label>
+            <Input type="number" dir="ltr" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="rounded-xl" />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-0">
@@ -99,23 +161,27 @@ export const InvoicesPage = () => {
                       </TableCell>
                       <TableCell>
                         <Chip color={statusColors[invoice.status] || 'default'} size="sm" variant="soft">
-                          {statusLabels[invoice.status] || invoice.status}
+                          {invoiceStatusLabels[invoice.status] || invoice.status}
                         </Chip>
                       </TableCell>
                       <TableCell>
-                        {canPay && unpaid ? (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            className="rounded-xl font-medium gap-1"
-                            onPress={() => navigate(`/invoices/pay/${invoice.id}`)}
-                          >
-                            <CreditCard className="h-3.5 w-3.5" />
-                            پرداخت
+                        <div className="flex flex-wrap gap-1">
+                          <Button size="sm" variant="tertiary" className="rounded-xl gap-1" onPress={() => handlePrint(invoice.id)}>
+                            <Printer className="h-3.5 w-3.5" />
+                            PDF
                           </Button>
-                        ) : (
-                          <span className="text-xs text-foreground-400">—</span>
-                        )}
+                          {canPay && unpaid ? (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              className="rounded-xl font-medium gap-1"
+                              onPress={() => navigate(`/invoices/pay/${invoice.id}`)}
+                            >
+                              <CreditCard className="h-3.5 w-3.5" />
+                              پرداخت
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

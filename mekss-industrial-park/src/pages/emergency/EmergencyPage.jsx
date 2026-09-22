@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -53,15 +54,31 @@ const statusLabel = {
 };
 
 const emptyForm = { title: '', description: '', severity: 'HIGH', parkId: '' };
+const firePreset = {
+  title: 'اعلام آتش‌سوزی',
+  description: 'آتش‌سوزی گزارش شده — نیروی امداد و نگهبانی شهرک را مطلع کنید.',
+  severity: 'CRITICAL',
+};
 
 export const EmergencyPage = () => {
+  const location = useLocation();
   const { user } = useAuth();
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [fireSecondConfirmOpen, setFireSecondConfirmOpen] = useState(false);
+  const [isFireAlert, setIsFireAlert] = useState(false);
+  const [geoLocation, setGeoLocation] = useState(null);
 
   const canCreate = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD'].includes(user?.role);
+
+  useEffect(() => {
+    if (location.state?.quickFire && canCreate) {
+      setForm((prev) => ({ ...prev, ...firePreset }));
+      setIsFireAlert(true);
+    }
+  }, [location.state?.quickFire, canCreate]);
   const canResolve = ['SUPER_ADMIN', 'PARK_MANAGER'].includes(user?.role);
   const canAcknowledge = ['SUPER_ADMIN', 'PARK_MANAGER', 'SECURITY_GUARD'].includes(user?.role);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
@@ -122,6 +139,18 @@ export const EmergencyPage = () => {
     [alerts],
   );
 
+  const captureLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setGeoLocation({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      }),
+      () => showNotification('دریافت موقعیت مکانی ممکن نشد', 'warning'),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
   const openConfirm = () => {
     if (!form.title.trim() || !form.description.trim()) {
       showNotification('عنوان و توضیحات هشدار الزامی است', 'error');
@@ -131,6 +160,7 @@ export const EmergencyPage = () => {
       showNotification('انتخاب شهرک صنعتی الزامی است', 'error');
       return;
     }
+    captureLocation();
     setConfirmOpen(true);
   };
 
@@ -140,7 +170,26 @@ export const EmergencyPage = () => {
       description: form.description.trim(),
       severity: form.severity,
       parkId: form.parkId || undefined,
+      location: geoLocation || undefined,
     });
+    setFireSecondConfirmOpen(false);
+    setIsFireAlert(false);
+  };
+
+  const handleFirstConfirm = () => {
+    setConfirmOpen(false);
+    if (isFireAlert || form.severity === 'CRITICAL') {
+      setFireSecondConfirmOpen(true);
+      return;
+    }
+    submitEmergency();
+  };
+
+  const startFireAlert = () => {
+    setForm((prev) => ({ ...prev, ...firePreset }));
+    setIsFireAlert(true);
+    captureLocation();
+    setConfirmOpen(true);
   };
 
   return (
@@ -240,15 +289,31 @@ export const EmergencyPage = () => {
                 </AlertDescription>
               </AlertContent>
             </Alert>
-            <Button
-              variant="danger"
-              className="flex items-center gap-2 self-start rounded-xl font-bold"
-              onPress={openConfirm}
-              isDisabled={createMutation.isPending}
-            >
-              <ShieldAlert className="h-4 w-4" />
-              ارسال هشدار اضطراری
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                className="flex items-center gap-2 rounded-xl font-bold"
+                onPress={startFireAlert}
+                isDisabled={createMutation.isPending}
+              >
+                <Siren className="h-4 w-4" />
+                اعلام آتش‌سوزی (دو مرحله‌ای)
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex items-center gap-2 rounded-xl font-bold"
+                onPress={openConfirm}
+                isDisabled={createMutation.isPending}
+              >
+                <ShieldAlert className="h-4 w-4" />
+                ارسال هشدار اضطراری
+              </Button>
+            </div>
+            {geoLocation && (
+              <p className="text-xs text-foreground-500" dir="ltr">
+                موقعیت ثبت‌شده: {geoLocation.latitude.toFixed(5)}, {geoLocation.longitude.toFixed(5)}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -329,13 +394,23 @@ export const EmergencyPage = () => {
 
       <ConfirmDialog
         open={confirmOpen}
-        title="تأیید ارسال هشدار اضطراری"
-        description="این اقدام برای همه افراد شهرک آژیر، نوتیفیکیشن و پیامک ارسال می‌کند. فقط در حوادث واقعی استفاده کنید."
-        confirmLabel="ارسال هشدار"
+        title={isFireAlert ? 'مرحله ۱ — اعلام حریق' : 'تأیید ارسال هشدار اضطراری'}
+        description="این اقدام برای همه افراد شهرک آژیر، نوتیفیکیشن و پیامک (شامل نگهبانی با موقعیت و تماس مدیر) ارسال می‌کند."
+        confirmLabel="ادامه"
+        confirmColor="danger"
+        loading={createMutation.isPending}
+        onConfirm={handleFirstConfirm}
+        onClose={() => setConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={fireSecondConfirmOpen}
+        title="مرحله ۲ — تأیید نهایی حریق"
+        description="آیا از صحت اعلام آتش‌سوزی/امداد مطمئن هستید؟ این پیامک شامل شماره مدیر واحد و موقعیت GPS برای نگهبانی است."
+        confirmLabel="ارسال قطعی"
         confirmColor="danger"
         loading={createMutation.isPending}
         onConfirm={submitEmergency}
-        onClose={() => setConfirmOpen(false)}
+        onClose={() => setFireSecondConfirmOpen(false)}
       />
     </div>
   );

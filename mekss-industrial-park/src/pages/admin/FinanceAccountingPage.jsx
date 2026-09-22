@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -26,8 +26,9 @@ import {
   TriangleAlert,
   Wallet,
   Bell,
+  Printer,
 } from 'lucide-react';
-import { invoiceApi } from '../../services/api/invoice.api';
+import { invoiceApi, printInvoicePayload } from '../../services/api/invoice.api';
 import { messageApi } from '../../services/api/message.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -36,6 +37,7 @@ import { invoiceStatusLabels } from '../../constants/persianLabels';
 
 const statusColors = {
   PENDING: 'warning',
+  AWAITING_CONFIRMATION: 'accent',
   PAID: 'success',
   OVERDUE: 'danger',
   CANCELLED: 'default',
@@ -55,11 +57,34 @@ export const FinanceAccountingPage = () => {
   const [tab, setTab] = useState('unpaid');
   const [composeFor, setComposeFor] = useState(null);
   const [compose, setCompose] = useState({ subject: '', body: '' });
+  const [statusFilter, setStatusFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+
+  const listParams = useMemo(() => ({
+    scope: 'managed',
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(fromDate ? { fromDate } : {}),
+    ...(toDate ? { toDate } : {}),
+    ...(minAmount !== '' ? { minAmount: Number(minAmount) } : {}),
+    ...(maxAmount !== '' ? { maxAmount: Number(maxAmount) } : {}),
+  }), [statusFilter, fromDate, toDate, minAmount, maxAmount]);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['invoices', 'managed'],
-    queryFn: () => invoiceApi.getInvoices({ scope: 'managed' }).then((res) => res.data || []),
+    queryKey: ['invoices', 'managed', listParams],
+    queryFn: () => invoiceApi.getInvoices(listParams).then((res) => res.data || []),
   });
+
+  const handlePrint = useCallback(async (id) => {
+    try {
+      const { data: payload } = await invoiceApi.getInvoicePdf(id);
+      printInvoicePayload(payload);
+    } catch (err) {
+      showNotification(getErrorMessage(err, 'دریافت قبض برای پرینت ناموفق بود'), 'error');
+    }
+  }, [showNotification]);
 
   const invoices = data || [];
 
@@ -119,6 +144,16 @@ export const FinanceAccountingPage = () => {
     onError: (err) => showNotification(getErrorMessage(err, 'ارسال پیام ناموفق بود'), 'error'),
   });
 
+  const confirmPaymentMutation = useMutation({
+    mutationFn: (id) => invoiceApi.confirmPayment(id),
+    onSuccess: () => {
+      showNotification('پرداخت قبض تایید شد', 'success');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'تایید پرداخت ناموفق بود'), 'error'),
+  });
+
   const openCompose = (unit) => {
     if (!unit.managerId) {
       showNotification('مدیر این واحد برای پیام‌رسانی یافت نشد', 'error');
@@ -168,6 +203,36 @@ export const FinanceAccountingPage = () => {
           </Button>
         </div>
       </div>
+
+      <Card className="rounded-2xl border border-default-200">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">وضعیت</Label>
+            <select className="rounded-xl border border-default-200 bg-background px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">همه</option>
+              {Object.entries(invoiceStatusLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">از تاریخ</Label>
+            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">تا تاریخ</Label>
+            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">حداقل مبلغ</Label>
+            <Input type="number" dir="ltr" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">حداکثر مبلغ</Label>
+            <Input type="number" dir="ltr" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="rounded-xl" />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
@@ -344,6 +409,10 @@ export const FinanceAccountingPage = () => {
                         </p>
                       </div>
                       <div className="text-start sm:text-end">
+                        <Button size="sm" variant="tertiary" className="mb-1 gap-1 rounded-xl" onPress={() => handlePrint(inv.id)}>
+                          <Printer className="h-3.5 w-3.5" />
+                          PDF
+                        </Button>
                         <p className="font-bold text-foreground">
                           {formatRial(inv.payableAmount ?? inv.totalAmount)}
                         </p>
@@ -351,6 +420,17 @@ export const FinanceAccountingPage = () => {
                           <p className="text-[11px] text-danger-600">
                             شامل جریمه {formatRial(inv.latePenaltyAmount)}
                           </p>
+                        )}
+                        {inv.status === 'AWAITING_CONFIRMATION' && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            className="mt-2 font-bold"
+                            isDisabled={confirmPaymentMutation.isPending}
+                            onPress={() => confirmPaymentMutation.mutate(inv.id)}
+                          >
+                            تایید پرداخت
+                          </Button>
                         )}
                       </div>
                     </li>

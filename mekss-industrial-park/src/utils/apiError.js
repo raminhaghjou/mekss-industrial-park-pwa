@@ -13,17 +13,21 @@ const SERVER_MESSAGE_FA = {
   'user with this phone number already exists':
     'کاربری با این شماره تلفن قبلاً ثبت‌نام کرده است. لطفاً وارد شوید یا بازیابی رمز عبور را امتحان کنید.',
   'account is awaiting approval':
-    'حساب شما در انتظار تأیید مدیر است. پس از تأیید می‌توانید وارد شوید.',
+    'کاربری شما تایید نگردیده است',
   'account not approved yet':
-    'حساب شما در انتظار تأیید مدیر است. پس از تأیید می‌توانید وارد شوید.',
+    'کاربری شما تایید نگردیده است',
+  'کاربری شما تایید نگردیده است':
+    'کاربری شما تایید نگردیده است',
   'account is disabled':
     'حساب کاربری شما غیرفعال شده است. با پشتیبانی سامانه تماس بگیرید.',
   'invalid credentials':
-    'شماره تلفن یا رمز عبور نادرست است.',
-  'invalid phone number or password':
-    'شماره تلفن یا رمز عبور نادرست است.',
-  'phone number or password is incorrect':
-    'شماره تلفن یا رمز عبور نادرست است.',
+    'نام کاربری/شماره تلفن یا رمز عبور نادرست است.',
+  'phoneNumber or username is required':
+    'نام کاربری یا شماره تلفن را وارد کنید.',
+  'provide either phonenumber or username, not both':
+    'فقط یکی از نام کاربری یا شماره تلفن را وارد کنید.',
+  'temporary password sent via sms':
+    'رمز موقت همراه با نام کاربری برای شما پیامک شد.',
   'otp is invalid or expired':
     'کد یک‌بارمصرف نامعتبر یا منقضی شده است.',
   'invalid otp':

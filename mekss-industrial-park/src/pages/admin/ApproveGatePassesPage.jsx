@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Button } from '@heroui/react';
-import { Ticket, CheckCircle2, XCircle, Clock3, User, Car, CalendarClock } from 'lucide-react';
+import {
+  Card, CardContent, Chip, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Button, Input, Label,
+} from '@heroui/react';
+import { Ticket, CheckCircle2, XCircle, Clock3, User, Car, CalendarClock, Download } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -46,13 +48,47 @@ const statusTone = {
   EXPIRED: { chip: 'default', bar: 'bg-default-400', icon: Clock3 },
 };
 
+const exportCsv = (rows) => {
+  const header = ['واحد', 'راننده', 'کدملی', 'پلاک', 'نوع بار', 'وضعیت', 'صادرکننده', 'نگهبان', 'زمان تایید'];
+  const lines = rows.map((pass) => [
+    pass.factory?.name || '',
+    pass.driverName || '',
+    pass.driverNationalId || '',
+    pass.licensePlate || '',
+    pass.cargoType || '',
+    displayStatus(pass.status),
+    pass.createdBy?.name || '',
+    pass.verifiedBy?.name || '',
+    pass.verifiedAt ? new Date(pass.verifiedAt).toLocaleString('fa-IR') : '',
+  ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+  const csv = `\uFEFF${[header.join(','), ...lines].join('\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `park-gate-passes-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 /** Park manager view-only list — no approve/reject actions. */
 export const ApproveGatePassesPage = () => {
   const [tab, setTab] = useState('pending');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [nationalId, setNationalId] = useState('');
+  const [plate, setPlate] = useState('');
+  const [cargoType, setCargoType] = useState('');
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ['gate-passes', 'managed'],
-    queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
+    queryKey: ['gate-passes', 'managed', fromDate, toDate, nationalId, plate, cargoType],
+    queryFn: () => gatePassApi.getGatePasses({
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+      driverNationalId: nationalId || undefined,
+      licensePlate: plate || undefined,
+      cargoType: cargoType || undefined,
+    }).then((res) => res.data),
     refetchOnMount: 'always',
   });
 
@@ -76,12 +112,48 @@ export const ApproveGatePassesPage = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">برگ‌های خروج</h1>
-        <p className="text-sm text-foreground-500 mt-1">
-          مشاهده وضعیت برگ‌های خروج — تایید فقط توسط نگهبان انجام می‌شود.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">برگ‌های خروج</h1>
+          <p className="text-sm text-foreground-500 mt-1">
+            مشاهده وضعیت برگ‌های خروج — تایید فقط توسط نگهبان انجام می‌شود.
+          </p>
+        </div>
+        <Button
+          variant="tertiary"
+          className="gap-2 rounded-xl"
+          onPress={() => exportCsv(filteredPasses)}
+          isDisabled={!filteredPasses.length}
+        >
+          <Download className="h-4 w-4" />
+          خروجی / پرینت CSV
+        </Button>
       </div>
+
+      <Card className="rounded-2xl border border-default-200 dark:border-white/10">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">از تاریخ</Label>
+            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">تا تاریخ</Label>
+            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">کد ملی راننده</Label>
+            <Input dir="ltr" value={nationalId} onChange={(e) => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 10))} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">پلاک</Label>
+            <Input dir="ltr" value={plate} onChange={(e) => setPlate(e.target.value)} className="rounded-xl" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">نوع بار</Label>
+            <Input value={cargoType} onChange={(e) => setCargoType(e.target.value)} placeholder="RAW_MATERIALS..." className="rounded-xl" />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {TABS.map((item) => {
@@ -147,6 +219,10 @@ export const ApproveGatePassesPage = () => {
                           <h2 className="text-base font-bold text-foreground">{pass.factory?.name || '—'}</h2>
                           <p className="mt-1 text-xs text-foreground-500">
                             {decisionAt ? new Date(decisionAt).toLocaleString('fa-IR') : '—'}
+                          </p>
+                          <p className="mt-1 text-xs text-foreground-500">
+                            صادرکننده: {pass.createdBy?.name || '—'}
+                            {pass.verifiedBy?.name ? ` · نگهبان: ${pass.verifiedBy.name}` : ''}
                           </p>
                         </div>
                         <Chip color={tone.chip} size="sm" variant="soft" className="font-semibold gap-1">

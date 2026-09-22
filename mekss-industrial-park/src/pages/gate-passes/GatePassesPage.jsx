@@ -46,7 +46,7 @@ const statusColors = {
 };
 
 const exportCsv = (rows) => {
-  const header = ['نام راننده', 'پلاک', 'تاریخ خروج', 'وضعیت', 'نوع بار', 'واحد'];
+  const header = ['نام راننده', 'پلاک', 'تاریخ خروج', 'وضعیت', 'نوع بار', 'واحد', 'صادرکننده', 'نگهبان', 'زمان تایید'];
   const lines = rows.map((pass) => [
     pass.driverName || '',
     pass.licensePlate || '',
@@ -54,6 +54,9 @@ const exportCsv = (rows) => {
     statusLabels[pass.status] || pass.status || '',
     pass.cargoType || '',
     pass.factory?.name || '',
+    pass.createdBy?.name || '',
+    pass.verifiedBy?.name || '',
+    pass.verifiedAt ? new Date(pass.verifiedAt).toLocaleString('fa-IR') : '',
   ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','));
   const csv = `\uFEFF${[header.join(','), ...lines].join('\n')}`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -199,6 +202,8 @@ export const GatePassesPage = () => {
                     <TableColumn isRowHeader>نام راننده</TableColumn>
                     <TableColumn>شماره پلاک</TableColumn>
                     <TableColumn>تاریخ خروج</TableColumn>
+                    <TableColumn>صادرکننده</TableColumn>
+                    <TableColumn>نگهبان / زمان</TableColumn>
                     <TableColumn>وضعیت</TableColumn>
                     <TableColumn>عملیات</TableColumn>
                   </TableHeader>
@@ -210,6 +215,15 @@ export const GatePassesPage = () => {
                           <TableCell>{pass.driverName}</TableCell>
                           <TableCell dir="ltr">{displayIranLicensePlate(pass.licensePlate)}</TableCell>
                           <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
+                          <TableCell>{pass.createdBy?.name || '—'}</TableCell>
+                          <TableCell>
+                            {pass.verifiedBy?.name || '—'}
+                            {pass.verifiedAt ? (
+                              <span className="mt-0.5 block text-[11px] text-foreground-500">
+                                {new Date(pass.verifiedAt).toLocaleString('fa-IR')}
+                              </span>
+                            ) : null}
+                          </TableCell>
                           <TableCell>
                             <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">
                               {statusLabels[pass.status] || pass.status}

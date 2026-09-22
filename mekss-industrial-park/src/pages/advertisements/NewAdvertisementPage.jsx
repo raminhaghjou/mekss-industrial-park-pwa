@@ -26,19 +26,11 @@ import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import IranProvinceCityFields from '../../components/common/IranProvinceCityFields';
+import { FileUploader } from '../../components/common/FileUploader';
 import { toPersistedLocation } from '../../utils/iranLocations';
 
-const categories = [
-  { value: 'EQUIPMENT', label: 'تجهیزات' },
-  { value: 'SERVICES', label: 'خدمات' },
-  { value: 'RAW_MATERIALS', label: 'مواد اولیه' },
-  { value: 'JOB_LISTINGS', label: 'فرصت شغلی' },
-  { value: 'REAL_ESTATE', label: 'املاک' },
-  { value: 'OTHER', label: 'سایر' },
-];
-
 const emptyForm = {
-  title: '', category: 'OTHER', province: '', city: '', content: '', contact: '', parkId: '',
+  title: '', category: 'OTHER', province: '', city: '', address: '', content: '', contact: '', parkId: '', images: [],
 };
 
 const NewAdvertisementPage = () => {
@@ -49,6 +41,14 @@ const NewAdvertisementPage = () => {
   const { showNotification } = useNotification();
   const [form, setForm] = React.useState(emptyForm);
   const [hydrated, setHydrated] = React.useState(!isEdit);
+
+  const categoriesQuery = useQuery({
+    queryKey: ['advertisement-categories'],
+    queryFn: () => advertisementApi.getCategories().then((response) => response.data),
+  });
+  const categories = categoriesQuery.data?.length
+    ? categoriesQuery.data.map((cat) => ({ value: cat.key, label: cat.label }))
+    : [{ value: 'OTHER', label: 'سایر' }];
 
   const scopeQuery = useQuery({
     queryKey: ['advertisements', 'creation-scope'],
@@ -84,6 +84,8 @@ const NewAdvertisementPage = () => {
       city: ad.city || '',
       content: ad.content || '',
       contact,
+      address: ad.address || '',
+      images: ad.images || [],
       parkId: ad.park?.id || ad.parkId || '',
     });
     setHydrated(true);
@@ -126,6 +128,8 @@ const NewAdvertisementPage = () => {
       province: location.province,
       city: location.city,
       content: form.content,
+      address: form.address || undefined,
+      images: (form.images || []).map((file) => file?.id).filter(Boolean),
       contactInfo: { phone: form.contact },
     };
     if (!isEdit) payload.parkId = form.parkId;
@@ -271,6 +275,33 @@ const NewAdvertisementPage = () => {
                 onProvinceChange={(province) => update('province', province)}
                 onCityChange={(city) => update('city', city)}
               />
+
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">آدرس</Label>
+                <Input
+                  value={form.address}
+                  onChange={(e) => update('address', e.target.value)}
+                  placeholder="آدرس دقیق نمایش در آگهی..."
+                  className="rounded-xl"
+                  maxLength={240}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs font-medium text-foreground-600">تصاویر (حداکثر ۱۰)</Label>
+                <FileUploader
+                  domain="advertisement"
+                  label="افزودن تصویر"
+                  disabled={(form.images?.length || 0) >= 10}
+                  onUploaded={(file) => {
+                    if ((form.images?.length || 0) >= 10) return;
+                    update('images', [...(form.images || []), file]);
+                  }}
+                />
+                {(form.images || []).length > 0 && (
+                  <p className="text-xs text-foreground-500">{form.images.length} تصویر پیوست شده</p>
+                )}
+              </div>
 
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-medium text-foreground-600">شرح آگهی</Label>

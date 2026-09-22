@@ -5,8 +5,14 @@ import { AuthenticatedUser, JwtAuthGuard, Public, Roles, RolesGuard } from './au
 import {
   AdvertisementAdminQueryDto,
   AdvertisementModerationDto,
+  ApproveRegistrationDto,
+  CreateAdvertisementCategoryDto,
   CreateAnnouncementDto,
   CreateAdvertisementDto,
+  CreateFeedbackDto,
+  PublicAdvertisementQueryDto,
+  UpdateAdvertisementCategoryDto,
+  UpdateAdvertisementFeaturedSettingDto,
   UpdateAdvertisementDto,
   CreateEmergencyDto,
   CreateFactoryDto,
@@ -16,6 +22,7 @@ import {
   UpdateGatePassDto,
   CreateInvoiceDto,
   ListInvoicesQueryDto,
+  ListMessagesQueryDto,
   CreateManagedUserDto,
   CreateParkDto,
   CreateParkStaffDto,
@@ -57,7 +64,7 @@ export class ManagementController {
   constructor(private readonly management: ManagementService) {}
 
   @Get('users/pending-registrations') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') pendingRegistrations(@Req() req: AuthenticatedRequest) { return this.management.pendingRegistrations(currentUser(req)); }
-  @Post('users/:id/approve-registration') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') approveRegistration(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decideRegistration(currentUser(req), params.id, true); }
+  @Post('users/:id/approve-registration') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') approveRegistration(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ApproveRegistrationDto) { return this.management.decideRegistration(currentUser(req), params.id, true, undefined, body.canApproveRequestTypes); }
   @Post('users/:id/reject-registration') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') rejectRegistration(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.decideRegistration(currentUser(req), params.id, false, body.reason); }
   @Get('users') @Roles(Role.SUPER_ADMIN) @ApiTags('Users') users(@Query() query: PaginationQueryDto) { return this.management.users(query); }
   @Get('users/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Users') userDetail(@Param() params: OpaqueIdParamDto) { return this.management.userDetail(params.id); }
@@ -92,10 +99,24 @@ export class ManagementController {
   @Post('factories/register') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') registerFactory(@Req() req: AuthenticatedRequest, @Body() body: RegisterFactoryDto) { return this.management.registerFactory(currentUser(req), body); }
   @Post('factories') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') createFactory(@Req() req: AuthenticatedRequest, @Body() body: CreateFactoryDto) { return this.management.createFactory(currentUser(req), body); }
   @Put('factories/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Factories') updateFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateFactoryDto) { return this.management.updateFactory(currentUser(req), params.id, body); }
+  @Post('factories/:id/pending-changes/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') approvePendingFactoryChanges(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decidePendingFactoryChanges(currentUser(req), params.id, true); }
+  @Post('factories/:id/pending-changes/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') rejectPendingFactoryChanges(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decidePendingFactoryChanges(currentUser(req), params.id, false); }
   @Post('factories/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') approveFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decideFactory(currentUser(req), params.id, true); }
   @Post('factories/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') rejectFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.decideFactory(currentUser(req), params.id, false, body.reason); }
 
-  @Get('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePasses(@Req() req: AuthenticatedRequest) { return this.management.listGatePasses(currentUser(req)); }
+  @Get('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePasses(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
+    return this.management.listGatePasses(currentUser(req), {
+      status: query.status,
+      fromDate: query.fromDate,
+      toDate: query.toDate,
+      driverNationalId: query.driverNationalId,
+      licensePlate: query.licensePlate,
+      cargoType: query.cargoType,
+    });
+  }
+  @Get('gate-passes/by-plate/:plate') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD, Role.PARK_MANAGER) @ApiTags('Gate passes') gatePassByPlate(@Req() req: AuthenticatedRequest, @Param('plate') plate: string) {
+    return this.management.findOpenGatePassByPlate(currentUser(req), decodeURIComponent(plate));
+  }
   @Get('gate-passes/by-qr/:code') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') gatePassByQr(@Req() req: AuthenticatedRequest, @Param() params: QrCodeParamDto) { return this.management.gatePassByQr(currentUser(req), params.code); }
   @Get('settings/gate-pass-wallet') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Settings') gatePassWalletSettings() { return this.management.getGatePassWalletSettings(); }
   @Patch('settings/gate-pass-wallet') @Roles(Role.SUPER_ADMIN) @ApiTags('Settings') updateGatePassWalletSettings(@Req() req: AuthenticatedRequest, @Body() body: UpdateGatePassWalletSettingDto) { return this.management.updateGatePassWalletSettings(currentUser(req), body.requireWalletBalance); }
@@ -107,10 +128,16 @@ export class ManagementController {
   @Post('gate-passes/:id/deny') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') denyGatePassExit(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'deny', body.reason); }
   @Get('gate-passes/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePassDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassDetail(currentUser(req), params.id); }
 
-  @Get('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoices(@Req() req: AuthenticatedRequest, @Query() query: ListInvoicesQueryDto) { return this.management.listInvoices(currentUser(req), query.scope); }
+  @Get('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoices(@Req() req: AuthenticatedRequest, @Query() query: ListInvoicesQueryDto) {
+    return this.management.listInvoices(currentUser(req), query);
+  }
+  @Get('invoices/:id/pdf') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoicePdf(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) {
+    return this.management.invoicePdfPayload(currentUser(req), params.id);
+  }
   @Post('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') createInvoice(@Req() req: AuthenticatedRequest, @Body() body: CreateInvoiceDto) { return this.management.createInvoice(currentUser(req), body); }
   @Put('invoices/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') updateInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateInvoiceDto) { return this.management.updateInvoice(currentUser(req), params.id, body); }
   @Post('invoices/:id/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Invoices') startPayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Headers('idempotency-key') idempotencyKey?: string) { return this.management.startPayment(currentUser(req), params.id, idempotencyKey); }
+  @Post('invoices/:id/confirm-payment') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') confirmInvoicePayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.confirmInvoicePayment(currentUser(req), params.id); }
 
   @Get('requests') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Requests') requests(@Req() req: AuthenticatedRequest) { return this.management.listRequests(currentUser(req)); }
   @Post('requests') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Requests') createRequest(@Req() req: AuthenticatedRequest, @Body() body: CreateRequestDto) { return this.management.createRequest(currentUser(req), body); }
@@ -124,7 +151,8 @@ export class ManagementController {
   @Delete('announcements/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Announcements') deleteAnnouncement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteAnnouncement(currentUser(req), params.id); }
 
   @Public()
-  @Get('advertisements') @ApiTags('Advertisements') advertisements() { return this.management.advertisements(); }
+  @Get('advertisements') @ApiTags('Advertisements') advertisements(@Query() query: PublicAdvertisementQueryDto) { return this.management.publicAdvertisements(query); }
+  @Get('advertisements/favorites') @ApiTags('Advertisements') favoriteAdvertisements(@Req() req: AuthenticatedRequest) { return this.management.listFavoriteAdvertisements(currentUser(req)); }
   @Get('advertisements/creation-scope') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') advertisementCreationScope(@Req() req: AuthenticatedRequest) { return this.management.advertisementCreationScope(currentUser(req)); }
   @Get('advertisements/mine') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') myAdvertisements(@Req() req: AuthenticatedRequest) { return this.management.myAdvertisements(currentUser(req)); }
   @Get('advertisements/mine/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') myAdvertisementDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.myAdvertisementDetail(currentUser(req), params.id); }
@@ -135,15 +163,26 @@ export class ManagementController {
   @Get('advertisements/managed/history') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') managedHistoryAdvertisements(@Req() req: AuthenticatedRequest) { return this.management.managedAdvertisements(currentUser(req), 'HISTORY'); }
   @Get('advertisements/managed') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') managedAdvertisementPage(@Req() req: AuthenticatedRequest, @Query() query: AdvertisementAdminQueryDto) { return this.management.managedAdvertisementPage(currentUser(req), query); }
   @Get('advertisements/managed/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') managedAdvertisementDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.managedAdvertisementDetail(currentUser(req), params.id); }
-  @Post('advertisements/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') approveAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: AdvertisementModerationDto) { return this.management.approveAdvertisement(currentUser(req), params.id, body.approved, body.rejectionReason); }
+  @Post('advertisements/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') approveAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: AdvertisementModerationDto) { return this.management.approveAdvertisement(currentUser(req), params.id, body.approved, body.rejectionReason, body.promoteFeatured); }
+  @Post('advertisements/:id/favorite') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.GOVERNMENT_OFFICIAL) @ApiTags('Advertisements') addAdvertisementFavorite(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.addAdvertisementFavorite(currentUser(req), params.id); }
+  @Delete('advertisements/:id/favorite') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.GOVERNMENT_OFFICIAL) @ApiTags('Advertisements') removeAdvertisementFavorite(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.removeAdvertisementFavorite(currentUser(req), params.id); }
+  @Post('advertisements/mine/:id/featured-request') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') requestFeaturedAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.requestFeaturedAdvertisementPaymentStub(currentUser(req), params.id); }
+  @Get('advertisement-categories') @ApiTags('Advertisements') advertisementCategories() { return this.management.listAdvertisementCategories(false); }
+  @Get('advertisement-categories/managed') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') managedAdvertisementCategories() { return this.management.listAdvertisementCategories(true); }
+  @Post('advertisement-categories') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') createAdvertisementCategory(@Req() req: AuthenticatedRequest, @Body() body: CreateAdvertisementCategoryDto) { return this.management.createAdvertisementCategory(currentUser(req), body); }
+  @Put('advertisement-categories/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') updateAdvertisementCategory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateAdvertisementCategoryDto) { return this.management.updateAdvertisementCategory(currentUser(req), params.id, body); }
+  @Delete('advertisement-categories/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') deleteAdvertisementCategory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteAdvertisementCategory(currentUser(req), params.id); }
+  @Get('settings/advertisement-featured') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Settings') advertisementFeaturedSettings() { return this.management.getAdvertisementFeaturedSettings(); }
+  @Patch('settings/advertisement-featured') @Roles(Role.SUPER_ADMIN) @ApiTags('Settings') updateAdvertisementFeaturedSettings(@Req() req: AuthenticatedRequest, @Body() body: UpdateAdvertisementFeaturedSettingDto) { return this.management.updateAdvertisementFeaturedSettings(currentUser(req), body.monthlyCap); }
+  @Post('feedback') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Feedback') createFeedback(@Req() req: AuthenticatedRequest, @Body() body: CreateFeedbackDto) { return this.management.createFeedback(currentUser(req), body); }
 
   @Post('messages') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') sendDirectMessage(@Req() req: AuthenticatedRequest, @Body() body: SendDirectMessageDto) { return this.management.sendDirectMessage(currentUser(req), body); }
   @Post('messages/batch') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Messages') sendBatchMessage(@Req() req: AuthenticatedRequest, @Body() body: SendMessageDto) { return this.management.sendMessage(currentUser(req), body.recipientIds, body.subject, body.body); }
   @Post('messages/broadcast') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Messages') broadcastMessage(@Req() req: AuthenticatedRequest, @Body() body: BroadcastMessageDto) { return this.management.broadcastMessage(currentUser(req), body); }
   @Post('messages/broadcast/factory-managers') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') broadcastFactoryManagers(@Req() req: AuthenticatedRequest, @Body() body: BroadcastFactoryManagersMessageDto) { return this.management.broadcastMessage(currentUser(req), { subject: body.subject, body: body.body, audience: 'PARK_ALL' }); }
   @Get('messages/recipients') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') messageRecipients(@Req() req: AuthenticatedRequest) { return this.management.messageRecipients(currentUser(req)); }
-  @Get('messages/inbox') @ApiTags('Messages') inboxMessages(@Req() req: AuthenticatedRequest) { return this.management.inboxMessages(currentUser(req)); }
-  @Get('messages/sent') @ApiTags('Messages') sentMessages(@Req() req: AuthenticatedRequest) { return this.management.sentMessages(currentUser(req)); }
+  @Get('messages/inbox') @ApiTags('Messages') inboxMessages(@Req() req: AuthenticatedRequest, @Query() query: ListMessagesQueryDto) { return this.management.inboxMessages(currentUser(req), query); }
+  @Get('messages/sent') @ApiTags('Messages') sentMessages(@Req() req: AuthenticatedRequest, @Query() query: ListMessagesQueryDto) { return this.management.sentMessages(currentUser(req), query); }
   @Get('messages/unread-count') @ApiTags('Messages') unreadMessageCount(@Req() req: AuthenticatedRequest) { return this.management.unreadMessageCount(currentUser(req)); }
   @Post('messages/:id/read') @ApiTags('Messages') markMessageRead(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.markMessageRead(currentUser(req), params.id); }
 
@@ -156,6 +195,10 @@ export class ManagementController {
   @Post('market-rates/refresh') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Market rates') refreshMarketRates(@Req() req: AuthenticatedRequest) { return this.management.refreshMarketRates(currentUser(req)); }
   @Put('market-rates/:key') @Roles(Role.SUPER_ADMIN) @ApiTags('Market rates') updateMarketRate(@Req() req: AuthenticatedRequest, @Param() params: MarketRateKeyParamDto, @Body() body: UpdateMarketRateDto) { return this.management.updateMarketRate(currentUser(req), params.key, body); }
 
+  @Public()
+  @Get('public/announcements') @ApiTags('Public') publicAnnouncements() { return this.management.publicAnnouncements(); }
+  @Public()
+  @Get('public/advertisements/featured') @ApiTags('Public') publicFeaturedAdvertisements() { return this.management.publicFeaturedAdvertisements(); }
   @Public()
   @Get('public/parks') @ApiTags('Public') publicParks() { return this.management.publicParks(); }
   @Public()

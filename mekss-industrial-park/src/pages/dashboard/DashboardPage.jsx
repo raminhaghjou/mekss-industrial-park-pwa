@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { toJalaali } from 'jalaali-js';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, Button, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
@@ -25,10 +26,11 @@ import {
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
 import { announcementApi } from '../../services/api/announcement.api';
-import { advertisementApi } from '../../services/api/advertisement.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { HomeFeedSlider } from '../../components/dashboard/HomeFeedSlider';
 import { GatePassWalletSettingCard } from '../../components/settings/GatePassWalletSettingCard';
+import { JALALI_MONTHS, JALALI_WEEKDAYS, toFaDigits } from '../../utils/jalali';
+import { publicApi } from '../../services/api/public.api';
 
 const roleTitles = {
   SUPER_ADMIN: 'داشبورد ادمین کل',
@@ -358,9 +360,20 @@ const buildRoleWorkspace = (role, data, navigate) => {
         { icon: FileText, title: 'ثبت درخواست', description: 'مرخصی، ماموریت و سایر درخواست‌ها', onClick: () => navigate('/requests'), tone: 'warning' },
         { icon: MessageSquare, title: 'پیام‌ها', description: 'گفتگو با مدیریت واحد و شهرک', onClick: () => navigate('/messages'), tone: 'primary' },
         { icon: Bell, title: 'اطلاعیه‌ها', description: 'آخرین اطلاعیه‌های رسمی', onClick: () => navigate('/announcements'), tone: 'secondary' },
+        { icon: AlertTriangle, title: 'اعلام آتش‌سوزی', description: 'هشدار دو مرحله‌ای با موقعیت GPS', onClick: () => navigate('/emergency', { state: { quickFire: true } }), tone: 'danger' },
       ],
     },
   };
+
+  if (workspaces.FACTORY_OWNER) {
+    workspaces.FACTORY_OWNER.actions.push({
+      icon: AlertTriangle,
+      title: 'اعلام آتش‌سوزی',
+      description: 'دکمه سریع — مسیر کامل اضطراری حفظ شده',
+      onClick: () => navigate('/emergency', { state: { quickFire: true } }),
+      tone: 'danger',
+    });
+  }
 
   return workspaces[role] || workspaces.EMPLOYEE;
 };
@@ -379,25 +392,30 @@ export const DashboardPage = () => {
     queryFn: () => announcementApi.getAnnouncements().then((res) => res.data),
   });
 
-  const { data: advertisements = [] } = useQuery({
-    queryKey: ['advertisements', 'feed'],
-    queryFn: () => advertisementApi.getPublicAdvertisements().then((res) => res.data),
-    enabled: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role),
+  const { data: featuredAds = [] } = useQuery({
+    queryKey: ['advertisements', 'featured-public'],
+    queryFn: () => publicApi.getFeaturedAdvertisements().then((res) => res.data),
   });
+
+  const jalaliToday = useMemo(() => {
+    const j = toJalaali(new Date());
+    const weekday = JALALI_WEEKDAYS[(new Date().getDay() + 1) % 7];
+    return `${weekday} ${toFaDigits(j.jd)} ${JALALI_MONTHS[j.jm - 1]} ${toFaDigits(j.jy)}`;
+  }, []);
 
   const announcementsHref = user?.role === 'PARK_MANAGER' || user?.role === 'SUPER_ADMIN'
     ? '/admin/announcements'
     : '/announcements';
 
   const feedItems = useMemo(() => (
-    (advertisements || []).slice(0, 6).map((item) => ({
+    (featuredAds || []).slice(0, 6).map((item) => ({
       id: `ad-${item.id}`,
       kind: 'ad',
       title: item.title,
-      body: item.description || item.content,
-      href: '/advertisements',
+      body: item.content,
+      href: '/ads',
     }))
-  ), [advertisements]);
+  ), [featuredAds]);
 
   const featuredAnnouncements = useMemo(() => {
     return [...(announcements || [])]
@@ -455,10 +473,33 @@ export const DashboardPage = () => {
   const unitsWithDebt = Number(data?.unitsWithDebtCount || 0);
   // Personal debt only — factory owners (unit bills) and park managers (park bills from admin).
   const showPersonalDebt = unpaidTotal > 0 && ['FACTORY_OWNER', 'PARK_MANAGER'].includes(user?.role);
-  const showAds = feedItems.length > 0 && ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role);
+  const showAds = feedItems.length > 0;
+  const activePark = data?.activePark;
 
   return (
     <div className="flex flex-col gap-6">
+      {(activePark || jalaliToday) && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-default-200 bg-content1 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-[var(--color-brand-soft)]">
+              {activePark?.logo ? (
+                <img src={activePark.logo} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <Building2 className="h-6 w-6 text-[var(--color-brand)]" />
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-foreground-500">شهرک فعال</p>
+              <p className="font-bold text-foreground">{activePark?.name || 'سامانه مکص'}</p>
+            </div>
+          </div>
+          <div className="text-sm text-foreground-600">
+            <span className="text-foreground-500">امروز: </span>
+            {jalaliToday}
+          </div>
+        </div>
+      )}
+
       <div className="page-toolbar">
         <div>
           <h1 className="text-xl font-bold text-foreground sm:text-2xl">{roleTitles[user?.role] || 'داشبورد'}</h1>
@@ -467,6 +508,17 @@ export const DashboardPage = () => {
             {user?.name ? ` — خوش آمدید، ${user.name}` : ''}
           </p>
         </div>
+        {['FACTORY_OWNER', 'PARK_MANAGER', 'SECURITY_GUARD'].includes(user?.role) && (
+          <Button
+            variant="danger"
+            size="sm"
+            className="rounded-xl font-bold"
+            onPress={() => navigate('/emergency', { state: { quickFire: true } })}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            اعلام حریق
+          </Button>
+        )}
       </div>
 
       {showPersonalDebt && (

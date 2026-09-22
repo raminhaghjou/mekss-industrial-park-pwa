@@ -280,9 +280,35 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
   switch (type) {
     case 'MISSION':
       return (
-        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-3">
-          <Field label="مقصد">
+        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="نام مامور">
+            <Input value={dataFields.agentName || ''} onChange={(e) => setData('agentName', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="محل ماموریت">
             <Input value={dataFields.destination || ''} onChange={(e) => setData('destination', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="تاریخ ماموریت">
+            <Input type="date" dir="ltr" value={dataFields.missionDate || dataFields.startDate || ''} onChange={(e) => setData('missionDate', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="ساعت از">
+            <Input type="time" dir="ltr" value={dataFields.fromTime || ''} onChange={(e) => setData('fromTime', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="ساعت تا">
+            <Input type="time" dir="ltr" value={dataFields.toTime || ''} onChange={(e) => setData('toTime', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="دلیل ماموریت">
+            <Input value={dataFields.reason || ''} onChange={(e) => setData('reason', e.target.value)} className="rounded-xl" />
+          </Field>
+        </div>
+      );
+    case 'TRANSFER':
+      return (
+        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="نام درخواست‌کننده">
+            <Input value={dataFields.requesterName || ''} onChange={(e) => setData('requesterName', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="نام جابه‌جا شونده">
+            <Input value={dataFields.transferPersonName || ''} onChange={(e) => setData('transferPersonName', e.target.value)} className="rounded-xl" />
           </Field>
           <Field label="از تاریخ">
             <Input type="date" dir="ltr" value={dataFields.startDate || ''} onChange={(e) => setData('startDate', e.target.value)} className="rounded-xl" />
@@ -290,25 +316,23 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
           <Field label="تا تاریخ">
             <Input type="date" dir="ltr" value={dataFields.endDate || ''} onChange={(e) => setData('endDate', e.target.value)} className="rounded-xl" />
           </Field>
-        </div>
-      );
-    case 'TRANSFER':
-      return (
-        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-3">
-          <Field label="مبدا">
-            <Input value={dataFields.fromLocation || ''} onChange={(e) => setData('fromLocation', e.target.value)} className="rounded-xl" />
-          </Field>
-          <Field label="مقصد">
-            <Input value={dataFields.toLocation || ''} onChange={(e) => setData('toLocation', e.target.value)} className="rounded-xl" />
-          </Field>
-          <Field label="تاریخ انتقال">
-            <Input type="date" dir="ltr" value={dataFields.transferDate || ''} onChange={(e) => setData('transferDate', e.target.value)} className="rounded-xl" />
+          <Field label="مدت (روز)">
+            <Input type="number" dir="ltr" value={dataFields.durationDays || ''} onChange={(e) => setData('durationDays', e.target.value)} className="rounded-xl" />
           </Field>
         </div>
       );
     case 'DAILY_LEAVE':
       return (
         <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2">
+          <Field label="نام درخواست‌کننده">
+            <Input value={dataFields.requesterName || ''} onChange={(e) => setData('requesterName', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="نوع مرخصی">
+            <select className="rounded-xl border border-default-200 bg-background px-3 py-2 text-sm" value={dataFields.leavePaidType || 'WITH_PAY'} onChange={(e) => setData('leavePaidType', e.target.value)}>
+              <option value="WITH_PAY">با حقوق</option>
+              <option value="WITHOUT_PAY">بی‌حقوق</option>
+            </select>
+          </Field>
           <Field label="از تاریخ">
             <Input type="date" dir="ltr" value={dataFields.startDate || ''} onChange={(e) => setData('startDate', e.target.value)} className="rounded-xl" />
           </Field>
@@ -333,16 +357,28 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
       );
     case 'LOAN':
       return (
-        <div className="rounded-2xl bg-default-50 p-4">
+        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2">
+          <Field label="نام درخواست‌کننده">
+            <Input value={dataFields.requesterName || ''} onChange={(e) => setData('requesterName', e.target.value)} className="rounded-xl" />
+          </Field>
           <Field label="مبلغ درخواستی (ریال)">
             <Input type="number" dir="ltr" value={dataFields.amount || ''} onChange={(e) => setData('amount', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="ماه مربوطه">
+            <Input value={dataFields.salaryMonth || ''} onChange={(e) => setData('salaryMonth', e.target.value)} className="rounded-xl" placeholder="مثلاً 1404/06" />
           </Field>
         </div>
       );
     case 'SETTLEMENT':
       return (
-        <div className="rounded-2xl bg-default-50 p-4">
-          <Field label="تاریخ تسویه">
+        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2">
+          <Field label="نام گیرنده">
+            <Input value={dataFields.recipientName || ''} onChange={(e) => setData('recipientName', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="قطعه / بلوک">
+            <Input value={dataFields.plotBlock || ''} onChange={(e) => setData('plotBlock', e.target.value)} className="rounded-xl" />
+          </Field>
+          <Field label="تاریخ">
             <Input type="date" dir="ltr" value={dataFields.settlementDate || ''} onChange={(e) => setData('settlementDate', e.target.value)} className="rounded-xl" />
           </Field>
         </div>
@@ -379,7 +415,7 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
       );
     case 'SERVICE_ORDER':
       return (
-        <div className="rounded-2xl bg-default-50 p-4">
+        <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2">
           <Field label="نوع خدمت">
             <Select
               value={dataFields.serviceKind || 'OTHER'}
@@ -395,6 +431,9 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
                 </ListBox>
               </SelectPopover>
             </Select>
+          </Field>
+          <Field label="ارائه‌دهنده / پیمانکار">
+            <Input value={dataFields.serviceProvider || ''} onChange={(e) => setData('serviceProvider', e.target.value)} className="rounded-xl" placeholder="غذا، نظافت، باربری..." />
           </Field>
         </div>
       );

@@ -53,6 +53,8 @@ enum RequestPriority {
 
 enum InvoiceStatus {
   PENDING
+  /// Gateway verified money; awaiting park-manager confirmation per docs.
+  AWAITING_CONFIRMATION
   PAID
   OVERDUE
   CANCELLED
@@ -279,6 +281,8 @@ model IndustrialPark {
   description     String?
   logo            String?
   status          ParkStatus @default(ACTIVE)
+  /// Accumulated park share of gate-pass wallet fees.
+  gatePassFeeRevenue Decimal @default(0) @db.Decimal(15, 2)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -291,6 +295,7 @@ model IndustrialPark {
   securityGuards SecurityGuard[]
   emergencies    EmergencyAlert[]
   invoices       Invoice[]
+  payments       PaymentTransaction[] @relation("PaymentPark")
   scopedFiles    ScopedFile[]
   feedback       Feedback[]      @relation("FeedbackRecipientPark")
 
@@ -472,10 +477,14 @@ model PaymentTransaction {
 
   invoiceId     String
   invoice       Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  /// Park that receives the payment (from invoice.parkId or factory.parkId).
+  parkId        String?
+  park          IndustrialPark? @relation("PaymentPark", fields: [parkId], references: [id], onDelete: SetNull)
   initiatedById String?
   initiatedBy   User?   @relation("PaymentInitiator", fields: [initiatedById], references: [id])
 
   @@index([invoiceId, status])
+  @@index([parkId, status])
   @@index([status, createdAt])
 }
 

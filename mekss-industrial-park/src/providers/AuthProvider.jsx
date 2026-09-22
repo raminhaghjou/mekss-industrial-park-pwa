@@ -45,8 +45,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await authApi.login(credentials);
       setSession(data);
-      navigate('/dashboard');
-      return { success: true, mustChangePassword: data.mustChangePassword };
+      return { success: true, mustChangePassword: Boolean(data.mustChangePassword || data.user?.mustChangePassword) };
     } catch (error) {
       return { success: false, error: getErrorMessage(error, 'ورود ناموفق بود. لطفاً اطلاعات را بررسی کنید.') };
     }

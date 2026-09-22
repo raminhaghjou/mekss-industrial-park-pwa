@@ -24,7 +24,7 @@ describe('message API contract', () => {
     messageApi.getInbox();
     messageApi.markRead('message-1');
 
-    expect(mocks.get).toHaveBeenCalledWith('/messages/inbox');
+    expect(mocks.get).toHaveBeenCalledWith('/messages/inbox', { params: undefined });
     expect(mocks.post).toHaveBeenCalledWith('/messages/message-1/read');
   });
 

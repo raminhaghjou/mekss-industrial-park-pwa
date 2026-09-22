@@ -348,6 +348,8 @@ const ManageFactoriesPage = () => {
       if (operation.type === 'create') return factoryApi.createFactory(operation.payload);
       if (operation.type === 'update') return factoryApi.updateFactory(operation.id, operation.payload);
       if (operation.type === 'approve') return factoryApi.approveFactory(operation.id);
+      if (operation.type === 'approvePending') return factoryApi.approvePendingChanges(operation.id);
+      if (operation.type === 'rejectPending') return factoryApi.rejectPendingChanges(operation.id);
       return factoryApi.rejectFactory(operation.id, operation.reason);
     },
     onSuccess: async (response, /** @type {FactoryOperation} */ operation) => {
@@ -365,6 +367,8 @@ const ManageFactoriesPage = () => {
         update: 'اطلاعات واحد صنعتی ذخیره و دوباره دریافت شد.',
         approve: 'تایید واحد صنعتی ثبت و فهرست به‌روزرسانی شد.',
         reject: 'رد واحد صنعتی ثبت و فهرست به‌روزرسانی شد.',
+        approvePending: 'تغییرات حساس واحد صنعتی تایید شد.',
+        rejectPending: 'تغییرات حساس واحد صنعتی رد شد.',
       };
       showNotification(messages[operation.type], 'success');
     },
@@ -375,6 +379,8 @@ const ManageFactoriesPage = () => {
         update: 'ویرایش واحد صنعتی ناموفق بود.',
         approve: 'تایید واحد صنعتی ناموفق بود.',
         reject: 'رد واحد صنعتی ناموفق بود.',
+        approvePending: 'تایید تغییرات حساس ناموفق بود.',
+        rejectPending: 'رد تغییرات حساس ناموفق بود.',
       };
       showNotification(factoryError(error, fallbacks[operation.type]), 'error');
     },
@@ -702,6 +708,36 @@ const ManageFactoriesPage = () => {
                         <AlertContent>
                           <AlertTitle>دلیل رد</AlertTitle>
                           <AlertDescription>{detailQuery.data.rejectionReason}</AlertDescription>
+                        </AlertContent>
+                      </Alert>
+                    )}
+                    {detailQuery.data.pendingChanges && typeof detailQuery.data.pendingChanges === 'object' && (
+                      <Alert status="warning">
+                        <AlertContent>
+                          <AlertTitle>تغییرات در انتظار تایید</AlertTitle>
+                          <AlertDescription>
+                            <pre className="mt-2 overflow-x-auto text-xs whitespace-pre-wrap" dir="ltr">
+                              {JSON.stringify(detailQuery.data.pendingChanges, null, 2)}
+                            </pre>
+                            <div className="mt-3 flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                isDisabled={!online || mutationPending}
+                                onPress={() => runMutation({ type: 'approvePending', id: detailQuery.data.id })}
+                              >
+                                تایید تغییرات
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="danger-soft"
+                                isDisabled={!online || mutationPending}
+                                onPress={() => runMutation({ type: 'rejectPending', id: detailQuery.data.id })}
+                              >
+                                رد تغییرات
+                              </Button>
+                            </div>
+                          </AlertDescription>
                         </AlertContent>
                       </Alert>
                     )}

@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Building2, ExternalLink, Globe, MapPin, Phone } from 'lucide-react';
+import { ArrowRight, Building2, ExternalLink, Globe, MapPin, Phone, Mail } from 'lucide-react';
 import { Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { PublicShell } from '../../components/public/PublicShell';
 import { publicApi } from '../../services/api/public.api';
@@ -94,6 +94,35 @@ export const FactoryPublicDetailPage = () => {
                         <Phone className="h-4 w-4" />
                         {factory.phoneNumber}
                       </a>
+                    </dd>
+                  </div>
+                )}
+                {factory.email && (
+                  <div className="rounded-[var(--radius-sm)] bg-[var(--color-surface-soft)] p-4">
+                    <dt className="text-xs text-[var(--color-muted)]">ایمیل</dt>
+                    <dd className="mt-1">
+                      <a href={`mailto:${factory.email}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brand)]" dir="ltr">
+                        <Mail className="h-4 w-4" />
+                        {factory.email}
+                      </a>
+                    </dd>
+                  </div>
+                )}
+                {factory.socialMedia && typeof factory.socialMedia === 'object' && (
+                  <div className="rounded-[var(--radius-sm)] bg-[var(--color-surface-soft)] p-4 sm:col-span-2">
+                    <dt className="text-xs text-[var(--color-muted)]">شبکه‌های اجتماعی</dt>
+                    <dd className="mt-2 flex flex-wrap gap-2">
+                      {Object.entries(factory.socialMedia).filter(([, url]) => url).map(([key, url]) => (
+                        <a
+                          key={key}
+                          href={String(url).startsWith('http') ? url : `https://${url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[var(--color-brand)] ring-1 ring-[var(--color-border)]"
+                        >
+                          {key}
+                        </a>
+                      ))}
                     </dd>
                   </div>
                 )}

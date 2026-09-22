@@ -19,7 +19,7 @@ export const LoginPage = () => {
   const { showNotification } = useNotification();
 
   const [formData, setFormData] = useState({
-    phoneNumber: '',
+    identifier: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -29,16 +29,26 @@ export const LoginPage = () => {
   const [loginMethod, setLoginMethod] = useState('password');
   const [formError, setFormError] = useState('');
 
+  const resolveCredentials = () => {
+    const raw = formData.identifier.trim();
+    if (/^09\d{9}$/.test(raw.replace(/\D/g, '')) || raw.startsWith('09')) {
+      const phone = raw.replace(/\D/g, '').slice(0, 11);
+      return { phoneNumber: phone, password: formData.password };
+    }
+    return { username: raw.toLowerCase(), password: formData.password };
+  };
+
   const handleSendOtp = async () => {
-    if (!formData.phoneNumber) {
-      setFormError('لطفاً شماره تلفن را وارد کنید');
-      showNotification('لطفاً شماره تلفن را وارد کنید', 'error');
+    const phone = formData.identifier.replace(/\D/g, '').slice(0, 11);
+    if (!/^09\d{9}$/.test(phone)) {
+      setFormError('برای ورود با کد یک‌بارمصرف شماره موبایل ۱۱ رقمی وارد کنید');
+      showNotification('برای ورود با کد یک‌بارمصرف شماره موبایل ۱۱ رقمی وارد کنید', 'error');
       return;
     }
 
     setFormError('');
     setLoading(true);
-    const result = await sendOtp(formData.phoneNumber);
+    const result = await sendOtp(phone);
     setLoading(false);
 
     if (result.success) {
@@ -51,6 +61,7 @@ export const LoginPage = () => {
   };
 
   const handleOtpLogin = async () => {
+    const phone = formData.identifier.replace(/\D/g, '').slice(0, 11);
     if (!otpCode || otpCode.length !== 6) {
       setFormError('لطفاً کد تایید ۶ رقمی را وارد کنید');
       showNotification('لطفاً کد تایید ۶ رقمی را وارد کنید', 'error');
@@ -59,12 +70,12 @@ export const LoginPage = () => {
 
     setFormError('');
     setLoading(true);
-    const result = await verifyOtp(formData.phoneNumber, otpCode);
+    const result = await verifyOtp(phone, otpCode);
     setLoading(false);
 
     if (result.success) {
       showNotification('ورود با موفقیت انجام شد', 'success');
-      navigate('/dashboard');
+      navigate(result.data?.mustChangePassword ? '/profile?changePassword=1' : '/dashboard');
     } else {
       setFormError(result.error || 'کد تایید اشتباه است');
       showNotification(result.error || 'کد تایید اشتباه است', 'error');
@@ -72,7 +83,7 @@ export const LoginPage = () => {
   };
 
   const handlePasswordLogin = async () => {
-    if (!formData.phoneNumber || !formData.password) {
+    if (!formData.identifier || !formData.password) {
       setFormError('لطفاً تمام فیلدها را پر کنید');
       showNotification('لطفاً تمام فیلدها را پر کنید', 'error');
       return;
@@ -80,12 +91,12 @@ export const LoginPage = () => {
 
     setFormError('');
     setLoading(true);
-    const result = await login(formData);
+    const result = await login(resolveCredentials());
     setLoading(false);
 
     if (result.success) {
       showNotification('ورود با موفقیت انجام شد', 'success');
-      navigate('/dashboard');
+      navigate(result.mustChangePassword ? '/profile?changePassword=1' : '/dashboard');
     } else {
       setFormError(result.error || 'ورود ناموفق بود');
       showNotification(result.error || 'ورود ناموفق بود', 'error');
@@ -145,16 +156,18 @@ export const LoginPage = () => {
           ) : null}
 
           <label className="flex flex-col gap-1.5">
-            <span className={authLabelClass}>شماره تلفن همراه</span>
+            <span className={authLabelClass}>
+              {loginMethod === 'otp' ? 'شماره تلفن همراه' : 'نام کاربری یا شماره موبایل'}
+            </span>
             <span className="relative block">
               <Phone className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
-                type="tel"
+                type="text"
                 dir="ltr"
                 required
-                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                value={formData.phoneNumber}
-                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                placeholder={loginMethod === 'otp' ? '۰۹۱۲۳۴۵۶۷۸۹' : 'username یا 0912...'}
+                value={formData.identifier}
+                onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
                 className={`${authFieldClass} text-left`}
               />
             </span>
@@ -190,7 +203,7 @@ export const LoginPage = () => {
               <button
                 type="button"
                 onClick={handleSendOtp}
-                disabled={!formData.phoneNumber || otpSent || loading}
+                disabled={!formData.identifier || otpSent || loading}
                 className="flex h-12 w-full items-center justify-center rounded-lg bg-slate-100 text-sm font-medium text-slate-800 ring-1 ring-slate-200 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {loading && !otpSent ? <Spinner size="sm" /> : otpSent ? 'کد تایید ارسال شد' : 'ارسال کد تایید پیامکی'}

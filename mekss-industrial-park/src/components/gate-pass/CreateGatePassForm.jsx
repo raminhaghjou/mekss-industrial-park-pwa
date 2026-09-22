@@ -25,6 +25,8 @@ import { ArrowRight } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { settingsApi } from '../../services/api/settings.api';
+import { authApi } from '../../services/api/auth.api';
+import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import JalaliDatePicker from '../common/JalaliDatePicker';
@@ -100,17 +102,31 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
   const [walletModalOpen, setWalletModalOpen] = useState(false);
-  const [form, setForm] = useState(() => (initialPass ? {
-    factoryId: initialPass.factoryId || '',
-    cargoType: initialPass.cargoType || 'RAW_MATERIALS',
-    cargoDescription: initialPass.cargoDescription || '',
-    driverName: initialPass.driverName || '',
-    driverNationalId: initialPass.driverNationalId || '',
-    driverPhone: initialPass.driverPhone || '',
-    vehicleType: initialPass.vehicleType || 'TRUCK',
-    licensePlate: initialPass.licensePlate || '',
-    exitDate: initialPass.exitDate || '',
-  } : emptyForm));
+  const [saveDriverPrompt, setSaveDriverPrompt] = useState(null);
+  const { user, refreshProfile } = useAuth();
+  const [form, setForm] = useState(() => {
+    const driver = !initialPass && user?.defaultDriver && typeof user.defaultDriver === 'object'
+      ? user.defaultDriver
+      : null;
+    return initialPass ? {
+      factoryId: initialPass.factoryId || '',
+      cargoType: initialPass.cargoType || 'RAW_MATERIALS',
+      cargoDescription: initialPass.cargoDescription || '',
+      driverName: initialPass.driverName || '',
+      driverNationalId: initialPass.driverNationalId || '',
+      driverPhone: initialPass.driverPhone || '',
+      vehicleType: initialPass.vehicleType || 'TRUCK',
+      licensePlate: initialPass.licensePlate || '',
+      exitDate: initialPass.exitDate || '',
+    } : {
+      ...emptyForm,
+      driverName: driver?.driverName || '',
+      driverNationalId: driver?.driverNationalId || '',
+      driverPhone: driver?.driverPhone || '',
+      vehicleType: driver?.vehicleType || 'TRUCK',
+      licensePlate: driver?.licensePlate || '',
+    };
+  });
 
   const { data: factories, isLoading: loadingFactories, isError: factoriesError } = useQuery({
     queryKey: ['factories', 'managed'],
@@ -165,7 +181,7 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
           })
         : gatePassApi.createGatePass(payload)
     ),
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       showNotification(
         isEdit
           ? 'برگ خروج با موفقیت به‌روز شد.'
@@ -174,6 +190,16 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
       );
       queryClient.invalidateQueries({ queryKey: ['gate-passes'] });
       queryClient.invalidateQueries({ queryKey: ['factory-wallet'] });
+      if (!isEdit) {
+        setSaveDriverPrompt({
+          driverName: variables.driverName,
+          driverNationalId: variables.driverNationalId,
+          driverPhone: variables.driverPhone,
+          vehicleType: variables.vehicleType,
+          licensePlate: variables.licensePlate,
+        });
+        return;
+      }
       handleBack();
     },
     onError: (err) => {
@@ -182,6 +208,21 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
         return;
       }
       showNotification(getErrorMessage(err, isEdit ? 'ویرایش برگ خروج ناموفق بود.' : 'ثبت برگ خروج ناموفق بود.'), 'error');
+    },
+  });
+
+  const saveDriverMutation = useMutation({
+    mutationFn: (driver) => authApi.saveDefaultDriver(driver),
+    onSuccess: async () => {
+      try { await refreshProfile(); } catch { /* ignore */ }
+      showNotification('اطلاعات راننده برای دفعات بعد ذخیره شد', 'success');
+      setSaveDriverPrompt(null);
+      handleBack();
+    },
+    onError: (err) => {
+      showNotification(getErrorMessage(err, 'ذخیره راننده ناموفق بود'), 'error');
+      setSaveDriverPrompt(null);
+      handleBack();
     },
   });
 
@@ -373,6 +414,21 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
           navigate('/factory/wallet');
         }}
         onClose={() => setWalletModalOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(saveDriverPrompt)}
+        title="ذخیره راننده؟"
+        description="آیا اطلاعات این راننده و خودرو به‌عنوان پیش‌فرض برای دفعات بعد ذخیره شود؟"
+        confirmLabel="بله، ذخیره شود"
+        cancelLabel="خیر"
+        onConfirm={() => {
+          if (saveDriverPrompt) saveDriverMutation.mutate(saveDriverPrompt);
+        }}
+        onClose={() => {
+          setSaveDriverPrompt(null);
+          handleBack();
+        }}
       />
     </>
   );

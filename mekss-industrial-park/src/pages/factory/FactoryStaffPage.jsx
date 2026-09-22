@@ -29,8 +29,7 @@ import { getErrorMessage } from '../../utils/apiError';
 import { requestTypeLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
-
-const allRequestTypes = Object.keys(requestTypeLabels);
+import { StaffAccessLevelPicker } from '../../components/staff/StaffAccessLevelPicker';
 
 export const FactoryStaffPage = () => {
   const { activeFactoryId, activeFactory, factories, isLoading: loadingFactories } = useActiveFactory();
@@ -68,14 +67,8 @@ export const FactoryStaffPage = () => {
     onError: (err) => showNotification(getErrorMessage(err, 'به‌روزرسانی کارمند ناموفق بود'), 'error'),
   });
 
-  const togglePermission = (type) => {
-    setForm((prev) => ({
-      ...prev,
-      canApproveRequestTypes: prev.canApproveRequestTypes.includes(type)
-        ? prev.canApproveRequestTypes.filter((item) => item !== type)
-        : [...prev.canApproveRequestTypes, type],
-    }));
-  };
+  const [permissionEditId, setPermissionEditId] = useState(null);
+  const [permissionDraft, setPermissionDraft] = useState([]);
 
   const canSubmit = useMemo(
     () => form.name.trim() && /^09\d{9}$/.test(form.phoneNumber) && form.password.length >= 10,
@@ -124,28 +117,10 @@ export const FactoryStaffPage = () => {
             </div>
           </div>
 
-          <div>
-            <p className="mb-2 text-xs font-medium text-foreground-600">مجوز تایید انواع درخواست</p>
-            <div className="flex flex-wrap gap-2">
-              {allRequestTypes.map((type) => {
-                const selected = form.canApproveRequestTypes.includes(type);
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => togglePermission(type)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ring-1 ${
-                      selected
-                        ? 'bg-[var(--color-brand)] text-white ring-[var(--color-brand)]'
-                        : 'bg-default-50 text-foreground-600 ring-default-200 hover:ring-[var(--color-brand)]'
-                    }`}
-                  >
-                    {requestTypeLabels[type]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <StaffAccessLevelPicker
+            value={form.canApproveRequestTypes}
+            onChange={(types) => setForm((prev) => ({ ...prev, canApproveRequestTypes: types }))}
+          />
 
           <div className="flex justify-end">
             <Button
@@ -200,14 +175,52 @@ export const FactoryStaffPage = () => {
                           </Chip>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            size="sm"
-                            variant="tertiary"
-                            isDisabled={updateMutation.isPending}
-                            onPress={() => updateMutation.mutate({ userId: member.id, data: { isActive: !member.isActive } })}
-                          >
-                            {member.isActive ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="tertiary"
+                              onPress={() => {
+                                if (permissionEditId === member.id) {
+                                  setPermissionEditId(null);
+                                  return;
+                                }
+                                setPermissionEditId(member.id);
+                                setPermissionDraft(member.canApproveRequestTypes || []);
+                              }}
+                            >
+                              سطح دسترسی
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="tertiary"
+                              isDisabled={updateMutation.isPending}
+                              onPress={() => updateMutation.mutate({ userId: member.id, data: { isActive: !member.isActive } })}
+                            >
+                              {member.isActive ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
+                            </Button>
+                          </div>
+                          {permissionEditId === member.id && (
+                            <div className="mt-3 rounded-xl border border-default-200 p-3">
+                              <StaffAccessLevelPicker
+                                value={permissionDraft}
+                                onChange={setPermissionDraft}
+                              />
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                className="mt-2 font-bold"
+                                isDisabled={updateMutation.isPending}
+                                onPress={() => {
+                                  updateMutation.mutate(
+                                    { userId: member.id, data: { canApproveRequestTypes: permissionDraft } },
+                                    { onSuccess: () => setPermissionEditId(null) },
+                                  );
+                                }}
+                              >
+                                ذخیره سطح دسترسی
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

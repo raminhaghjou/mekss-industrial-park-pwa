@@ -4,6 +4,7 @@ export const gatePassApi = {
   getGatePasses: (params) => apiClient.get('/gate-passes', { params }),
   getGatePass: (id) => apiClient.get(`/gate-passes/${id}`),
   getByQr: (code) => apiClient.get(`/gate-passes/by-qr/${encodeURIComponent(code)}`),
+  getByPlate: (plate) => apiClient.get(`/gate-passes/by-plate/${encodeURIComponent(plate)}`),
   createGatePass: (data) => apiClient.post('/gate-passes', data),
   updateGatePass: (id, data) => apiClient.put(`/gate-passes/${id}`, data),
   approveGatePass: (id) => apiClient.post(`/gate-passes/${id}/approve`),

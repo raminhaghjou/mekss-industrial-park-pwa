@@ -213,11 +213,14 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
     showNotification(moderationError(error, fallback), 'error');
   };
 
+  const [promoteFeatured, setPromoteFeatured] = React.useState(false);
+
   const approveMutation = useMutation({
-    mutationFn: (id) => advertisementApi.approveAdvertisement(id),
+    mutationFn: (id) => advertisementApi.approveAdvertisement(id, promoteFeatured),
     onSuccess: async (_, id) => {
       await reconcile(id);
       setApproveTarget(null);
+      setPromoteFeatured(false);
       showNotification('تایید آگهی ثبت و فهرست به‌روزرسانی شد.', 'success');
     },
     onError: (error, id) => moderationFailure(error, id, 'تایید آگهی ناموفق بود.'),
@@ -471,6 +474,16 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
         </ModalBackdrop>
       )}
 
+      {approveTarget && (
+        <label className="mx-4 mb-2 flex items-center gap-2 text-sm text-foreground-600">
+          <input
+            type="checkbox"
+            checked={promoteFeatured}
+            onChange={(e) => setPromoteFeatured(e.target.checked)}
+          />
+          پس از تایید در اسلایدر «آگهی ویژه» قرار گیرد (سقف ماهانه)
+        </label>
+      )}
       <ConfirmDialog
         open={Boolean(approveTarget)}
         title="تایید آگهی"
@@ -481,7 +494,7 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
         onConfirm={() => {
           if (online && approveTarget) approveMutation.mutate(approveTarget.id);
         }}
-        onClose={() => { if (!decisionPending) setApproveTarget(null); }}
+        onClose={() => { if (!decisionPending) { setApproveTarget(null); setPromoteFeatured(false); } }}
       />
       <ConfirmDialog
         open={Boolean(rejectTarget)}

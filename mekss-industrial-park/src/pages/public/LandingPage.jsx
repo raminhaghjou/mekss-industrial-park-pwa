@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { publicApi } from '../../services/api/public.api';
 import {
   ArrowLeft,
   Building2,
@@ -25,7 +27,7 @@ const services = [
   { to: '/login', label: 'مجوز عبور', icon: Ticket },
   { to: '/login', label: 'قبض و پرداخت', icon: Receipt },
   { to: '/sms-request', label: 'درخواست خدمات', icon: FileText },
-  { to: '/login', label: 'اطلاعیه‌ها', icon: Megaphone },
+  { to: '/ads', label: 'آگهی‌ها', icon: Megaphone },
   { to: '/login', label: 'اضطراری', icon: AlertTriangle },
   { to: '/sms-request', label: 'درخواست پیامکی', icon: MessageSquareText },
   { to: '/login', label: 'ورود به سامانه', icon: LogIn },
@@ -57,11 +59,26 @@ const benefits = [
 
 const navLinks = [
   { to: '/directory', label: 'دایرکتوری' },
+  { to: '/ads', label: 'آگهی‌ها' },
   { to: '/shops', label: 'فروشگاه‌ها' },
   { to: '/sms-request', label: 'درخواست پیامکی' },
 ];
 
-export const LandingPage = () => (
+export const LandingPage = () => {
+  const { data: announcements = [] } = useQuery({
+    queryKey: ['public', 'announcements'],
+    queryFn: () => publicApi.getAnnouncements().then((res) => res.data),
+  });
+  const { data: featuredAds = [] } = useQuery({
+    queryKey: ['public', 'featured-ads'],
+    queryFn: () => publicApi.getFeaturedAdvertisements().then((res) => res.data),
+  });
+  const { data: marketRates = [] } = useQuery({
+    queryKey: ['public', 'market-rates'],
+    queryFn: () => publicApi.getMarketRates().then((res) => res.data),
+  });
+
+  return (
   <div className="min-h-dvh bg-[var(--color-surface)] text-[var(--color-ink)]">
     <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
@@ -157,6 +174,43 @@ export const LandingPage = () => (
             دایرکتوری واحدها
             <ArrowLeft className="h-4 w-4" />
           </Link>
+        </div>
+      </div>
+    </section>
+
+    <section className="bg-[var(--color-surface-soft)] px-4 py-14 sm:px-6 sm:py-16">
+      <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-3">
+        <div className="rounded-[var(--radius-md)] bg-white p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-lg font-bold text-[var(--color-ink)]">اطلاعیه‌ها</h2>
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-muted)]">
+            {(announcements.slice(0, 4)).map((item) => (
+              <li key={item.id} className="line-clamp-2">{item.title}</li>
+            ))}
+            {announcements.length === 0 && <li>اطلاعیه‌ای ثبت نشده است.</li>}
+          </ul>
+          <Link to="/login" className="mt-4 inline-block text-sm font-semibold text-[var(--color-brand)]">ورود برای جزئیات</Link>
+        </div>
+        <div className="rounded-[var(--radius-md)] bg-white p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-lg font-bold text-[var(--color-ink)]">آگهی‌ها</h2>
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-muted)]">
+            {(featuredAds.length ? featuredAds : []).slice(0, 4).map((item) => (
+              <li key={item.id} className="line-clamp-2">{item.title}</li>
+            ))}
+            {featuredAds.length === 0 && <li>آگهی ویژه‌ای فعلاً نمایش داده نمی‌شود.</li>}
+          </ul>
+          <Link to="/ads" className="mt-4 inline-block text-sm font-semibold text-[var(--color-brand)]">دیوار آگهی</Link>
+        </div>
+        <div className="rounded-[var(--radius-md)] bg-white p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-lg font-bold text-[var(--color-ink)]">نرخ بازار</h2>
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-muted)]">
+            {(marketRates.slice(0, 5)).map((rate) => (
+              <li key={rate.key} className="flex justify-between gap-2" dir="ltr">
+                <span>{rate.key}</span>
+                <span>{Number(rate.value).toLocaleString('fa-IR')}</span>
+              </li>
+            ))}
+            {marketRates.length === 0 && <li>نرخی در دسترس نیست.</li>}
+          </ul>
         </div>
       </div>
     </section>
@@ -280,6 +334,7 @@ export const LandingPage = () => (
       </div>
     </footer>
   </div>
-);
+  );
+};
 
 export default LandingPage;

@@ -66,6 +66,8 @@ const navigationItems = [
   { path: '/announcements', text: 'اطلاعیه‌ها', icon: Bell, roles: ['FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'SECURITY_GUARD', 'EMPLOYEE'] },
   { path: '/advertisements', text: 'آگهی‌ها', icon: Megaphone, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
   { path: '/emergency', text: 'هشدار اضطراری', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'EMPLOYEE'] },
+  { path: '/ads', text: 'دیوار آگهی', icon: Megaphone, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE', 'GOVERNMENT_OFFICIAL'] },
+  { path: '/feedback', text: 'انتقادات و پیشنهادات', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'EMPLOYEE', 'GOVERNMENT_OFFICIAL'] },
   { path: '/superadmin/parks', text: 'شهرک‌ها', icon: MapPin, roles: ['SUPER_ADMIN'] },
   { path: '/superadmin/users', text: 'کاربران', icon: Users, roles: ['SUPER_ADMIN'] },
   { path: '/admin/reports', text: 'گزارش‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'GOVERNMENT_OFFICIAL'] },

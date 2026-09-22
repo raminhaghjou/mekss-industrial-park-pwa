@@ -18,7 +18,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@heroui/react';
-import { Check, Plus, FileText, X } from 'lucide-react';
+import { Check, Plus, FileText, Printer, Wrench, X } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -60,6 +60,25 @@ export const RequestsPage = () => {
 
   const requests = data || [];
   const canCreate = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE'].includes(user?.role);
+
+  const printRequest = (req) => {
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) return;
+    const typeLabel = typeLabels[req.type] || req.type;
+    win.document.write(`<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"/><title>${req.title}</title>
+      <style>body{font-family:Tahoma;padding:24px;line-height:1.9}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:8px}</style></head><body>
+      <h1>درخواست ${typeLabel}</h1>
+      <table>
+      <tr><th>موضوع</th><td>${req.title}</td></tr>
+      <tr><th>واحد</th><td>${req.factory?.name || '—'}</td></tr>
+      <tr><th>وضعیت</th><td>${statusLabels[req.status] || req.status}</td></tr>
+      <tr><th>تاییدکننده</th><td>${req.approver?.name || '—'}</td></tr>
+      <tr><th>تاریخ</th><td>${new Date(req.createdAt).toLocaleString('fa-IR')}</td></tr>
+      <tr><th>شرح</th><td>${req.description || ''}</td></tr>
+      </table>
+      <p><button onclick="window.print()">پرینت</button></p></body></html>`);
+    win.document.close();
+  };
   const canDecideInternal = (req) => {
     if (req.status !== 'PENDING' || req.isToParkManager) return false;
     if (user?.role === 'FACTORY_OWNER') return true;
@@ -74,12 +93,18 @@ export const RequestsPage = () => {
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="page-toolbar">
         <h1 className="text-xl font-bold text-foreground sm:text-2xl">درخواست‌ها</h1>
-        {canCreate && (
-          <Button variant="primary" onPress={() => navigate('/requests/new/general')} className="flex w-full items-center justify-center gap-2 sm:w-auto">
-            <Plus className="h-4 w-4" />
-            ثبت درخواست جدید
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onPress={() => navigate('/requests/tools')} className="gap-2">
+            <Wrench className="h-4 w-4" />
+            فرم‌ها و محاسبه نرخ
           </Button>
-        )}
+          {canCreate && (
+            <Button variant="primary" onPress={() => navigate('/requests/new/general')} className="flex items-center justify-center gap-2">
+              <Plus className="h-4 w-4" />
+              ثبت درخواست جدید
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -112,6 +137,7 @@ export const RequestsPage = () => {
                     <TableColumn>موضوع</TableColumn>
                     <TableColumn>مقصد</TableColumn>
                     <TableColumn>تاریخ</TableColumn>
+                    <TableColumn>تاییدکننده</TableColumn>
                     <TableColumn>وضعیت</TableColumn>
                     <TableColumn>اقدام</TableColumn>
                   </TableHeader>
@@ -124,12 +150,19 @@ export const RequestsPage = () => {
                           {req.isToParkManager ? 'مدیر شهرک' : 'داخلی واحد'}
                         </TableCell>
                         <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
+                        <TableCell className="text-sm text-foreground-600">
+                          {req.approver?.name || '—'}
+                        </TableCell>
                         <TableCell>
                           <Chip color={statusColors[req.status] || 'default'} size="sm" variant="soft">
                             {statusLabels[req.status] || req.status}
                           </Chip>
                         </TableCell>
                         <TableCell>
+                          <Button size="sm" variant="tertiary" className="mb-1 gap-1" onPress={() => printRequest(req)}>
+                            <Printer className="h-3.5 w-3.5" />
+                            پرینت
+                          </Button>
                           {canDecideInternal(req) ? (
                             <div className="flex items-center gap-1">
                               <Button

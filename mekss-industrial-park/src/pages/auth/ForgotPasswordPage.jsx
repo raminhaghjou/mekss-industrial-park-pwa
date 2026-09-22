@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Spinner } from '@heroui/react';
-import { Phone, Lock, ArrowLeft, ShieldCheck, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Phone, ArrowLeft, ShieldCheck, KeyRound } from 'lucide-react';
 import { authApi } from '../../services/api/auth.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
@@ -16,17 +16,17 @@ import {
 
 const steps = ['phone', 'otp', 'done'];
 
+/**
+ * Docs flow: phone → OTP → system SMS username + temporary password → user logs in and changes password in panel.
+ */
 export const ForgotPasswordPage = () => {
   const navigate = useNavigate();
   const { showNotification } = useNotification();
   const [step, setStep] = useState('phone');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     phoneNumber: '',
     otp: '',
-    newPassword: '',
-    confirmPassword: '',
   });
 
   const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -49,18 +49,10 @@ export const ForgotPasswordPage = () => {
     }
   };
 
-  const resetPassword = async (e) => {
+  const confirmReset = async (e) => {
     e.preventDefault();
     if (!/^\d{6}$/.test(form.otp)) {
       showNotification('کد تایید باید ۶ رقم باشد', 'error');
-      return;
-    }
-    if (form.newPassword.length < 10) {
-      showNotification('رمز عبور جدید حداقل ۱۰ کاراکتر باشد', 'error');
-      return;
-    }
-    if (form.newPassword !== form.confirmPassword) {
-      showNotification('رمز عبور و تکرار آن یکسان نیستند', 'error');
       return;
     }
     setLoading(true);
@@ -68,10 +60,9 @@ export const ForgotPasswordPage = () => {
       await authApi.resetPassword({
         phoneNumber: form.phoneNumber,
         otp: form.otp,
-        newPassword: form.newPassword,
       });
       setStep('done');
-      showNotification('رمز عبور با موفقیت تغییر کرد', 'success');
+      showNotification('نام کاربری و رمز موقت برای شما پیامک شد', 'success');
     } catch (error) {
       showNotification(getErrorMessage(error, 'بازیابی رمز عبور ناموفق بود'), 'error');
     } finally {
@@ -88,8 +79,8 @@ export const ForgotPasswordPage = () => {
             step === 'phone'
               ? 'شماره موبایل حساب خود را وارد کنید'
               : step === 'otp'
-                ? 'کد پیامک‌شده و رمز جدید را وارد کنید'
-                : 'اکنون می‌توانید با رمز جدید وارد شوید'
+                ? 'کد پیامک‌شده را وارد کنید؛ نام کاربری و رمز موقت برایتان پیامک می‌شود'
+                : 'با رمز موقت وارد شوید و از پنل رمز دلخواه خود را تنظیم کنید'
           }
         />
 
@@ -138,7 +129,7 @@ export const ForgotPasswordPage = () => {
         )}
 
         {step === 'otp' && (
-          <form onSubmit={resetPassword} className="flex flex-col gap-4">
+          <form onSubmit={confirmReset} className="flex flex-col gap-4">
             <label className="flex flex-col gap-1.5">
               <span className={authLabelClass}>کد تایید</span>
               <span className="relative block">
@@ -156,48 +147,12 @@ export const ForgotPasswordPage = () => {
               </span>
             </label>
 
-            <label className="flex flex-col gap-1.5">
-              <span className={authLabelClass}>رمز عبور جدید</span>
-              <span className="relative block">
-                <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={10}
-                  placeholder="حداقل ۱۰ کاراکتر"
-                  value={form.newPassword}
-                  onChange={(e) => update('newPassword', e.target.value)}
-                  className={`${authFieldClass} pe-11`}
-                />
-                <button
-                  type="button"
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label="نمایش رمز"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </span>
-            </label>
-
-            <label className="flex flex-col gap-1.5">
-              <span className={authLabelClass}>تکرار رمز عبور</span>
-              <span className="relative block">
-                <Lock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={10}
-                  placeholder="تکرار رمز جدید"
-                  value={form.confirmPassword}
-                  onChange={(e) => update('confirmPassword', e.target.value)}
-                  className={authFieldClass}
-                />
-              </span>
-            </label>
+            <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs leading-6 text-slate-600">
+              پس از تایید، نام کاربری و یک رمز موقت برای شماره شما پیامک می‌شود. سپس وارد سامانه شوید و از بخش حساب کاربری رمز دلخواه خود را تنظیم کنید.
+            </p>
 
             <button type="submit" disabled={loading} className={authPrimaryButtonClass}>
-              {loading ? <Spinner size="sm" /> : 'ثبت رمز جدید'}
+              {loading ? <Spinner size="sm" /> : 'دریافت رمز موقت'}
             </button>
             <button
               type="button"
@@ -215,7 +170,7 @@ export const ForgotPasswordPage = () => {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <p className="text-sm leading-7 text-slate-600">
-              رمز عبور حساب شما به‌روزرسانی شد. برای ادامه وارد شوید.
+              نام کاربری و رمز موقت پیامک شد. وارد شوید و حتماً رمز عبور را از پنل تغییر دهید.
             </p>
             <button type="button" className={authPrimaryButtonClass} onClick={() => navigate('/login')}>
               ورود به حساب کاربری

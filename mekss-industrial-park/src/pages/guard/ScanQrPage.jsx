@@ -56,6 +56,17 @@ export const ScanQrPage = () => {
     onError: (error) => showNotification(getErrorMessage(error, 'کد QR معتبر نیست'), 'error'),
   });
 
+  const plateLookup = useMutation({
+    mutationFn: (plate) => gatePassApi.getByPlate(String(plate).trim()).then((res) => res.data),
+    onSuccess: (pass) => {
+      showNotification('برگ خروج مرتبط با پلاک یافت شد', 'success');
+      navigate(`/guard/gate-passes/${pass.id}/verify`);
+    },
+    onError: (error) => showNotification(getErrorMessage(error, 'برگ خروجی برای این پلاک یافت نشد'), 'error'),
+  });
+
+  const [plateCode, setPlateCode] = useState('');
+
   const stopScanner = async () => {
     const scanner = scannerRef.current;
     scannerRef.current = null;
@@ -243,6 +254,33 @@ export const ScanQrPage = () => {
             </div>
             <Button type="submit" variant="primary" className="h-12 font-bold" isDisabled={lookup.isPending}>
               {lookup.isPending ? <Spinner size="sm" /> : 'جستجو و تایید خروج'}
+            </Button>
+          </form>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!plateCode.trim()) {
+                showNotification('پلاک را وارد کنید', 'error');
+                return;
+              }
+              plateLookup.mutate(plateCode.trim());
+            }}
+            className="flex flex-col gap-3 rounded-2xl border border-dashed border-default-300 p-4"
+          >
+            <Label className="text-xs font-bold">تشخیص / تطبیق پلاک (OCR کمکی)</Label>
+            <p className="text-[11px] text-foreground-500">
+              پلاک خوانده‌شده از دوربین یا مشاهده خودرو را وارد کنید تا برگ خروج باز مرتبط باز شود. اسکن QR همچنان فعال است.
+            </p>
+            <Input
+              dir="ltr"
+              value={plateCode}
+              onChange={(e) => setPlateCode(e.target.value)}
+              placeholder="مثال: 12ب34567"
+              className="rounded-xl font-mono"
+            />
+            <Button type="submit" variant="secondary" className="font-bold" isDisabled={plateLookup.isPending}>
+              {plateLookup.isPending ? <Spinner size="sm" /> : 'تطبیق پلاک با برگ خروج باز'}
             </Button>
           </form>
         </CardContent>

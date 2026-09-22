@@ -202,6 +202,7 @@ export class RegisterFactoryDto {
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(1000) logo?: string | null;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) latitude?: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) longitude?: number;
+  @IsOptional() @IsObject() socialMedia?: Record<string, string> | null;
   @IsString() @Matches(opaqueId) parkId!: string;
 }
 
@@ -226,6 +227,7 @@ export class UpdateFactoryDto {
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(1000) logo?: string | null;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(-90) @Max(90) latitude?: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(-180) @Max(180) longitude?: number;
+  @IsOptional() @IsObject() socialMedia?: Record<string, string> | null;
 }
 
 export class CreateFactoryStaffDto {
@@ -274,6 +276,14 @@ export class SendDirectMessageDto {
   @IsString() @Matches(opaqueId) receiverId!: string;
   @IsString() @Length(2, 200) subject!: string;
   @IsString() @Length(2, 4000) body!: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) @MaxLength(500, { each: true }) attachments?: string[];
+}
+
+export class ListMessagesQueryDto {
+  @Transform(trimString) @IsOptional() @IsString() @MaxLength(200) search?: string;
+  @Transform(trimString) @IsOptional() @IsString() @MaxLength(200) subject?: string;
+  @IsOptional() @IsDateString() fromDate?: string;
+  @IsOptional() @IsDateString() toDate?: string;
 }
 
 export class PublicSmsRequestDto {
@@ -293,6 +303,7 @@ export class CreateGatePassDto {
   @Transform(normalizeLicensePlate) @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate!: string;
   @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
   @IsDateString({}, { message: 'تاریخ خروج نامعتبر است' }) exitDate!: string;
+  @IsOptional() @IsBoolean() saveAsDefaultDriver?: boolean;
 }
 
 export class UpdateGatePassDto {
@@ -326,6 +337,11 @@ export class CreateInvoiceDto {
 export class ListInvoicesQueryDto {
   /** payable = debts I owe; managed = factory AR I collect (park manager / SA). */
   @IsOptional() @IsIn(['payable', 'managed']) scope?: 'payable' | 'managed';
+  @IsOptional() @IsIn(['PENDING', 'OVERDUE', 'PAID', 'CANCELLED', 'AWAITING_CONFIRMATION']) status?: string;
+  @IsOptional() @IsDateString() fromDate?: string;
+  @IsOptional() @IsDateString() toDate?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) minAmount?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) maxAmount?: number;
 }
 
 export class UpdateInvoiceDto {
@@ -350,6 +366,10 @@ export class CreateRequestDto {
 
 export class ReasonDto {
   @IsString() @Length(1, 2000) @Matches(/\S/, { message: 'reason must not be blank' }) reason!: string;
+}
+
+export class ApproveRegistrationDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ArrayUnique() @IsEnum(RequestType, { each: true }) canApproveRequestTypes?: RequestType[];
 }
 
 export class CreateAnnouncementDto {
@@ -414,6 +434,34 @@ export class AdvertisementModerationDto {
   @Transform(trimString)
   @ValidateIf((value: AdvertisementModerationDto) => value.approved === false || value.rejectionReason !== undefined)
   @IsString() @Length(1, 2000) @Matches(/\S/, { message: 'rejectionReason must not be blank' }) rejectionReason?: string;
+  /** After approval, promote to the featured slider (subject to monthly cap). */
+  @IsOptional() @IsBoolean() promoteFeatured?: boolean;
+}
+
+export class PublicAdvertisementQueryDto {
+  @Transform(trimString) @IsOptional() @IsString() @MaxLength(200) search?: string;
+  @Transform(trimString) @IsOptional() @IsString() @Length(1, 80) category?: string;
+  @IsOptional() @IsIn(['all', 'fresh']) view?: 'all' | 'fresh';
+}
+
+export class CreateAdvertisementCategoryDto {
+  @Transform(trimString) @IsString() @Length(2, 40) @Matches(/^[A-Z0-9_]+$/) key!: string;
+  @Transform(trimString) @IsString() @Length(2, 80) label!: string;
+}
+
+export class UpdateAdvertisementCategoryDto {
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 80) label?: string;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class UpdateAdvertisementFeaturedSettingDto {
+  @Type(() => Number) @IsInt() @Min(1) @Max(100) monthlyCap!: number;
+}
+
+export class CreateFeedbackDto {
+  @Transform(trimString) @IsString() @Length(2, 200) subject!: string;
+  @Transform(trimString) @IsString() @Length(2, 8000) body!: string;
+  @IsOptional() @IsString() @Matches(opaqueId) recipientParkId?: string;
 }
 
 export class UpdateAnnouncementDto {

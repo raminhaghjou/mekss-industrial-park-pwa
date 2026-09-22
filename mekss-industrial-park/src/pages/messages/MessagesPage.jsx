@@ -18,6 +18,8 @@ import {
 } from '@heroui/react';
 import { Bell, CheckCheck, MessageSquare, PenSquare, Reply, Send, Siren, Users } from 'lucide-react';
 import { messageApi } from '../../services/api/message.api';
+import { filesApi } from '../../services/api/files.api';
+import { FileUploader } from '../../components/common/FileUploader';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
@@ -78,7 +80,17 @@ export const MessagesPage = () => {
     factoryId: '',
     subject: '',
     body: '',
+    attachmentIds: [],
   });
+  const [messageSearch, setMessageSearch] = useState('');
+  const [messageFromDate, setMessageFromDate] = useState('');
+  const [messageToDate, setMessageToDate] = useState('');
+
+  const messageQueryParams = useMemo(() => ({
+    ...(messageSearch.trim() ? { search: messageSearch.trim() } : {}),
+    ...(messageFromDate ? { fromDate: messageFromDate } : {}),
+    ...(messageToDate ? { toDate: messageToDate } : {}),
+  }), [messageSearch, messageFromDate, messageToDate]);
 
   const audienceOptions = audienceOptionsByRole[user?.role] || audienceOptionsByRole.EMPLOYEE;
   const [tabBootstrapped, setTabBootstrapped] = useState(false);
@@ -100,13 +112,13 @@ export const MessagesPage = () => {
   }, [tabBootstrapped, unreadQuery.data, unreadQuery.isLoading]);
 
   const inboxQuery = useQuery({
-    queryKey: ['messages', 'inbox'],
-    queryFn: () => messageApi.getInbox().then((res) => res.data),
+    queryKey: ['messages', 'inbox', messageQueryParams],
+    queryFn: () => messageApi.getInbox(messageQueryParams).then((res) => res.data),
   });
 
   const sentQuery = useQuery({
-    queryKey: ['messages', 'sent'],
-    queryFn: () => messageApi.getSent().then((res) => res.data),
+    queryKey: ['messages', 'sent', messageQueryParams],
+    queryFn: () => messageApi.getSent(messageQueryParams).then((res) => res.data),
     enabled: tab === 'sent',
   });
 
@@ -193,6 +205,7 @@ export const MessagesPage = () => {
           receiverId: payload.receiverId,
           subject: payload.subject,
           body: payload.body,
+          attachments: payload.attachmentIds?.length ? payload.attachmentIds : undefined,
         });
       }
       return messageApi.broadcastMessage({
@@ -210,7 +223,7 @@ export const MessagesPage = () => {
         showNotification(`پیام برای ${sentCount.toLocaleString('fa-IR')} گیرنده ارسال شد`, 'success');
       }
       setComposeOpen(false);
-      setCompose({ audience: 'DIRECT', receiverId: '', factoryId: '', subject: '', body: '' });
+      setCompose({ audience: 'DIRECT', receiverId: '', factoryId: '', subject: '', body: '', attachmentIds: [] });
       invalidateAll();
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ارسال پیام ناموفق بود'), 'error'),
@@ -243,6 +256,7 @@ export const MessagesPage = () => {
       factoryId: '',
       subject: selectedMessage.subject?.startsWith('باز:') ? selectedMessage.subject : `باز: ${selectedMessage.subject || ''}`,
       body: '',
+      attachmentIds: [],
     });
     setComposeOpen(true);
   };
@@ -293,6 +307,30 @@ export const MessagesPage = () => {
           </Button>
         </div>
       </div>
+
+      {(tab === 'inbox' || tab === 'sent') && (
+        <Card className="rounded-2xl border border-default-200">
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-1 sm:col-span-1">
+              <Label className="text-xs">جستجو (موضوع / متن)</Label>
+              <Input
+                value={messageSearch}
+                onChange={(e) => setMessageSearch(e.target.value)}
+                placeholder="موضوع یا متن پیام..."
+                className="rounded-xl"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">از تاریخ</Label>
+              <Input type="date" dir="ltr" value={messageFromDate} onChange={(e) => setMessageFromDate(e.target.value)} className="rounded-xl" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">تا تاریخ</Label>
+              <Input type="date" dir="ltr" value={messageToDate} onChange={(e) => setMessageToDate(e.target.value)} className="rounded-xl" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="inline-flex flex-wrap rounded-xl bg-default-100 p-1">
         {tabs.map((item) => (
@@ -409,6 +447,8 @@ export const MessagesPage = () => {
                         type="button"
                         onClick={() => openMessage(msg)}
                         className={`flex w-full items-start gap-3 px-4 py-3.5 text-start transition hover:bg-default-50 ${
+                          unread ? 'bg-warning-50/90 border-s-4 border-warning-400' : ''
+                        } ${
                           selectedId === msg.id ? 'bg-[var(--color-brand-soft)]' : ''
                         }`}
                       >
@@ -431,7 +471,7 @@ export const MessagesPage = () => {
                             {(msg.body || msg.content || '').slice(0, 100)}
                           </p>
                         </div>
-                        {unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]" />}
+                        {unread && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-warning-500" />}
                       </button>
                     </li>
                   );
@@ -560,12 +600,44 @@ export const MessagesPage = () => {
                     required
                   />
                 </div>
+                {compose.audience === 'DIRECT' && (
+                  <div className="flex flex-col gap-2">
+                    <FileUploader
+                      domain="message"
+                      label="افزودن پیوست"
+                      hint="تصویر یا PDF — حداکثر ۵ فایل"
+                      value={null}
+                      onUploaded={(file) => setCompose((p) => ({
+                        ...p,
+                        attachmentIds: [...new Set([...(p.attachmentIds || []), file.id])].slice(0, 5),
+                      }))}
+                    />
+                    {(compose.attachmentIds || []).length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {compose.attachmentIds.map((id) => (
+                          <Button
+                            key={id}
+                            size="sm"
+                            variant="tertiary"
+                            className="rounded-full"
+                            onPress={() => setCompose((p) => ({
+                              ...p,
+                              attachmentIds: (p.attachmentIds || []).filter((item) => item !== id),
+                            }))}
+                          >
+                            حذف پیوست
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="tertiary"
                     onPress={() => {
                       setComposeOpen(false);
-                      setCompose({ audience: 'DIRECT', receiverId: '', factoryId: '', subject: '', body: '' });
+                      setCompose({ audience: 'DIRECT', receiverId: '', factoryId: '', subject: '', body: '', attachmentIds: [] });
                     }}
                   >
                     انصراف
@@ -619,6 +691,22 @@ export const MessagesPage = () => {
                 <div className="whitespace-pre-wrap rounded-xl bg-default-50 p-4 text-sm leading-7 text-foreground">
                   {selectedMessage.body || selectedMessage.content}
                 </div>
+                {(selectedMessage.attachments || []).length > 0 && (
+                  <ul className="mt-4 flex flex-col gap-2">
+                    {(selectedMessage.attachments || []).map((fileId) => (
+                      <li key={fileId}>
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          className="rounded-xl"
+                          onPress={() => filesApi.download(fileId, `attachment-${fileId}`)}
+                        >
+                          دانلود پیوست
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ) : (
               <EmptyState

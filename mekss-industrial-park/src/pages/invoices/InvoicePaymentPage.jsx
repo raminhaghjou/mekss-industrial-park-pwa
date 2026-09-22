@@ -26,7 +26,7 @@ const InvoicePaymentPage = () => {
 
   const { data: invoices, isLoading, isError } = useQuery({
     queryKey: ['invoices'],
-    queryFn: () => invoiceApi.getInvoices().then((res) => res.data),
+    queryFn: () => invoiceApi.getInvoices({ scope: 'payable' }).then((res) => res.data),
   });
 
   const invoice = (invoices || []).find((inv) => inv.id === id);

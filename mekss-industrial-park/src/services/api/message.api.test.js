@@ -28,15 +28,17 @@ describe('message API contract', () => {
     expect(mocks.post).toHaveBeenCalledWith('/messages/message-1/read');
   });
 
-  it('reads notifications and supports broadcast to factory managers', () => {
+  it('reads notifications and supports scoped broadcast endpoints', () => {
     messageApi.getNotifications();
     messageApi.markNotificationRead('notif-1');
     messageApi.markAllNotificationsRead();
     messageApi.broadcastToFactoryManagers('موضوع', 'متن');
+    messageApi.broadcastMessage({ subject: 'موضوع', body: 'متن', audience: 'PARK_ALL' });
 
     expect(mocks.get).toHaveBeenCalledWith('/notifications');
     expect(mocks.post).toHaveBeenCalledWith('/notifications/notif-1/read');
     expect(mocks.post).toHaveBeenCalledWith('/notifications/read-all');
     expect(mocks.post).toHaveBeenCalledWith('/messages/broadcast/factory-managers', { subject: 'موضوع', body: 'متن' });
+    expect(mocks.post).toHaveBeenCalledWith('/messages/broadcast', { subject: 'موضوع', body: 'متن', audience: 'PARK_ALL' });
   });
 });

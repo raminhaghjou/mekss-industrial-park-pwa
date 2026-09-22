@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   CardContent,
@@ -24,6 +24,7 @@ import { gatePassStatusLabels } from '../../constants/persianLabels';
 const VerifyGatePassPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { showNotification } = useNotification();
   const [denyOpen, setDenyOpen] = React.useState(false);
   const [verifyOpen, setVerifyOpen] = React.useState(false);
@@ -35,11 +36,20 @@ const VerifyGatePassPage = () => {
 
   const plateLabel = displayIranLicensePlate(pass?.licensePlate || '');
 
+  const refreshLists = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['gate-passes'] }),
+      queryClient.invalidateQueries({ queryKey: ['gate-pass', id] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    ]);
+  };
+
   const verifyMutation = useMutation({
     mutationFn: () => gatePassApi.verifyGatePass(id),
-    onSuccess: () => {
+    onSuccess: async () => {
       showNotification(`خروج خودرو با پلاک ${plateLabel} با موفقیت ثبت شد.`, 'success');
       setVerifyOpen(false);
+      await refreshLists();
       navigate('/guard/gate-passes');
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ثبت خروج ناموفق بود.'), 'error'),
@@ -47,8 +57,9 @@ const VerifyGatePassPage = () => {
 
   const denyMutation = useMutation({
     mutationFn: (/** @type {string} */ reason) => gatePassApi.denyGatePassExit(id, { reason }),
-    onSuccess: () => {
+    onSuccess: async () => {
       showNotification('گزارش مغایرت ثبت و به مدیر شهرک ارجاع داده شد.', 'success');
+      await refreshLists();
       navigate('/guard/gate-passes');
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ثبت گزارش مغایرت ناموفق بود.'), 'error'),

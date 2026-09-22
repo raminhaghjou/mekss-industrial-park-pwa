@@ -32,6 +32,32 @@ const roleRecipientLabels = {
   SECURITY_GUARD: 'نگهبان',
 };
 
+const audienceOptionsByRole = {
+  SUPER_ADMIN: [
+    { value: 'DIRECT', label: 'یک نفر مشخص' },
+    { value: 'SYSTEM_ALL', label: 'همه سامانه (مدیران، کارمندان، نگهبانان همه شهرک‌ها)' },
+  ],
+  PARK_MANAGER: [
+    { value: 'DIRECT', label: 'یک نفر مشخص' },
+    { value: 'PARK_ALL', label: 'کل شهرک (مدیران واحد + نگهبانی)' },
+    { value: 'FACTORY_UNIT', label: 'یک واحد صنعتی (مدیر + کارمندان همان واحد)' },
+  ],
+  FACTORY_OWNER: [
+    { value: 'DIRECT', label: 'یک نفر مشخص' },
+    { value: 'FACTORY_EMPLOYEES', label: 'همه کارمندان واحد من' },
+  ],
+  EMPLOYEE: [
+    { value: 'DIRECT', label: 'یک نفر مشخص' },
+  ],
+};
+
+const audienceHelp = {
+  SYSTEM_ALL: 'پیام برای تمام کاربران فعال سامانه در همه شهرک‌ها ارسال می‌شود.',
+  PARK_ALL: 'پیام فقط برای مدیران واحدهای صنعتی و نگهبانان همین شهرک ارسال می‌شود.',
+  FACTORY_UNIT: 'پیام فقط برای مدیر و کارمندان همان واحد صنعتی انتخاب‌شده ارسال می‌شود.',
+  FACTORY_EMPLOYEES: 'پیام برای تمام کارمندان واحد(های) صنعتی شما ارسال می‌شود.',
+};
+
 const notificationTypeMeta = {
   EMERGENCY: { label: 'اضطراری', color: 'danger', icon: Siren },
   WARNING: { label: 'هشدار', color: 'warning', icon: Bell },
@@ -46,10 +72,15 @@ export const MessagesPage = () => {
   const [tab, setTab] = useState('inbox');
   const [selectedId, setSelectedId] = useState(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [broadcastMode, setBroadcastMode] = useState(false);
-  const [compose, setCompose] = useState({ receiverId: '', subject: '', body: '' });
+  const [compose, setCompose] = useState({
+    audience: 'DIRECT',
+    receiverId: '',
+    factoryId: '',
+    subject: '',
+    body: '',
+  });
 
-  const canBroadcast = user?.role === 'PARK_MANAGER' || user?.role === 'SUPER_ADMIN';
+  const audienceOptions = audienceOptionsByRole[user?.role] || audienceOptionsByRole.EMPLOYEE;
   const [tabBootstrapped, setTabBootstrapped] = useState(false);
 
   const unreadQuery = useQuery({
@@ -87,7 +118,7 @@ export const MessagesPage = () => {
   const recipientsQuery = useQuery({
     queryKey: ['messages', 'recipients'],
     queryFn: () => messageApi.getRecipients().then((res) => res.data || []),
-    enabled: composeOpen && !broadcastMode,
+    enabled: composeOpen,
   });
 
   const messages = tab === 'inbox' ? (inboxQuery.data || []) : tab === 'sent' ? (sentQuery.data || []) : [];
@@ -108,6 +139,15 @@ export const MessagesPage = () => {
       ? sentQuery.error
       : notificationsQuery.error;
   const recipients = recipientsQuery.data || [];
+  const factoryOptions = useMemo(() => {
+    const map = new Map();
+    for (const person of recipients) {
+      if (person.factoryId && person.factoryName) {
+        map.set(person.factoryId, person.factoryName);
+      }
+    }
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'fa'));
+  }, [recipients]);
 
   const unreadMessages = Number(unreadQuery.data?.messages || 0);
   const unreadNotifications = Number(unreadQuery.data?.notifications || 0);
@@ -147,21 +187,30 @@ export const MessagesPage = () => {
   });
 
   const sendMutation = useMutation({
-    mutationFn: (payload) => (
-      broadcastMode
-        ? messageApi.broadcastToFactoryManagers(payload.subject, payload.body)
-        : messageApi.sendMessage(payload)
-    ),
-    onSuccess: (res) => {
-      if (broadcastMode) {
-        const sentCount = res?.data?.sentCount ?? 0;
-        showNotification(`پیام برای ${sentCount.toLocaleString('fa-IR')} مدیر واحد ارسال شد`, 'success');
-      } else {
+    mutationFn: (payload) => {
+      if (payload.audience === 'DIRECT') {
+        return messageApi.sendMessage({
+          receiverId: payload.receiverId,
+          subject: payload.subject,
+          body: payload.body,
+        });
+      }
+      return messageApi.broadcastMessage({
+        subject: payload.subject,
+        body: payload.body,
+        audience: payload.audience,
+        factoryId: payload.factoryId || undefined,
+      });
+    },
+    onSuccess: (res, variables) => {
+      if (variables.audience === 'DIRECT') {
         showNotification('پیام ارسال شد', 'success');
+      } else {
+        const sentCount = res?.data?.sentCount ?? 0;
+        showNotification(`پیام برای ${sentCount.toLocaleString('fa-IR')} گیرنده ارسال شد`, 'success');
       }
       setComposeOpen(false);
-      setBroadcastMode(false);
-      setCompose({ receiverId: '', subject: '', body: '' });
+      setCompose({ audience: 'DIRECT', receiverId: '', factoryId: '', subject: '', body: '' });
       invalidateAll();
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ارسال پیام ناموفق بود'), 'error'),
@@ -188,19 +237,19 @@ export const MessagesPage = () => {
     const receiverId = tab === 'inbox'
       ? selectedMessage.senderId || selectedMessage.sender?.id
       : selectedMessage.receiverId || selectedMessage.receiver?.id;
-    setBroadcastMode(false);
     setCompose({
+      audience: 'DIRECT',
       receiverId: receiverId || '',
+      factoryId: '',
       subject: selectedMessage.subject?.startsWith('باز:') ? selectedMessage.subject : `باز: ${selectedMessage.subject || ''}`,
       body: '',
     });
     setComposeOpen(true);
   };
 
-  const startCompose = ({ broadcast = false } = {}) => {
-    setBroadcastMode(broadcast);
+  const startCompose = (audience = 'DIRECT') => {
     setSelectedId(null);
-    setCompose({ receiverId: '', subject: '', body: '' });
+    setCompose({ audience, receiverId: '', factoryId: '', subject: '', body: '' });
     setComposeOpen(true);
   };
 
@@ -220,13 +269,25 @@ export const MessagesPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canBroadcast && (
-            <Button variant="secondary" className="gap-2 font-bold" onPress={() => startCompose({ broadcast: true })}>
+          {user?.role === 'SUPER_ADMIN' && (
+            <Button variant="secondary" className="gap-2 font-bold" onPress={() => startCompose('SYSTEM_ALL')}>
               <Users className="h-4 w-4" />
-              پیام به همه مدیران واحد
+              پیام به همه سامانه
             </Button>
           )}
-          <Button variant="primary" className="gap-2 font-bold" onPress={() => startCompose()}>
+          {user?.role === 'PARK_MANAGER' && (
+            <Button variant="secondary" className="gap-2 font-bold" onPress={() => startCompose('PARK_ALL')}>
+              <Users className="h-4 w-4" />
+              پیام به کل شهرک
+            </Button>
+          )}
+          {user?.role === 'FACTORY_OWNER' && (
+            <Button variant="secondary" className="gap-2 font-bold" onPress={() => startCompose('FACTORY_EMPLOYEES')}>
+              <Users className="h-4 w-4" />
+              پیام به همه کارمندان
+            </Button>
+          )}
+          <Button variant="primary" className="gap-2 font-bold" onPress={() => startCompose('DIRECT')}>
             <PenSquare className="h-4 w-4" />
             پیام جدید
           </Button>
@@ -391,26 +452,47 @@ export const MessagesPage = () => {
                     showNotification('موضوع و متن الزامی است', 'error');
                     return;
                   }
-                  if (!broadcastMode && !compose.receiverId) {
+                  if (compose.audience === 'DIRECT' && !compose.receiverId) {
                     showNotification('گیرنده را انتخاب کنید', 'error');
+                    return;
+                  }
+                  if (compose.audience === 'FACTORY_UNIT' && !compose.factoryId) {
+                    showNotification('واحد صنعتی را انتخاب کنید', 'error');
                     return;
                   }
                   sendMutation.mutate(compose);
                 }}
               >
-                <h2 className="text-lg font-bold">
-                  {broadcastMode ? 'ارسال پیام به همه مدیران واحد صنعتی' : 'ارسال پیام'}
-                </h2>
-                {broadcastMode ? (
+                <h2 className="text-lg font-bold">ارسال پیام</h2>
+
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs">سطح ارسال</Label>
+                  <select
+                    value={compose.audience}
+                    onChange={(e) => setCompose((p) => ({
+                      ...p,
+                      audience: e.target.value,
+                      receiverId: '',
+                      factoryId: e.target.value === 'FACTORY_UNIT' ? p.factoryId : '',
+                    }))}
+                    className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                  >
+                    {audienceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {compose.audience !== 'DIRECT' && audienceHelp[compose.audience] && (
                   <Alert status="accent">
                     <AlertContent>
-                      <AlertTitle>ارسال گروهی</AlertTitle>
-                      <AlertDescription>
-                        این پیام به‌صورت جداگانه برای تمام مدیران واحدهای صنعتی شهرک شما در صندوق «پیام‌های دریافتی» ثبت می‌شود.
-                      </AlertDescription>
+                      <AlertTitle>محدوده ارسال</AlertTitle>
+                      <AlertDescription>{audienceHelp[compose.audience]}</AlertDescription>
                     </AlertContent>
                   </Alert>
-                ) : (
+                )}
+
+                {compose.audience === 'DIRECT' && (
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs">گیرنده</Label>
                     <select
@@ -419,10 +501,16 @@ export const MessagesPage = () => {
                       onChange={(e) => setCompose((p) => ({ ...p, receiverId: e.target.value }))}
                       className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
                     >
-                      <option value="">انتخاب از لیست مجاز</option>
+                      <option value="">انتخاب از لیست مجاز نقش شما</option>
                       {recipients.map((person) => (
                         <option key={person.id} value={person.id}>
-                          {person.name} — {roleRecipientLabels[person.role] || person.role} ({person.phoneNumber})
+                          {person.name}
+                          {person.factoryName ? ` · ${person.factoryName}` : ''}
+                          {' — '}
+                          {roleRecipientLabels[person.role] || person.role}
+                          {' ('}
+                          {person.phoneNumber}
+                          {')'}
                         </option>
                       ))}
                     </select>
@@ -432,6 +520,27 @@ export const MessagesPage = () => {
                     )}
                   </div>
                 )}
+
+                {compose.audience === 'FACTORY_UNIT' && (
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">واحد صنعتی</Label>
+                    <select
+                      required
+                      value={compose.factoryId}
+                      onChange={(e) => setCompose((p) => ({ ...p, factoryId: e.target.value }))}
+                      className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+                    >
+                      <option value="">انتخاب واحد</option>
+                      {factoryOptions.map((factory) => (
+                        <option key={factory.id} value={factory.id}>{factory.name}</option>
+                      ))}
+                    </select>
+                    {!recipientsQuery.isLoading && factoryOptions.length === 0 && (
+                      <p className="text-[11px] text-danger">واحد صنعتی فعالی در شهرک شما یافت نشد.</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">موضوع</Label>
                   <Input
@@ -452,10 +561,18 @@ export const MessagesPage = () => {
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="tertiary" onPress={() => { setComposeOpen(false); setBroadcastMode(false); }}>انصراف</Button>
+                  <Button
+                    variant="tertiary"
+                    onPress={() => {
+                      setComposeOpen(false);
+                      setCompose({ audience: 'DIRECT', receiverId: '', factoryId: '', subject: '', body: '' });
+                    }}
+                  >
+                    انصراف
+                  </Button>
                   <Button type="submit" variant="primary" className="gap-2 font-bold" isDisabled={sendMutation.isPending}>
                     {sendMutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}
-                    {broadcastMode ? 'ارسال به همه' : 'ارسال'}
+                    {compose.audience === 'DIRECT' ? 'ارسال' : 'ارسال گروهی'}
                   </Button>
                 </div>
               </form>

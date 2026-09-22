@@ -207,7 +207,16 @@ describe('ManagementService transactional foundation', () => {
           factory: { name: 'Scoped factory' }, driverNationalId: 'must-not-leak',
         }]),
       },
-      invoice: { count: jest.fn().mockResolvedValue(3), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 1500 } }) },
+      invoice: {
+        count: jest.fn()
+          .mockResolvedValueOnce(3) // total factory invoices
+          .mockResolvedValueOnce(0) // personal park unpaid
+          .mockResolvedValueOnce(3), // units unpaid
+        aggregate: jest.fn()
+          .mockResolvedValueOnce({ _sum: { totalAmount: 0 } }) // personal
+          .mockResolvedValueOnce({ _sum: { totalAmount: 1500 } }), // units
+        findMany: jest.fn().mockResolvedValue([{ factoryId: 'factory-1' }, { factoryId: 'factory-2' }]),
+      },
       request: {
         count: jest.fn().mockResolvedValueOnce(5).mockResolvedValueOnce(2),
         findMany: jest.fn().mockResolvedValue([
@@ -234,8 +243,11 @@ describe('ManagementService transactional foundation', () => {
       invoices: 3,
       requests: 5,
       openEmergencies: 1,
-      unpaidInvoiceCount: 3,
-      unpaidInvoiceTotal: 1500,
+      unpaidInvoiceCount: 0,
+      unpaidInvoiceTotal: 0,
+      unitsUnpaidInvoiceCount: 3,
+      unitsUnpaidInvoiceTotal: 1500,
+      unitsWithDebtCount: 2,
       pendingWork: { gatePasses: 1, requests: 2, advertisements: 1 },
     });
     expect(result.capabilities).toEqual(expect.arrayContaining(['manage_factories', 'view_gate_passes', 'approve_requests', 'moderate_advertisements']));
@@ -269,7 +281,11 @@ describe('ManagementService transactional foundation', () => {
       industrialPark: { findMany: jest.fn() },
       factory: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(2) },
       gatePass: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      invoice: { count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: null } }) },
+      invoice: {
+        count: jest.fn().mockResolvedValue(0),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: null } }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       request: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
       emergencyAlert: { count: jest.fn().mockResolvedValue(0) },
       advertisement: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -689,7 +705,7 @@ describe('ManagementService invoice and payment contract', () => {
       expect.objectContaining({ id: 'invoice-1', payableAmount: 1000, lateDays: 0 }),
     ]);
     expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { factoryId: { in: ['factory-1'] } },
+      where: { targetType: 'FACTORY', factoryId: { in: ['factory-1'] } },
       orderBy: { issueDate: 'desc' },
     }));
   });
@@ -697,7 +713,13 @@ describe('ManagementService invoice and payment contract', () => {
   it('creates a canonical invoice only for an in-scope factory and audits it once', async () => {
     const factory = {
       count: jest.fn().mockResolvedValue(1),
-      findUnique: jest.fn().mockResolvedValue({ name: 'Factory', manager: { phoneNumber: '09120000000' } }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'factory-1',
+        name: 'Factory',
+        parkId: 'park-1',
+        managerId: 'mgr-1',
+        manager: { phoneNumber: '09120000000' },
+      }),
     };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
     const created = {
@@ -711,6 +733,9 @@ describe('ManagementService invoice and payment contract', () => {
       dueDate: new Date('2027-01-01T00:00:00.000Z'),
       status: InvoiceStatus.PENDING,
       description: 'Invoice description',
+      targetType: 'FACTORY',
+      factoryId: 'factory-1',
+      parkId: 'park-1',
     };
     const invoice = { create: jest.fn().mockResolvedValue(created) };
     const notification = { create: jest.fn().mockResolvedValue({}) };
@@ -732,6 +757,8 @@ describe('ManagementService invoice and payment contract', () => {
     expect(invoice.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         factoryId: 'factory-1',
+        parkId: 'park-1',
+        targetType: 'FACTORY',
         amount: 1000,
         taxAmount: 90,
         totalAmount: 1090,
@@ -1131,6 +1158,69 @@ describe('ManagementService announcement contract', () => {
     expect(announcement.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ parkId: 'park-owned' }) }));
   });
 
+  it('does not fan out park-scoped super-admin announcements to the whole platform', async () => {
+    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-2', title: 'Title', content: 'Content' }) };
+    const industrialPark = { findFirst: jest.fn().mockResolvedValue({ id: 'park-1' }), findMany: jest.fn() };
+    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1', managerId: 'mgr-1' }]) };
+    const user = {
+      findMany: jest.fn()
+        .mockResolvedValueOnce([{ id: 'mgr-1' }]) // active managers/guards check inside parkMessagingAudienceIds
+        .mockResolvedValue([]),
+    };
+    const securityGuard = { findMany: jest.fn().mockResolvedValue([{ userId: 'guard-1' }]) };
+    const notification = { create: jest.fn().mockResolvedValue({}) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({
+      announcement, industrialPark, factory, user, securityGuard, notification,
+    } as any, audit, config);
+
+    await expect(service.createAnnouncement(actor(Role.SUPER_ADMIN), {
+      title: 'Title', content: 'Content', isGlobal: false, parkId: 'park-1',
+    })).resolves.toEqual(expect.objectContaining({ id: 'ann-2' }));
+
+    // Park-wide: factory managers + guards only — never a global user dump.
+    expect(factory.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ parkId: { in: ['park-1'] } }),
+    }));
+    expect(securityGuard.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ parkId: { in: ['park-1'] } }),
+    }));
+    const globalDump = user.findMany.mock.calls.some((call) => {
+      const where = call[0]?.where;
+      return where?.isActive === true && where?.id?.not && !where?.employeeOfFactoryId && !Array.isArray(where?.id?.in);
+    });
+    expect(globalDump).toBe(false);
+  });
+
+  it('fans factory-unit announcements only to that unit manager and employees', async () => {
+    const announcement = { create: jest.fn().mockResolvedValue({ id: 'ann-3', title: 'Unit', content: 'Body' }) };
+    const factory = {
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', parkId: 'park-1', managerId: 'mgr-1' }),
+      findFirst: jest.fn().mockResolvedValue({ id: 'factory-1', parkId: 'park-1' }),
+      findMany: jest.fn().mockResolvedValue([{ id: 'factory-1', parkId: 'park-1' }]),
+      count: jest.fn().mockResolvedValue(1),
+    };
+    const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
+    const user = {
+      findMany: jest.fn()
+        .mockResolvedValueOnce([{ id: 'emp-1' }]) // employees in unit
+        .mockResolvedValueOnce([{ id: 'mgr-1' }, { id: 'emp-1' }]), // active filter
+    };
+    const notification = { create: jest.fn().mockResolvedValue({}) };
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService({
+      announcement, factory, industrialPark, user, securityGuard: { findMany: jest.fn() }, notification,
+    } as any, audit, config);
+
+    await expect(service.createAnnouncement(actor(Role.PARK_MANAGER), {
+      title: 'Unit', content: 'Body', factoryId: 'factory-1',
+    })).resolves.toEqual(expect.objectContaining({ id: 'ann-3' }));
+
+    expect(announcement.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ factoryId: 'factory-1', parkId: 'park-1', isGlobal: false }),
+    }));
+  });
+
   it('updates only the whitelisted mutable fields and audits the exact changes', async () => {
     const existing = { id: 'ann-1', createdById: 'actor-1', parkId: null };
     const updated = { id: 'ann-1', title: 'New title' };
@@ -1320,7 +1410,8 @@ describe('ManagementService emergency broadcast contract', () => {
     const user = {
       findMany: jest.fn()
         .mockResolvedValueOnce([{ id: 'manager-1', phoneNumber: '09120000001' }]) // park managers
-        .mockResolvedValueOnce([{ id: 'employee-1', phoneNumber: '09120000003' }]), // employees
+        .mockResolvedValueOnce([{ id: 'employee-1', phoneNumber: '09120000003' }]) // factory employees
+        .mockResolvedValueOnce([]), // park-direct employees
     };
     const factory = {
       findMany: jest.fn().mockResolvedValue([

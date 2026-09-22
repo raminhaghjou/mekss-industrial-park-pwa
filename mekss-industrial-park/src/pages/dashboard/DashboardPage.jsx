@@ -212,6 +212,16 @@ const buildRoleWorkspace = (role, data, navigate) => {
           onClick: () => navigate('/admin/factories'),
         },
         {
+          icon: Receipt,
+          label: 'بدهی واحدها',
+          value: Number(data?.unitsUnpaidInvoiceTotal || 0).toLocaleString('fa-IR'),
+          color: 'danger',
+          badge: Number(data?.unitsWithDebtCount || 0)
+            ? `${Number(data.unitsWithDebtCount).toLocaleString('fa-IR')} واحد بدهکار`
+            : undefined,
+          onClick: () => navigate('/admin/finance'),
+        },
+        {
           icon: Ticket,
           label: 'برگ‌های خروج',
           value: data?.gatePasses ?? 0,
@@ -227,19 +237,12 @@ const buildRoleWorkspace = (role, data, navigate) => {
           badge: pendingRequests ? `${pendingRequests.toLocaleString('fa-IR')} در انتظار` : undefined,
           onClick: () => navigate('/admin/requests'),
         },
-        {
-          icon: Megaphone,
-          label: 'آگهی در انتظار',
-          value: pendingAds,
-          color: 'primary',
-          onClick: () => navigate('/admin/advertisements'),
-        },
       ].map((item, index) => ({ ...item, index })),
       actions: [
         { icon: UserCheck, title: 'تایید ثبت‌نام‌ها', description: 'بررسی درخواست عضویت مالکان و پرسنل', onClick: () => navigate('/admin/registrations'), tone: 'warning' },
         { icon: Building2, title: 'مدیریت واحدها', description: 'مشاهده و تایید واحدهای صنعتی شهرک', onClick: () => navigate('/admin/factories'), tone: 'primary' },
         { icon: FileText, title: 'درخواست‌های شهرک', description: 'رسیدگی به درخواست‌های واحدها', onClick: () => navigate('/admin/requests'), tone: 'success' },
-        { icon: Receipt, title: 'قبض‌ها', description: 'صدور و پیگیری قبض‌های شهرک', onClick: () => navigate('/admin/invoices'), tone: 'secondary' },
+        { icon: Receipt, title: 'حسابداری و مالی', description: 'مطالبات واحدها، قبض‌ها و پیگیری مالی', onClick: () => navigate('/admin/finance'), tone: 'secondary' },
         { icon: Bell, title: 'اطلاعیه‌ها', description: 'انتشار اطلاعیه رسمی برای واحدها', onClick: () => navigate('/admin/announcements'), tone: 'primary' },
         { icon: LineChart, title: 'نرخ بازار', description: 'نرخ‌های به‌روز ارز و کالا', onClick: () => navigate('/market-rates'), tone: 'secondary' },
       ],
@@ -447,7 +450,11 @@ export const DashboardPage = () => {
 
   const unpaidTotal = Number(data?.unpaidInvoiceTotal || 0);
   const unpaidCount = Number(data?.unpaidInvoiceCount || 0);
-  const showUnpaid = unpaidTotal > 0 && ['FACTORY_OWNER', 'PARK_MANAGER', 'SUPER_ADMIN'].includes(user?.role);
+  const unitsUnpaidTotal = Number(data?.unitsUnpaidInvoiceTotal || 0);
+  const unitsUnpaidCount = Number(data?.unitsUnpaidInvoiceCount || 0);
+  const unitsWithDebt = Number(data?.unitsWithDebtCount || 0);
+  // Personal debt only — factory owners (unit bills) and park managers (park bills from admin).
+  const showPersonalDebt = unpaidTotal > 0 && ['FACTORY_OWNER', 'PARK_MANAGER'].includes(user?.role);
   const showAds = feedItems.length > 0 && ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role);
 
   return (
@@ -462,7 +469,7 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {showUnpaid && (
+      {showPersonalDebt && (
         <button
           type="button"
           onClick={() => navigate('/invoices')}
@@ -470,10 +477,32 @@ export const DashboardPage = () => {
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger-600" />
           <div>
-            <p className="font-semibold text-danger-800">بدهی معوق دارید</p>
+            <p className="font-semibold text-danger-800">
+              {user?.role === 'PARK_MANAGER' ? 'بدهی معوق شهرک' : 'بدهی معوق دارید'}
+            </p>
             <p className="mt-1 text-sm text-danger-700">
               {unpaidCount.toLocaleString('fa-IR')} قبض پرداخت‌نشده به مجموع{' '}
-              {unpaidTotal.toLocaleString('fa-IR')} ریال. برای پرداخت اینجا کلیک کنید.
+              {unpaidTotal.toLocaleString('fa-IR')} ریال
+              {user?.role === 'PARK_MANAGER' ? ' (صادر شده توسط ادمین برای این شهرک). ' : '. '}
+              برای پرداخت اینجا کلیک کنید.
+            </p>
+          </div>
+        </button>
+      )}
+
+      {user?.role === 'PARK_MANAGER' && unitsUnpaidTotal > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate('/admin/finance')}
+          className="flex w-full items-start gap-3 rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3.5 text-start transition hover:bg-warning-100/70 animate-slide-up"
+        >
+          <Receipt className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
+          <div>
+            <p className="font-semibold text-warning-900">مطالبات معوق واحدهای صنعتی</p>
+            <p className="mt-1 text-sm text-warning-800">
+              {unitsWithDebt.toLocaleString('fa-IR')} واحد با{' '}
+              {unitsUnpaidCount.toLocaleString('fa-IR')} قبض باز به مجموع{' '}
+              {unitsUnpaidTotal.toLocaleString('fa-IR')} ریال. برای مدیریت مالی اینجا کلیک کنید.
             </p>
           </div>
         </button>

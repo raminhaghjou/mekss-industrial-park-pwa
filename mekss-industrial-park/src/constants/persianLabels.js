@@ -53,9 +53,9 @@ export const invoiceStatusLabels = {
 
 export const gatePassStatusLabels = {
   PENDING: 'در انتظار',
-  APPROVED: 'تایید شده',
+  APPROVED: 'آماده تایید نگهبان',
   REJECTED: 'رد شده',
-  COMPLETED: 'تکمیل شده',
+  COMPLETED: 'تایید خروج',
   EXPIRED: 'منقضی شده',
 };
 

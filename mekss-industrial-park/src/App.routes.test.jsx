@@ -37,6 +37,7 @@ const preservedRoutePaths = [
   'emergency',
   'admin/factories',
   'admin/registrations',
+  'admin/finance',
   'admin/invoices',
   'admin/invoices/create',
   'admin/gate-passes',

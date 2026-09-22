@@ -34,7 +34,22 @@ import { queryKeys } from '../../services/queryKeys';
 import JalaliDatePicker from '../../components/common/JalaliDatePicker';
 import { parseIsoDate, toIsoDate } from '../../utils/jalali';
 
-const emptyForm = { title: '', content: '', isGlobal: false, isPinned: false, priority: '0', parkId: '', expiresAt: '' };
+const emptyForm = {
+  title: '',
+  content: '',
+  audience: 'PARK_ALL', // SYSTEM_ALL | PARK_ALL | FACTORY_UNIT
+  isPinned: false,
+  priority: '0',
+  parkId: '',
+  factoryId: '',
+  expiresAt: '',
+};
+
+const audienceHelp = {
+  SYSTEM_ALL: 'اطلاعیه برای تمام کاربران فعال سامانه در همه شهرک‌ها ارسال و نمایش داده می‌شود.',
+  PARK_ALL: 'اطلاعیه فقط برای مدیران واحدهای صنعتی و نگهبانان همین شهرک ارسال و نمایش داده می‌شود.',
+  FACTORY_UNIT: 'اطلاعیه فقط برای مدیر و کارمندان همان واحد صنعتی انتخاب‌شده ارسال و نمایش داده می‌شود.',
+};
 
 const toDateInputValue = (value) => {
   if (!value) return '';
@@ -53,7 +68,10 @@ const ManageAnnouncementsPage = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
-  const [form, setForm] = React.useState(emptyForm);
+  const [form, setForm] = React.useState(() => ({
+    ...emptyForm,
+    audience: isSuperAdmin ? 'SYSTEM_ALL' : 'PARK_ALL',
+  }));
   const [deleteTarget, setDeleteTarget] = React.useState(null);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -71,14 +89,36 @@ const ManageAnnouncementsPage = () => {
     enabled: showForm && (isSuperAdmin || isParkManager),
   });
   const parks = Array.isArray(parksData) ? parksData : parksData?.items || [];
-  const needsParkPick = !editing && ((isSuperAdmin && !form.isGlobal) || (isParkManager && parks.length > 1));
+
+  const { data: factoriesData } = useQuery({
+    queryKey: ['factories', 'for-announcement', form.parkId],
+    queryFn: () => factoryApi.getFactories(
+      form.parkId ? { parkId: form.parkId } : undefined,
+    ).then((res) => res.data),
+    enabled: showForm && form.audience === 'FACTORY_UNIT',
+  });
+  const factories = Array.isArray(factoriesData) ? factoriesData : factoriesData?.items || [];
+
+  const needsParkPick = !editing && form.audience !== 'SYSTEM_ALL' && (
+    (isSuperAdmin && form.audience === 'PARK_ALL')
+    || (isSuperAdmin && form.audience === 'FACTORY_UNIT')
+    || (isParkManager && parks.length > 1 && form.audience === 'PARK_ALL')
+  );
+  const needsFactoryPick = !editing && form.audience === 'FACTORY_UNIT';
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.announcements.managed() });
     queryClient.invalidateQueries({ queryKey: ['announcements'] });
   };
 
-  const resetForm = () => { setForm(emptyForm); setEditing(null); setShowForm(false); };
+  const resetForm = () => {
+    setForm({
+      ...emptyForm,
+      audience: isSuperAdmin ? 'SYSTEM_ALL' : 'PARK_ALL',
+    });
+    setEditing(null);
+    setShowForm(false);
+  };
 
   const createMutation = useMutation({
     mutationFn: (/** @type {object} */ payload) => announcementApi.createAnnouncement(payload),
@@ -108,7 +148,12 @@ const ManageAnnouncementsPage = () => {
       showNotification('انتخاب شهرک صنعتی الزامی است.', 'error');
       return;
     }
-    const isGlobal = isSuperAdmin ? Boolean(form.isGlobal) : false;
+    if (needsFactoryPick && !form.factoryId) {
+      showNotification('انتخاب واحد صنعتی الزامی است.', 'error');
+      return;
+    }
+
+    const isGlobal = isSuperAdmin && form.audience === 'SYSTEM_ALL';
     const basePayload = {
       title: form.title.trim(),
       content: form.content.trim(),
@@ -119,23 +164,35 @@ const ManageAnnouncementsPage = () => {
     };
     if (editing) {
       updateMutation.mutate({ id: editing.id, payload: basePayload });
-    } else {
-      const parkId = isGlobal
-        ? undefined
-        : (form.parkId || (isParkManager && parks.length === 1 ? parks[0].id : undefined));
-      createMutation.mutate({ ...basePayload, parkId });
+      return;
     }
+
+    if (form.audience === 'FACTORY_UNIT') {
+      createMutation.mutate({ ...basePayload, isGlobal: false, factoryId: form.factoryId });
+      return;
+    }
+
+    const parkId = isGlobal
+      ? undefined
+      : (form.parkId || (isParkManager && parks.length === 1 ? parks[0].id : undefined));
+    createMutation.mutate({ ...basePayload, parkId });
   };
 
   const startEdit = (announcement) => {
     setEditing(announcement);
+    const audience = announcement.isGlobal
+      ? 'SYSTEM_ALL'
+      : announcement.factoryId
+        ? 'FACTORY_UNIT'
+        : 'PARK_ALL';
     setForm({
       title: announcement.title,
       content: announcement.content,
-      isGlobal: Boolean(announcement.isGlobal),
+      audience,
       isPinned: Boolean(announcement.isPinned),
       priority: String(announcement.priority ?? 0),
       parkId: announcement.parkId || '',
+      factoryId: announcement.factoryId || '',
       expiresAt: toDateInputValue(announcement.expiresAt),
     });
     setShowForm(true);
@@ -143,6 +200,11 @@ const ManageAnnouncementsPage = () => {
 
   const announcements = data || [];
   const saving = createMutation.isPending || updateMutation.isPending;
+  const audienceOptions = [
+    ...(isSuperAdmin ? [{ value: 'SYSTEM_ALL', label: 'همه سامانه' }] : []),
+    { value: 'PARK_ALL', label: 'کل شهرک (مدیران واحد + نگهبانی)' },
+    { value: 'FACTORY_UNIT', label: 'یک واحد صنعتی (مدیر + کارمندان)' },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -198,23 +260,30 @@ const ManageAnnouncementsPage = () => {
                 />
               </div>
 
+              {!editing && (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs font-medium text-foreground-600">سطح ارسال</Label>
+                  <select
+                    value={form.audience}
+                    onChange={(e) => setForm((f) => ({
+                      ...f,
+                      audience: e.target.value,
+                      parkId: e.target.value === 'SYSTEM_ALL' ? '' : f.parkId,
+                      factoryId: e.target.value === 'FACTORY_UNIT' ? f.factoryId : '',
+                    }))}
+                    className="h-11 w-full rounded-xl border border-default-200 bg-default-50 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {audienceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                  {audienceHelp[form.audience] && (
+                    <p className="mt-1 text-xs text-foreground-500">{audienceHelp[form.audience]}</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-6 py-1">
-                {isSuperAdmin && (
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={form.isGlobal}
-                      onChange={(e) => setForm((f) => ({ ...f, isGlobal: e.target.checked, parkId: e.target.checked ? '' : f.parkId }))}
-                      className="h-4 w-4 rounded border-default-300 text-primary focus:ring-primary"
-                    />
-                    نمایش سراسری (همه شهرک‌ها)
-                  </label>
-                )}
-                {isParkManager && (
-                  <p className="text-sm text-foreground-500">
-                    این اطلاعیه برای همه واحدهای صنعتی شهرک شما در داشبورد نمایش داده می‌شود.
-                  </p>
-                )}
                 <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
                   <input
                     type="checkbox"
@@ -251,7 +320,7 @@ const ManageAnnouncementsPage = () => {
                     <Label className="text-xs font-medium text-foreground-600">شهرک صنعتی هدف</Label>
                     <Select
                       value={form.parkId}
-                      onChange={(value) => setForm((f) => ({ ...f, parkId: String(value || '') }))}
+                      onChange={(value) => setForm((f) => ({ ...f, parkId: String(value || ''), factoryId: '' }))}
                       placeholder="انتخاب شهرک..."
                       variant="primary"
                       className="rounded-xl"
@@ -264,6 +333,31 @@ const ManageAnnouncementsPage = () => {
                         <ListBox>
                           {parks.map((park) => (
                             <ListBoxItem key={park.id} id={park.id}>{park.name}</ListBoxItem>
+                          ))}
+                        </ListBox>
+                      </SelectPopover>
+                    </Select>
+                  </div>
+                )}
+
+                {needsFactoryPick && (
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs font-medium text-foreground-600">واحد صنعتی هدف</Label>
+                    <Select
+                      value={form.factoryId}
+                      onChange={(value) => setForm((f) => ({ ...f, factoryId: String(value || '') }))}
+                      placeholder="انتخاب واحد..."
+                      variant="primary"
+                      className="rounded-xl"
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                        <SelectIndicator />
+                      </SelectTrigger>
+                      <SelectPopover>
+                        <ListBox>
+                          {factories.map((factory) => (
+                            <ListBoxItem key={factory.id} id={factory.id}>{factory.name}</ListBoxItem>
                           ))}
                         </ListBox>
                       </SelectPopover>
@@ -329,6 +423,11 @@ const ManageAnnouncementsPage = () => {
                           <Globe className="h-3 w-3" />
                           سراسری
                         </Chip>
+                      ) : ann.factoryId ? (
+                        <Chip size="sm" color="secondary" variant="soft" className="font-semibold flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />
+                          واحد صنعتی
+                        </Chip>
                       ) : (
                         <Chip size="sm" color="default" variant="soft" className="font-semibold flex items-center gap-1">
                           <Building2 className="h-3 w-3" />
@@ -371,4 +470,3 @@ const ManageAnnouncementsPage = () => {
 };
 
 export default ManageAnnouncementsPage;
-

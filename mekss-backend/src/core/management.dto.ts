@@ -308,13 +308,24 @@ export class UpdateGatePassDto {
 }
 
 export class CreateInvoiceDto {
-  @IsString() @Matches(opaqueId) factoryId!: string;
+  /** Bill an industrial unit (default). Required unless targetType=PARK. */
+  @ValidateIf((o: CreateInvoiceDto) => (o.targetType || 'FACTORY') === 'FACTORY')
+  @IsString() @Matches(opaqueId) factoryId?: string;
+  /** Bill a whole park (super-admin only). Required when targetType=PARK. */
+  @ValidateIf((o: CreateInvoiceDto) => o.targetType === 'PARK')
+  @IsString() @Matches(opaqueId) parkId?: string;
+  @IsOptional() @IsIn(['FACTORY', 'PARK']) targetType?: 'FACTORY' | 'PARK';
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) taxAmount?: number;
   /** Daily late fee in Rials, accrued each calendar day after dueDate until payment. */
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) latePenaltyPerDay?: number;
   @IsString() @Length(2, 2000) description!: string;
   @IsDateString() dueDate!: string;
+}
+
+export class ListInvoicesQueryDto {
+  /** payable = debts I owe; managed = factory AR I collect (park manager / SA). */
+  @IsOptional() @IsIn(['payable', 'managed']) scope?: 'payable' | 'managed';
 }
 
 export class UpdateInvoiceDto {
@@ -348,6 +359,8 @@ export class CreateAnnouncementDto {
   @IsOptional() @IsBoolean() isPinned?: boolean;
   @IsOptional() @IsInt() priority?: number;
   @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
+  /** When set, announcement is limited to one industrial unit (manager + employees). */
+  @IsOptional() @IsString() @Matches(opaqueId) factoryId?: string;
   @IsOptional() @IsDateString() expiresAt?: string;
 }
 
@@ -421,6 +434,16 @@ export class SendMessageDto {
 export class BroadcastFactoryManagersMessageDto {
   @IsString() @Length(2, 200) subject!: string;
   @IsString() @Length(2, 4000) body!: string;
+}
+
+/** Scoped broadcast audiences for role-aware messaging. */
+export class BroadcastMessageDto {
+  @IsString() @Length(2, 200) subject!: string;
+  @IsString() @Length(2, 4000) body!: string;
+  @IsIn(['SYSTEM_ALL', 'PARK_ALL', 'FACTORY_UNIT', 'FACTORY_EMPLOYEES'])
+  audience!: 'SYSTEM_ALL' | 'PARK_ALL' | 'FACTORY_UNIT' | 'FACTORY_EMPLOYEES';
+  @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
+  @IsOptional() @IsString() @Matches(opaqueId) factoryId?: string;
 }
 
 export class ReportQueryDto {

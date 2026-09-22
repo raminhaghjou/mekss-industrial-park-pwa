@@ -52,8 +52,8 @@ const navigationItems = [
   { path: '/factory/register', text: 'ثبت واحد صنعتی', icon: Factory, roles: ['FACTORY_OWNER'] },
   { path: '/factory/staff', text: 'پرسنل واحد', icon: UserPlus, roles: ['FACTORY_OWNER'] },
   { path: '/factory/wallet', text: 'کیف پول', icon: Wallet, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
-  { path: '/admin/invoices', text: 'قبض‌ها', icon: Receipt, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/invoices', text: 'قبض‌های من', icon: Receipt, roles: ['FACTORY_OWNER'] },
+  { path: '/admin/finance', text: 'حسابداری و مالی', icon: Receipt, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
+  { path: '/invoices', text: 'قبض‌های من', icon: Receipt, roles: ['FACTORY_OWNER', 'PARK_MANAGER'] },
   { path: '/admin/gate-passes', text: 'برگ‌های خروج', icon: Ticket, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
   { path: '/gate-passes', text: 'برگ‌های خروج من', icon: Ticket, roles: ['FACTORY_OWNER'] },
   { path: '/guard/gate-passes', text: 'تایید خروج', icon: ShieldCheck, roles: ['SECURITY_GUARD'] },
@@ -73,7 +73,7 @@ const navigationItems = [
 
 const bottomNavPathsByRole = {
   SUPER_ADMIN: ['/dashboard', '/superadmin/parks', '/superadmin/users', '/admin/reports'],
-  PARK_MANAGER: ['/dashboard', '/admin/factories', '/admin/requests', '/admin/invoices'],
+  PARK_MANAGER: ['/dashboard', '/admin/factories', '/admin/requests', '/admin/finance'],
   FACTORY_OWNER: ['/dashboard', '/invoices', '/requests', '/gate-passes'],
   SECURITY_GUARD: ['/dashboard', '/guard/gate-passes', '/guard/scan', '/emergency'],
   GOVERNMENT_OFFICIAL: ['/dashboard', '/admin/reports', '/announcements', '/messages'],
@@ -87,6 +87,7 @@ const bottomShortLabels = {
   '/gate-passes': 'خروج',
   '/admin/factories': 'واحدها',
   '/admin/requests': 'درخواست',
+  '/admin/finance': 'مالی',
   '/admin/invoices': 'قبض',
   '/admin/announcements': 'اطلاعیه',
   '/announcements': 'اطلاعیه',

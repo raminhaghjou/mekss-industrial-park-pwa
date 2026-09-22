@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   updateAnnouncement: vi.fn(),
   deleteAnnouncement: vi.fn(),
   getParks: vi.fn(),
+  getFactories: vi.fn(),
+  getManagementScope: vi.fn(),
   notify: vi.fn(),
 }));
 
@@ -23,6 +25,12 @@ vi.mock('../../services/api/announcement.api', () => ({
 }));
 vi.mock('../../services/api/park.api', () => ({
   parkApi: { getParks: mocks.getParks },
+}));
+vi.mock('../../services/api/factory.api', () => ({
+  factoryApi: {
+    getFactories: mocks.getFactories,
+    getManagementScope: mocks.getManagementScope,
+  },
 }));
 vi.mock('../../providers/NotificationProvider', () => ({
   useNotification: () => ({ showNotification: mocks.notify }),
@@ -41,6 +49,7 @@ const existingAnnouncement = {
   isPinned: true,
   priority: 3,
   parkId: 'park-1',
+  factoryId: null,
   createdAt: '2027-01-01T00:00:00.000Z',
   expiresAt: null,
 };
@@ -97,6 +106,8 @@ describe('ManageAnnouncementsPage', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     mocks.getManagedAnnouncements.mockResolvedValue({ data: [existingAnnouncement] });
     mocks.getParks.mockResolvedValue({ data: [{ id: 'park-1', name: 'شهرک آزمون' }] });
+    mocks.getFactories.mockResolvedValue({ data: [{ id: 'factory-1', name: 'واحد آزمون' }] });
+    mocks.getManagementScope.mockResolvedValue({ data: { parks: [{ id: 'park-1', name: 'شهرک آزمون' }] } });
     mocks.createAnnouncement.mockResolvedValue({ data: { ...existingAnnouncement, id: 'ann-new' } });
     mocks.updateAnnouncement.mockResolvedValue({ data: existingAnnouncement });
     mocks.deleteAnnouncement.mockResolvedValue({ data: { id: 'ann-1', deleted: true } });
@@ -125,12 +136,12 @@ describe('ManageAnnouncementsPage', () => {
     expect(document.body.textContent).toContain('شهرک‌محور');
   });
 
-  it('submits isGlobal, isPinned, priority and expiresAt from the create form, not just title/content', async () => {
+  it('submits SYSTEM_ALL audience as isGlobal with pin/priority/expiry from the create form', async () => {
     await click(button('ثبت اطلاعیه جدید'));
     await waitFor(() => expect(document.body.textContent).toContain('فرم ثبت اطلاعیه'));
     await setValue(field('عنوان اطلاعیه'), 'اطلاعیه جدید');
     await setValue(field('متن اطلاعیه'), 'متن جدید');
-    await click(checkbox('نمایش سراسری'));
+    // Default audience for SUPER_ADMIN is SYSTEM_ALL
     await click(checkbox('سنجاق‌شده'));
     await setValue(field('اولویت'), '5');
     await setValue(field('تاریخ انقضا (اختیاری)'), '2026-04-04');
@@ -155,7 +166,6 @@ describe('ManageAnnouncementsPage', () => {
     expect(field('عنوان اطلاعیه').value).toBe('اطلاعیه آزمون');
     expect(field('اولویت').value).toBe('3');
     expect(checkbox('سنجاق‌شده').checked).toBe(true);
-    expect(checkbox('نمایش سراسری').checked).toBe(false);
   });
 
   it('deletes an announcement only after explicit confirmation', async () => {
@@ -168,4 +178,3 @@ describe('ManageAnnouncementsPage', () => {
     await waitFor(() => expect(mocks.deleteAnnouncement).toHaveBeenCalledWith('ann-1'));
   });
 });
-

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdvertisementStatus, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceStatus, MarketRateKey, MessageStatus, ParkStatus, PaymentStatus, Prisma, RequestStatus, RequestType, Role } from '@prisma/client';
+import { AdvertisementStatus, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceStatus, InvoiceTarget, MarketRateKey, MessageStatus, ParkStatus, PaymentStatus, Prisma, RequestStatus, RequestType, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
@@ -1115,10 +1115,19 @@ export class ManagementService {
     return pass;
   }
 
-  async listInvoices(user: AuthenticatedUser) {
+  async listInvoices(user: AuthenticatedUser, scope?: 'payable' | 'managed') {
+    const resolvedScope = scope
+      || (user.role === Role.PARK_MANAGER || user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL
+        ? 'managed'
+        : 'payable');
+    const where = await this.invoiceListWhere(user, resolvedScope);
     const invoices = await this.prisma.invoice.findMany({
-      where: { factoryId: { in: await this.factoryIds(user) } },
-      include: { factory: true, payments: true },
+      where,
+      include: {
+        factory: { select: { id: true, name: true, managerId: true } },
+        park: { select: { id: true, name: true, code: true } },
+        payments: true,
+      },
       orderBy: { issueDate: 'desc' },
     });
     const overdueIds = invoices
@@ -1136,9 +1145,17 @@ export class ManagementService {
     }));
   }
 
-  async createInvoice(actor: AuthenticatedUser, input: any) {
-    for (const key of ['factoryId', 'amount', 'dueDate', 'description']) this.text(String(input[key] ?? ''), key);
-    await this.assertFactoryAccess(actor, input.factoryId);
+  async createInvoice(actor: AuthenticatedUser, input: {
+    factoryId?: string;
+    parkId?: string;
+    targetType?: 'FACTORY' | 'PARK';
+    amount: number;
+    taxAmount?: number;
+    latePenaltyPerDay?: number;
+    description: string;
+    dueDate: string;
+  }) {
+    const targetType = input.targetType === 'PARK' ? InvoiceTarget.PARK : InvoiceTarget.FACTORY;
     const amount = Number(input.amount);
     const taxAmount = Number(input.taxAmount || 0);
     const latePenaltyPerDay = Number(input.latePenaltyPerDay || 0);
@@ -1148,9 +1165,77 @@ export class ManagementService {
     if (!Number.isFinite(latePenaltyPerDay) || latePenaltyPerDay < 0) {
       throw new BadRequestException('Invalid late penalty per day');
     }
+    this.text(input.description, 'description');
+    this.text(input.dueDate, 'dueDate');
+
+    if (targetType === InvoiceTarget.PARK) {
+      if (actor.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException('Only super admins can bill an industrial park');
+      }
+      if (!input.parkId) throw new BadRequestException('parkId is required for park invoices');
+      const park = await this.prisma.industrialPark.findUnique({
+        where: { id: input.parkId },
+        select: {
+          id: true,
+          name: true,
+          managers: { select: { id: true, phoneNumber: true, isActive: true, isApproved: true } },
+        },
+      });
+      if (!park) throw new NotFoundException('Park not found');
+
+      const invoice = await this.prisma.invoice.create({
+        data: {
+          targetType: InvoiceTarget.PARK,
+          parkId: park.id,
+          factoryId: null,
+          amount,
+          taxAmount,
+          totalAmount: amount + taxAmount,
+          latePenaltyPerDay,
+          latePenaltyAmount: 0,
+          description: input.description,
+          dueDate: new Date(input.dueDate),
+          invoiceNumber: `PINV-${Date.now()}-${randomBytes(3).toString('hex')}`,
+          createdById: actor.id,
+        },
+        include: { park: { select: { id: true, name: true, code: true } } },
+      });
+      await this.audit.record({ userId: actor.id, action: 'PARK_INVOICE_CREATED', entity: 'Invoice', entityId: invoice.id });
+      const penaltyNote = latePenaltyPerDay > 0
+        ? ` در صورت تأخیر، جریمه روزانه ${latePenaltyPerDay} ریال اعمال می‌شود.`
+        : '';
+      await Promise.all(park.managers
+        .filter((manager) => manager.isActive && manager.isApproved)
+        .map(async (manager) => {
+          if (manager.phoneNumber) {
+            await this.safeSendSms(
+              manager.phoneNumber,
+              `MEKSS: صورتحساب جدید برای شهرک «${park.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.${penaltyNote}`,
+            );
+          }
+          await this.notifyUser(
+            manager.id,
+            'صورتحساب شهرک',
+            `صورتحساب «${invoice.invoiceNumber}» برای شهرک ${park.name} به مبلغ ${Number(invoice.totalAmount)} ریال صادر شد.${penaltyNote}`,
+            'WARNING',
+          );
+        }));
+      return this.presentInvoice(invoice);
+    }
+
+    if (!input.factoryId) throw new BadRequestException('factoryId is required for factory invoices');
+    await this.assertFactoryAccess(actor, input.factoryId);
+    const factory = await this.prisma.factory.findUnique({
+      where: { id: input.factoryId },
+      select: { id: true, name: true, parkId: true, managerId: true, manager: { select: { phoneNumber: true } } },
+    });
+    if (!factory) throw new NotFoundException('Factory not found');
+
     const invoice = await this.prisma.invoice.create({
       data: {
-        factoryId: input.factoryId,
+        targetType: InvoiceTarget.FACTORY,
+        factoryId: factory.id,
+        parkId: factory.parkId,
         amount,
         taxAmount,
         totalAmount: amount + taxAmount,
@@ -1161,22 +1246,19 @@ export class ManagementService {
         invoiceNumber: `INV-${Date.now()}-${randomBytes(3).toString('hex')}`,
         createdById: actor.id,
       },
+      include: { factory: { select: { id: true, name: true, managerId: true } } },
     });
     await this.audit.record({ userId: actor.id, action: 'INVOICE_CREATED', entity: 'Invoice', entityId: invoice.id });
-    const factory = await this.prisma.factory.findUnique({
-      where: { id: input.factoryId },
-      select: { name: true, managerId: true, manager: { select: { phoneNumber: true } } },
-    });
     const penaltyNote = latePenaltyPerDay > 0
       ? ` در صورت تأخیر، جریمه روزانه ${latePenaltyPerDay} ریال اعمال می‌شود.`
       : '';
-    if (factory?.manager?.phoneNumber) {
+    if (factory.manager?.phoneNumber) {
       await this.safeSendSms(
         factory.manager.phoneNumber,
         `MEKSS: صورتحساب جدید برای «${factory.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.${penaltyNote}`,
       );
     }
-    if (factory?.managerId) {
+    if (factory.managerId) {
       await this.notifyUser(
         factory.managerId,
         'صورتحساب جدید',
@@ -1197,7 +1279,7 @@ export class ManagementService {
   }) {
     const existing = await this.prisma.invoice.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Invoice not found');
-    await this.assertFactoryAccess(actor, existing.factoryId);
+    await this.assertInvoiceAccess(actor, existing, 'manage');
     if (existing.status === InvoiceStatus.PAID) throw new ConflictException('Paid invoices cannot be edited');
     if (!Object.keys(input || {}).length) throw new BadRequestException('At least one invoice field is required');
 
@@ -1242,7 +1324,7 @@ export class ManagementService {
   async startPayment(actor: AuthenticatedUser, invoiceId: string, idempotencyKey?: string) {
     const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    await this.assertFactoryAccess(actor, invoice.factoryId);
+    await this.assertInvoiceAccess(actor, invoice, 'pay');
     if (invoice.status === InvoiceStatus.PAID) throw new BadRequestException('Invoice already paid');
     if (invoice.status === InvoiceStatus.CANCELLED) throw new BadRequestException('Cancelled invoices cannot be paid');
     if (invoice.status !== InvoiceStatus.PENDING && invoice.status !== InvoiceStatus.OVERDUE) {
@@ -1443,30 +1525,39 @@ export class ManagementService {
 
   async announcements(actor: AuthenticatedUser) {
     const now = new Date();
-    const parkIds = await this.actorParkIds(actor);
-    const where: Prisma.AnnouncementWhereInput = {
-      AND: [
-        { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
-        actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL
-          ? {}
-          : {
-            OR: [
-              { isGlobal: true },
-              ...(parkIds.length ? [{ parkId: { in: parkIds } }] : []),
-              { createdById: actor.id },
-            ],
-          },
-      ],
+    const notExpired: Prisma.AnnouncementWhereInput = {
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     };
+    if (actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL) {
+      return this.prisma.announcement.findMany({
+        where: notExpired,
+        orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+      });
+    }
+
+    const scopeOr = await this.announcementVisibilityOr(actor);
     return this.prisma.announcement.findMany({
-      where,
+      where: { AND: [notExpired, { OR: scopeOr }] },
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     });
   }
+
   async createAnnouncement(actor: AuthenticatedUser, input: CreateAnnouncementDto) {
     let parkId = input.parkId || null;
+    let factoryId = input.factoryId || null;
     let isGlobal = Boolean(input.isGlobal);
-    if (actor.role === Role.PARK_MANAGER) {
+
+    if (factoryId) {
+      // Factory-unit announcements override park-wide / global flags.
+      isGlobal = false;
+      await this.assertFactoryAccess(actor, factoryId);
+      const factory = await this.prisma.factory.findUnique({
+        where: { id: factoryId },
+        select: { parkId: true },
+      });
+      if (!factory) throw new NotFoundException('Factory not found');
+      parkId = factory.parkId;
+    } else if (actor.role === Role.PARK_MANAGER) {
       const managed = await this.managedParkIds(actor);
       if (!managed.length) throw new ForbiddenException('No managed park assigned');
       if (parkId) {
@@ -1477,9 +1568,15 @@ export class ManagementService {
         throw new BadRequestException('parkId is required for park managers with multiple parks');
       }
       isGlobal = false;
+    } else if (isGlobal) {
+      parkId = null;
+      factoryId = null;
     } else if (parkId) {
       await this.assertParkScope(actor, parkId);
+    } else if (actor.role === Role.SUPER_ADMIN) {
+      throw new BadRequestException('Either isGlobal=true, parkId, or factoryId is required for announcements');
     }
+
     const item = await this.prisma.announcement.create({
       data: {
         title: input.title,
@@ -1488,14 +1585,15 @@ export class ManagementService {
         isPinned: Boolean(input.isPinned),
         priority: Number(input.priority || 0),
         parkId,
+        factoryId,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
         createdById: actor.id,
       },
     });
     await this.audit.record({ userId: actor.id, action: 'ANNOUNCEMENT_CREATED', entity: 'Announcement', entityId: item.id });
 
-    // Notify park-scoped users (or all active users for global SA announcements).
-    const recipients = await this.announcementRecipients(actor, parkId, isGlobal);
+    // Notify only the scoped audience — never the whole platform unless isGlobal.
+    const recipients = await this.announcementRecipients(actor, parkId, factoryId, isGlobal);
     await Promise.all(recipients.map((userId) => this.notifyUser(userId, item.title, item.content.slice(0, 280), 'INFO')));
     return item;
   }
@@ -1937,6 +2035,25 @@ export class ManagementService {
         ...(emergencyParkIds ? { parkId: { in: emergencyParkIds } } : {}),
       };
 
+      const unpaidStatuses = { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] as InvoiceStatus[] };
+      const factoryUnpaidWhere: Prisma.InvoiceWhereInput = {
+        targetType: InvoiceTarget.FACTORY,
+        ...factoryWhere,
+        status: unpaidStatuses,
+      };
+      // Personal debt banner: what THIS actor owes (park invoices for park managers; factory invoices for owners).
+      const personalUnpaidWhere: Prisma.InvoiceWhereInput = isParkManager
+        ? {
+          targetType: InvoiceTarget.PARK,
+          parkId: { in: await this.managedParkIds(user, tx) },
+          status: unpaidStatuses,
+        }
+        : user.role === Role.FACTORY_OWNER
+          ? factoryUnpaidWhere
+          : isSuperAdmin
+            ? { id: { in: [] } } // SA is never personally billed via this banner
+            : factoryUnpaidWhere;
+
       const [
         factories,
         passes,
@@ -1951,10 +2068,13 @@ export class ManagementService {
         recentAdvertisements,
         unpaidInvoiceCount,
         unpaidInvoiceAggregate,
+        unitsUnpaidInvoiceCount,
+        unitsUnpaidInvoiceAggregate,
+        unitsWithDebt,
       ] = await Promise.all([
         tx.factory.count({ where: factoryScope }),
         tx.gatePass.count({ where: factoryWhere }),
-        tx.invoice.count({ where: factoryWhere }),
+        tx.invoice.count({ where: { targetType: InvoiceTarget.FACTORY, ...factoryWhere } }),
         tx.request.count({ where: factoryWhere }),
         tx.emergencyAlert.count({ where: emergencyWhere }),
         tx.gatePass.count({ where: { ...factoryWhere, status: GatePassStatus.PENDING } }),
@@ -1986,13 +2106,22 @@ export class ManagementService {
             take: recentLimit,
           })
           : Promise.resolve([]),
-        tx.invoice.count({
-          where: { ...factoryWhere, status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] } },
-        }),
-        tx.invoice.aggregate({
-          where: { ...factoryWhere, status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] } },
-          _sum: { totalAmount: true },
-        }),
+        tx.invoice.count({ where: personalUnpaidWhere }),
+        tx.invoice.aggregate({ where: personalUnpaidWhere, _sum: { totalAmount: true } }),
+        // Collection view: unpaid factory-unit invoices under this park manager / SA.
+        (isParkManager || isSuperAdmin || user.role === Role.GOVERNMENT_OFFICIAL)
+          ? tx.invoice.count({ where: factoryUnpaidWhere })
+          : Promise.resolve(0),
+        (isParkManager || isSuperAdmin || user.role === Role.GOVERNMENT_OFFICIAL)
+          ? tx.invoice.aggregate({ where: factoryUnpaidWhere, _sum: { totalAmount: true } })
+          : Promise.resolve({ _sum: { totalAmount: null } }),
+        (isParkManager || isSuperAdmin || user.role === Role.GOVERNMENT_OFFICIAL)
+          ? tx.invoice.findMany({
+            where: factoryUnpaidWhere,
+            select: { factoryId: true },
+            distinct: ['factoryId'],
+          })
+          : Promise.resolve([]),
       ]);
 
       const priorityWeight: Record<string, number> = { URGENT: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
@@ -2055,8 +2184,15 @@ export class ManagementService {
         invoices,
         requests,
         openEmergencies: emergencies,
+        // Personal debt (park bills for park managers; unit bills for factory owners).
         unpaidInvoiceCount,
         unpaidInvoiceTotal: Number(unpaidInvoiceAggregate._sum.totalAmount ?? 0),
+        // Aggregate receivables from industrial units (park manager / SA collection view).
+        unitsUnpaidInvoiceCount: Number(unitsUnpaidInvoiceCount || 0),
+        unitsUnpaidInvoiceTotal: Number(unitsUnpaidInvoiceAggregate._sum.totalAmount ?? 0),
+        unitsWithDebtCount: Array.isArray(unitsWithDebt)
+          ? unitsWithDebt.filter((row) => row.factoryId).length
+          : 0,
         pendingWork: { gatePasses: pendingGatePasses, requests: pendingRequests, advertisements: pendingAdvertisements },
         capabilities,
         recentPriorityItems,
@@ -2260,50 +2396,245 @@ export class ManagementService {
 
   /** Broadcast one message to every factory owner in the actor's managed parks. */
   async broadcastToFactoryManagers(actor: AuthenticatedUser, subject: string, body: string) {
-    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
-      throw new ForbiddenException('Only park managers can broadcast to factory managers');
+    return this.broadcastMessage(actor, { subject, body, audience: 'PARK_ALL' });
+  }
+
+  async broadcastMessage(actor: AuthenticatedUser, input: {
+    subject: string;
+    body: string;
+    audience: 'SYSTEM_ALL' | 'PARK_ALL' | 'FACTORY_UNIT' | 'FACTORY_EMPLOYEES';
+    parkId?: string;
+    factoryId?: string;
+  }) {
+    this.text(input.subject, 'subject');
+    this.text(input.body, 'body');
+    const recipientIds = await this.resolveBroadcastRecipientIds(actor, input);
+    if (!recipientIds.length) throw new BadRequestException('No recipients found for the selected audience');
+    return this.sendMessage(actor, recipientIds, input.subject.trim(), input.body.trim());
+  }
+
+  private async resolveBroadcastRecipientIds(
+    actor: AuthenticatedUser,
+    input: {
+      audience: 'SYSTEM_ALL' | 'PARK_ALL' | 'FACTORY_UNIT' | 'FACTORY_EMPLOYEES';
+      parkId?: string;
+      factoryId?: string;
+    },
+  ): Promise<string[]> {
+    if (input.audience === 'SYSTEM_ALL') {
+      if (actor.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException('Only super admins can broadcast to the entire system');
+      }
+      const users = await this.prisma.user.findMany({
+        where: { isActive: true, isApproved: true, id: { not: actor.id } },
+        select: { id: true },
+      });
+      return users.map((u) => u.id);
     }
-    const recipients = await this.messageRecipients(actor);
-    const factoryManagers = recipients.filter((item) => item.role === Role.FACTORY_OWNER);
-    if (!factoryManagers.length) throw new BadRequestException('No factory managers found in your park scope');
-    return this.sendMessage(actor, factoryManagers.map((item) => item.id), subject, body);
+
+    if (input.audience === 'PARK_ALL') {
+      if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+        throw new ForbiddenException('Only park managers can broadcast to a park');
+      }
+      const parkIds = actor.role === Role.SUPER_ADMIN
+        ? (input.parkId ? [input.parkId] : await this.managedParkIds(actor))
+        : await this.managedParkIds(actor);
+      if (input.parkId) {
+        if (!parkIds.includes(input.parkId) && actor.role !== Role.SUPER_ADMIN) {
+          throw new ForbiddenException('You do not have access to this park');
+        }
+      }
+      const targetParkIds = input.parkId ? [input.parkId] : parkIds;
+      if (!targetParkIds.length) throw new BadRequestException('No park scope available for broadcast');
+      return this.parkMessagingAudienceIds(targetParkIds, actor.id);
+    }
+
+    if (input.audience === 'FACTORY_UNIT') {
+      if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+        throw new ForbiddenException('Only park managers can broadcast to a factory unit');
+      }
+      if (!input.factoryId) throw new BadRequestException('factoryId is required for FACTORY_UNIT audience');
+      await this.assertFactoryAccess(actor, input.factoryId);
+      return this.factoryUnitMessagingAudienceIds(input.factoryId, actor.id);
+    }
+
+    if (input.audience === 'FACTORY_EMPLOYEES') {
+      if (actor.role !== Role.FACTORY_OWNER && actor.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException('Only factory owners can broadcast to all employees');
+      }
+      let factoryIds: string[] = [];
+      if (actor.role === Role.FACTORY_OWNER) {
+        const factories = await this.prisma.factory.findMany({ where: { managerId: actor.id }, select: { id: true } });
+        factoryIds = factories.map((f) => f.id);
+      } else if (input.factoryId) {
+        factoryIds = [input.factoryId];
+      } else {
+        throw new BadRequestException('factoryId is required');
+      }
+      if (!factoryIds.length) throw new BadRequestException('No factory scope available for employee broadcast');
+      const employees = await this.prisma.user.findMany({
+        where: {
+          employeeOfFactoryId: { in: factoryIds },
+          role: Role.EMPLOYEE,
+          isActive: true,
+          isApproved: true,
+          id: { not: actor.id },
+        },
+        select: { id: true },
+      });
+      return employees.map((e) => e.id);
+    }
+
+    throw new BadRequestException('Unsupported broadcast audience');
+  }
+
+  /** Park-wide message audience: factory managers + active security guards. */
+  private async parkMessagingAudienceIds(parkIds: string[], excludeUserId: string): Promise<string[]> {
+    const [factories, guards] = await Promise.all([
+      this.prisma.factory.findMany({
+        where: { parkId: { in: parkIds }, isApproved: true },
+        select: { managerId: true },
+      }),
+      this.prisma.securityGuard.findMany({
+        where: { parkId: { in: parkIds }, isActive: true },
+        select: { userId: true },
+      }),
+    ]);
+    const managerIds = factories.map((f) => f.managerId).filter(Boolean) as string[];
+    const guardIds = guards.map((g) => g.userId);
+    const unique = [...new Set([...managerIds, ...guardIds])].filter((id) => id && id !== excludeUserId);
+    if (!unique.length) return [];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique }, isActive: true, isApproved: true },
+      select: { id: true },
+    });
+    return users.map((u) => u.id);
+  }
+
+  /** One factory unit: its manager + employees. */
+  private async factoryUnitMessagingAudienceIds(factoryId: string, excludeUserId: string): Promise<string[]> {
+    const factory = await this.prisma.factory.findUnique({
+      where: { id: factoryId },
+      select: { managerId: true },
+    });
+    if (!factory) throw new NotFoundException('Factory not found');
+    const employees = await this.prisma.user.findMany({
+      where: {
+        employeeOfFactoryId: factoryId,
+        role: Role.EMPLOYEE,
+        isActive: true,
+        isApproved: true,
+        id: { not: excludeUserId },
+      },
+      select: { id: true },
+    });
+    const ids = [...new Set([factory.managerId, ...employees.map((e) => e.id)])]
+      .filter((id) => id && id !== excludeUserId);
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids }, isActive: true, isApproved: true },
+      select: { id: true },
+    });
+    return users.map((u) => u.id);
   }
 
   async messageRecipients(actor: AuthenticatedUser) {
+    const select = {
+      id: true,
+      name: true,
+      phoneNumber: true,
+      role: true,
+      employeeOfFactoryId: true,
+      employeeOfFactory: { select: { id: true, name: true } },
+    } as const;
+
     if (actor.role === Role.SUPER_ADMIN) {
       return this.prisma.user.findMany({
         where: { isActive: true, isApproved: true, id: { not: actor.id } },
-        select: { id: true, name: true, phoneNumber: true, role: true },
+        select,
         orderBy: [{ role: 'asc' }, { name: 'asc' }],
-        take: 500,
+        take: 2000,
       });
     }
 
     if (actor.role === Role.PARK_MANAGER) {
       const parkIds = await this.managedParkIds(actor);
-      const factories = await this.prisma.factory.findMany({
-        where: { parkId: { in: parkIds }, isApproved: true },
-        select: { managerId: true },
-      });
+      if (!parkIds.length) return [];
+      const [factories, guards] = await Promise.all([
+        this.prisma.factory.findMany({
+          where: { parkId: { in: parkIds }, isApproved: true },
+          select: { id: true, name: true, managerId: true },
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.securityGuard.findMany({
+          where: { parkId: { in: parkIds }, isActive: true },
+          select: { userId: true },
+        }),
+      ]);
+      const factoryIds = factories.map((f) => f.id);
       const managerIds = factories.map((f) => f.managerId).filter(Boolean) as string[];
-      return this.prisma.user.findMany({
-        where: { id: { in: managerIds, not: actor.id }, role: Role.FACTORY_OWNER, isActive: true, isApproved: true },
-        select: { id: true, name: true, phoneNumber: true, role: true },
-        orderBy: { name: 'asc' },
-      });
+      const [managers, employees, activeGuards] = await Promise.all([
+        this.prisma.user.findMany({
+          where: {
+            id: { in: managerIds, not: actor.id },
+            role: Role.FACTORY_OWNER,
+            isActive: true,
+            isApproved: true,
+          },
+          select,
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.user.findMany({
+          where: {
+            employeeOfFactoryId: { in: factoryIds },
+            role: Role.EMPLOYEE,
+            isActive: true,
+            isApproved: true,
+            id: { not: actor.id },
+          },
+          select,
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.user.findMany({
+          where: {
+            id: { in: guards.map((g) => g.userId), not: actor.id },
+            role: Role.SECURITY_GUARD,
+            isActive: true,
+            isApproved: true,
+          },
+          select,
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+      const factoryByManager = new Map(factories.map((f) => [f.managerId, f]));
+      const factoryById = new Map(factories.map((f) => [f.id, f]));
+      return [
+        ...managers.map((manager) => ({
+          ...manager,
+          factoryId: factoryByManager.get(manager.id)?.id || null,
+          factoryName: factoryByManager.get(manager.id)?.name || null,
+        })),
+        ...activeGuards.map((user) => ({ ...user, factoryId: null as string | null, factoryName: null as string | null })),
+        ...employees.map((user) => ({
+          ...user,
+          factoryId: user.employeeOfFactoryId,
+          factoryName: user.employeeOfFactoryId
+            ? factoryById.get(user.employeeOfFactoryId)?.name || user.employeeOfFactory?.name || null
+            : null,
+        })),
+      ];
     }
 
     if (actor.role === Role.FACTORY_OWNER) {
       const factories = await this.prisma.factory.findMany({
         where: { managerId: actor.id },
-        select: { id: true, parkId: true },
+        select: { id: true, parkId: true, name: true },
       });
       const factoryIds = factories.map((f) => f.id);
       const parkIds = [...new Set(factories.map((f) => f.parkId))];
       const [employees, parkManagers] = await Promise.all([
         this.prisma.user.findMany({
           where: { employeeOfFactoryId: { in: factoryIds }, role: Role.EMPLOYEE, isActive: true, isApproved: true },
-          select: { id: true, name: true, phoneNumber: true, role: true },
+          select,
           orderBy: { name: 'asc' },
         }),
         this.prisma.user.findMany({
@@ -2314,24 +2645,37 @@ export class ManagementService {
             messagingRestricted: false,
             managedParks: { some: { id: { in: parkIds } } },
           },
-          select: { id: true, name: true, phoneNumber: true, role: true },
+          select,
           orderBy: { name: 'asc' },
         }),
       ]);
-      return [...parkManagers, ...employees];
+      const factoryNameById = new Map(factories.map((f) => [f.id, f.name]));
+      return [
+        ...parkManagers.map((user) => ({ ...user, factoryId: null as string | null, factoryName: null as string | null })),
+        ...employees.map((user) => ({
+          ...user,
+          factoryId: user.employeeOfFactoryId,
+          factoryName: user.employeeOfFactoryId ? factoryNameById.get(user.employeeOfFactoryId) || user.employeeOfFactory?.name || null : null,
+        })),
+      ];
     }
 
     if (actor.role === Role.EMPLOYEE) {
       const me = await this.prisma.user.findUnique({
         where: { id: actor.id },
-        select: { employeeOfFactoryId: true, employeeOfFactory: { select: { managerId: true, parkId: true } } },
+        select: { employeeOfFactoryId: true, employeeOfFactory: { select: { managerId: true, parkId: true, name: true } } },
       });
       const targets: string[] = [];
       if (me?.employeeOfFactory?.managerId) targets.push(me.employeeOfFactory.managerId);
-      return this.prisma.user.findMany({
+      const users = await this.prisma.user.findMany({
         where: { id: { in: targets }, isActive: true, isApproved: true },
-        select: { id: true, name: true, phoneNumber: true, role: true },
+        select,
       });
+      return users.map((user) => ({
+        ...user,
+        factoryId: me?.employeeOfFactoryId || null,
+        factoryName: me?.employeeOfFactory?.name || null,
+      }));
     }
 
     return [];
@@ -2791,7 +3135,11 @@ export class ManagementService {
 
     if (type === 'financial') {
       const invoices = await this.prisma.invoice.findMany({
-        where: { ...factoryWhere, ...(dateFilter ? { issueDate: dateFilter } : {}) },
+        where: {
+          targetType: InvoiceTarget.FACTORY,
+          ...factoryWhere,
+          ...(dateFilter ? { issueDate: dateFilter } : {}),
+        },
         include: { factory: { select: { id: true, name: true } } },
         orderBy: { issueDate: 'desc' },
         take: 2000,
@@ -3374,7 +3722,7 @@ export class ManagementService {
       },
       select: { id: true, phoneNumber: true },
     });
-    for (const employee of parkEmployees) addUser(employee.id, employee.phoneNumber);
+    for (const employee of parkEmployees || []) addUser(employee.id, employee.phoneNumber);
 
     const phones = new Set<string>();
     for (const phone of userMap.values()) {
@@ -3441,37 +3789,87 @@ export class ManagementService {
     }
   }
 
-  private async announcementRecipients(actor: AuthenticatedUser, parkId: string | null, isGlobal: boolean): Promise<string[]> {
-    if (isGlobal || actor.role === Role.SUPER_ADMIN) {
+  private async announcementVisibilityOr(actor: AuthenticatedUser): Promise<Prisma.AnnouncementWhereInput[]> {
+    const scope: Prisma.AnnouncementWhereInput[] = [
+      { isGlobal: true },
+      { createdById: actor.id },
+    ];
+    const parkIds = await this.actorParkIds(actor);
+
+    if (actor.role === Role.PARK_MANAGER) {
+      // Park managers see every announcement in parks they manage (park-wide + unit-scoped).
+      if (parkIds.length) scope.push({ parkId: { in: parkIds } });
+      return scope;
+    }
+
+    if (actor.role === Role.SECURITY_GUARD) {
+      // Guards only receive park-wide announcements (not unit-only ones).
+      if (parkIds.length) {
+        scope.push({ parkId: { in: parkIds }, factoryId: null, isGlobal: false });
+      }
+      return scope;
+    }
+
+    if (actor.role === Role.FACTORY_OWNER) {
+      const factories = await this.prisma.factory.findMany({
+        where: { managerId: actor.id },
+        select: { id: true, parkId: true },
+      });
+      const factoryIds = factories.map((f) => f.id);
+      const ownerParkIds = [...new Set(factories.map((f) => f.parkId))];
+      // Park-wide (managers + guards tier) + announcements aimed at their unit(s).
+      if (ownerParkIds.length) {
+        scope.push({ parkId: { in: ownerParkIds }, factoryId: null, isGlobal: false });
+      }
+      if (factoryIds.length) {
+        scope.push({ factoryId: { in: factoryIds } });
+      }
+      return scope;
+    }
+
+    if (actor.role === Role.EMPLOYEE) {
+      const me = await this.prisma.user.findUnique({
+        where: { id: actor.id },
+        select: {
+          employeeOfFactoryId: true,
+          employeeOfParkId: true,
+          employeeOfFactory: { select: { parkId: true } },
+        },
+      });
+      // Employees only see unit-scoped announcements for their factory (not park-wide).
+      if (me?.employeeOfFactoryId) {
+        scope.push({ factoryId: me.employeeOfFactoryId });
+      }
+      return scope;
+    }
+
+    // Fallback: global + own only.
+    return scope;
+  }
+
+  private async announcementRecipients(
+    actor: AuthenticatedUser,
+    parkId: string | null,
+    factoryId: string | null,
+    isGlobal: boolean,
+  ): Promise<string[]> {
+    // Only true global announcements fan out to the entire platform.
+    if (isGlobal) {
       const users = await this.prisma.user.findMany({
         where: { isActive: true, isApproved: true, id: { not: actor.id } },
         select: { id: true },
-        take: 2000,
       });
       return users.map((u) => u.id);
     }
-    if (!parkId) return [];
-    const factories = await this.prisma.factory.findMany({
-      where: { parkId, isApproved: true },
-      select: { id: true, managerId: true },
-    });
-    const factoryIds = factories.map((f) => f.id);
-    const managerIds = factories.map((f) => f.managerId).filter(Boolean) as string[];
-    const [employees, guards] = await Promise.all([
-      this.prisma.user.findMany({
-        where: { employeeOfFactoryId: { in: factoryIds }, isActive: true, isApproved: true },
-        select: { id: true },
-      }),
-      this.prisma.securityGuard.findMany({
-        where: { parkId, isActive: true },
-        select: { userId: true },
-      }),
-    ]);
-    return [...new Set([
-      ...managerIds,
-      ...employees.map((e) => e.id),
-      ...guards.map((g) => g.userId),
-    ])].filter((id) => id !== actor.id);
+    // One industrial unit: manager + employees of that factory.
+    if (factoryId) {
+      return this.factoryUnitMessagingAudienceIds(factoryId, actor.id);
+    }
+    // Park-wide: factory managers + active security guards (not every employee).
+    if (parkId) {
+      return this.parkMessagingAudienceIds([parkId], actor.id);
+    }
+    return [];
   }
 
   async pendingRegistrations(actor: AuthenticatedUser) {
@@ -3809,6 +4207,88 @@ export class ManagementService {
       payableAmount: this.money(baseTotal + latePenaltyAmount),
       status,
     };
+  }
+
+  private async invoiceListWhere(
+    user: AuthenticatedUser,
+    scope: 'payable' | 'managed',
+  ): Promise<Prisma.InvoiceWhereInput> {
+    if (scope === 'payable') {
+      if (user.role === Role.FACTORY_OWNER) {
+        return {
+          targetType: InvoiceTarget.FACTORY,
+          factoryId: { in: await this.factoryIds(user) },
+        };
+      }
+      if (user.role === Role.PARK_MANAGER) {
+        return {
+          targetType: InvoiceTarget.PARK,
+          parkId: { in: await this.managedParkIds(user) },
+        };
+      }
+      if (user.role === Role.SUPER_ADMIN) {
+        // Super-admin has no personal park debt feed; empty payable set.
+        return { id: { in: [] } };
+      }
+      return { id: { in: [] } };
+    }
+
+    // managed = factory AR the actor collects / audits
+    if (user.role === Role.FACTORY_OWNER) {
+      return {
+        targetType: InvoiceTarget.FACTORY,
+        factoryId: { in: await this.factoryIds(user) },
+      };
+    }
+    if (user.role === Role.PARK_MANAGER || user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) {
+      const factoryIds = await this.factoryIds(user);
+      if (user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) {
+        return { targetType: InvoiceTarget.FACTORY };
+      }
+      return {
+        targetType: InvoiceTarget.FACTORY,
+        factoryId: { in: factoryIds.length ? factoryIds : ['__none__'] },
+      };
+    }
+    return { id: { in: [] } };
+  }
+
+  private async assertInvoiceAccess(
+    actor: AuthenticatedUser,
+    invoice: { targetType?: string | null; factoryId?: string | null; parkId?: string | null },
+    mode: 'manage' | 'pay',
+  ) {
+    const target = invoice.targetType || InvoiceTarget.FACTORY;
+    if (target === InvoiceTarget.PARK) {
+      if (!invoice.parkId) throw new ForbiddenException('Park invoice is missing park scope');
+      if (mode === 'manage') {
+        if (actor.role !== Role.SUPER_ADMIN) {
+          throw new ForbiddenException('Only super admins can manage park invoices');
+        }
+        return;
+      }
+      // pay: park managers of that park (or SA)
+      if (actor.role === Role.SUPER_ADMIN) return;
+      if (actor.role !== Role.PARK_MANAGER) {
+        throw new ForbiddenException('Only park managers can pay park invoices');
+      }
+      const managed = await this.managedParkIds(actor);
+      if (!managed.includes(invoice.parkId)) {
+        throw new ForbiddenException('You do not have access to this park invoice');
+      }
+      return;
+    }
+
+    if (!invoice.factoryId) throw new ForbiddenException('Factory invoice is missing factory scope');
+    if (mode === 'manage') {
+      if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+        throw new ForbiddenException('You cannot manage this invoice');
+      }
+      await this.assertFactoryAccess(actor, invoice.factoryId);
+      return;
+    }
+    // pay factory invoice: factory owner (or privileged roles with access)
+    await this.assertFactoryAccess(actor, invoice.factoryId);
   }
 
   private presentInvoice<T extends Record<string, any>>(invoice: T) {

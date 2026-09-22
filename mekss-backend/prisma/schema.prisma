@@ -58,6 +58,12 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+/// Who the invoice bills: an industrial unit, or the park itself (admin → park manager).
+enum InvoiceTarget {
+  FACTORY
+  PARK
+}
+
 enum PaymentStatus {
   INITIATED
   VERIFIED
@@ -284,6 +290,7 @@ model IndustrialPark {
   advertisements Advertisement[] @relation("AdvertisementPark")
   securityGuards SecurityGuard[]
   emergencies    EmergencyAlert[]
+  invoices       Invoice[]
   scopedFiles    ScopedFile[]
   feedback       Feedback[]      @relation("FeedbackRecipientPark")
 
@@ -339,6 +346,7 @@ model Factory {
   gatePasses    GatePass[]
   invoices      Invoice[]
   requests      Request[]
+  announcements Announcement[]
   scopedFiles   ScopedFile[]      @relation("FactoryScopedFiles")
 
   @@unique([id, parkId])
@@ -430,8 +438,12 @@ model Invoice {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  factoryId   String
-  factory     Factory              @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  /// FACTORY = bill an industrial unit; PARK = bill the park (super-admin → park manager).
+  targetType  InvoiceTarget @default(FACTORY)
+  factoryId   String?
+  factory     Factory?             @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  parkId      String?
+  park        IndustrialPark?      @relation(fields: [parkId], references: [id], onDelete: Restrict)
   createdById String
   createdBy   User                 @relation("InvoiceCreator", fields: [createdById], references: [id])
   paidById    String?
@@ -439,6 +451,8 @@ model Invoice {
   payments    PaymentTransaction[]
 
   @@index([factoryId, status])
+  @@index([parkId, status])
+  @@index([targetType, status])
   @@index([dueDate])
 }
 
@@ -529,12 +543,19 @@ model Announcement {
   updatedAt DateTime  @updatedAt
   expiresAt DateTime?
 
+  // Scope ladder (exactly one active level):
+  // - isGlobal=true, parkId/factoryId null → entire platform
+  // - parkId set, factoryId null → park-wide (factory managers + guards)
+  // - factoryId set (+ parkId of that factory) → that industrial unit only
   parkId      String?
   park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: Restrict)
+  factoryId   String?
+  factory     Factory?        @relation(fields: [factoryId], references: [id], onDelete: Restrict)
   createdById String
   createdBy   User            @relation(fields: [createdById], references: [id])
 
   @@index([parkId, createdAt])
+  @@index([factoryId, createdAt])
   @@index([isGlobal, createdAt])
 }
 

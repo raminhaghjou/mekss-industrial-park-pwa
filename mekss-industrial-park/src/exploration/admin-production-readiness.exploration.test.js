@@ -15,7 +15,8 @@ const artifactPath = resolve(specRoot, 'artifacts/task-1-bug-condition-explorati
 const routeManifest = [
   { route: '/dashboard', file: 'src/pages/dashboard/DashboardPage.jsx', operations: ['role summaries', 'pending work', 'recent priorities', 'quick actions'] },
   { route: '/admin/factories', file: 'src/pages/admin/ManageFactoriesPage.jsx', operations: ['list', 'edit', 'approve', 'reject'] },
-  { route: '/admin/invoices', file: 'src/pages/admin/ManageInvoicesPage.jsx', operations: ['list', 'create navigation', 'edit', 'delete'] },
+  { route: '/admin/finance', file: 'src/pages/admin/FinanceAccountingPage.jsx', operations: ['list', 'create navigation', 'message unit'] },
+  { route: '/admin/invoices', file: 'src/pages/admin/FinanceAccountingPage.jsx', operations: ['list', 'create navigation'] },
   { route: '/admin/invoices/create', file: 'src/pages/admin/CreateInvoicePage.jsx', operations: ['create', 'back navigation'] },
   { route: '/admin/gate-passes', file: 'src/pages/admin/ApproveGatePassesPage.jsx', operations: ['list', 'view', 'approve', 'reject'] },
   { route: '/admin/requests', file: 'src/pages/admin/ApproveRequestsPage.jsx', operations: ['list', 'view', 'approve', 'reject'] },

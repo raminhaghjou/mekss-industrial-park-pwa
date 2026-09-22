@@ -21,15 +21,24 @@ export const InvoicesPage = () => {
   const canPay = canPayRoles.has(user?.role);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: () => invoiceApi.getInvoices().then((res) => res.data),
+    queryKey: ['invoices', 'payable'],
+    queryFn: () => invoiceApi.getInvoices({ scope: 'payable' }).then((res) => res.data),
   });
 
   const invoices = data || [];
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <h1 className="text-2xl font-bold text-foreground">قبض‌ها</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">
+          {user?.role === 'PARK_MANAGER' ? 'قبض‌های شهرک' : 'قبض‌های من'}
+        </h1>
+        <p className="mt-1 text-sm text-foreground-500">
+          {user?.role === 'PARK_MANAGER'
+            ? 'صورتحساب‌هایی که ادمین برای شهرک شما صادر کرده است'
+            : 'صورتحساب‌های واحد صنعتی شما برای پرداخت'}
+        </p>
+      </div>
 
       <Card>
         <CardContent className="p-0">

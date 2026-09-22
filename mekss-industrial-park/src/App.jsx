@@ -40,7 +40,7 @@ const AdvertisementsPage = lazy(() => import('./pages/advertisements/Advertiseme
 const NewAdvertisementPage = lazy(() => import('./pages/advertisements/NewAdvertisementPage'));
 const EmergencyPage = lazy(() => import('./pages/emergency/EmergencyPage'));
 const ManageFactoriesPage = lazy(() => import('./pages/admin/ManageFactoriesPage'));
-const ManageInvoicesPage = lazy(() => import('./pages/admin/ManageInvoicesPage'));
+const FinanceAccountingPage = lazy(() => import('./pages/admin/FinanceAccountingPage'));
 const CreateInvoicePage = lazy(() => import('./pages/admin/CreateInvoicePage'));
 const ApproveGatePassesPage = lazy(() => import('./pages/admin/ApproveGatePassesPage'));
 const ApproveRequestsPage = lazy(() => import('./pages/admin/ApproveRequestsPage'));
@@ -175,9 +175,14 @@ function AppRoutes() {
             <ManageFactoriesPage />
           </RoleRoute>
         } />
+        <Route path="admin/finance" element={
+          <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER']}>
+            <FinanceAccountingPage />
+          </RoleRoute>
+        } />
         <Route path="admin/invoices" element={
           <RoleRoute roles={['SUPER_ADMIN', 'PARK_MANAGER']}>
-            <ManageInvoicesPage />
+            <FinanceAccountingPage />
           </RoleRoute>
         } />
         <Route path="admin/invoices/create" element={

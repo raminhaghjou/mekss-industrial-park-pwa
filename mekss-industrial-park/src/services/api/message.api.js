@@ -3,6 +3,8 @@ import apiClient from './base.api';
 export const messageApi = {
   sendBatchMessage: (recipientIds, subject, body) =>
     apiClient.post('/messages/batch', { recipientIds, subject, body }),
+  broadcastMessage: (payload) => apiClient.post('/messages/broadcast', payload),
+  /** @deprecated Prefer broadcastMessage({ audience: 'PARK_ALL' }) */
   broadcastToFactoryManagers: (subject, body) =>
     apiClient.post('/messages/broadcast/factory-managers', { subject, body }),
   sendMessage: (data) => apiClient.post('/messages', data),

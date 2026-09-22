@@ -183,6 +183,7 @@ describe('active backend route contract', () => {
         'POST /api/v1/messages',
         'POST /api/v1/messages/:id/read',
         'POST /api/v1/messages/batch',
+        'POST /api/v1/messages/broadcast',
         'POST /api/v1/messages/broadcast/factory-managers',
         'POST /api/v1/notifications/:id/read',
         'POST /api/v1/notifications/read-all',

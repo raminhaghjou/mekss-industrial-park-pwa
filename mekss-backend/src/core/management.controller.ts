@@ -15,6 +15,7 @@ import {
   CreateGatePassDto,
   UpdateGatePassDto,
   CreateInvoiceDto,
+  ListInvoicesQueryDto,
   CreateManagedUserDto,
   CreateParkDto,
   CreateParkStaffDto,
@@ -32,6 +33,7 @@ import {
   SendDirectMessageDto,
   SendMessageDto,
   BroadcastFactoryManagersMessageDto,
+  BroadcastMessageDto,
   UpdateAnnouncementDto,
   UpdateFactoryDto,
   UpdateFactoryStaffDto,
@@ -105,7 +107,7 @@ export class ManagementController {
   @Post('gate-passes/:id/deny') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') denyGatePassExit(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'deny', body.reason); }
   @Get('gate-passes/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePassDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassDetail(currentUser(req), params.id); }
 
-  @Get('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoices(@Req() req: AuthenticatedRequest) { return this.management.listInvoices(currentUser(req)); }
+  @Get('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoices(@Req() req: AuthenticatedRequest, @Query() query: ListInvoicesQueryDto) { return this.management.listInvoices(currentUser(req), query.scope); }
   @Post('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') createInvoice(@Req() req: AuthenticatedRequest, @Body() body: CreateInvoiceDto) { return this.management.createInvoice(currentUser(req), body); }
   @Put('invoices/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') updateInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateInvoiceDto) { return this.management.updateInvoice(currentUser(req), params.id, body); }
   @Post('invoices/:id/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Invoices') startPayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Headers('idempotency-key') idempotencyKey?: string) { return this.management.startPayment(currentUser(req), params.id, idempotencyKey); }
@@ -136,8 +138,9 @@ export class ManagementController {
   @Post('advertisements/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Advertisements') approveAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: AdvertisementModerationDto) { return this.management.approveAdvertisement(currentUser(req), params.id, body.approved, body.rejectionReason); }
 
   @Post('messages') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') sendDirectMessage(@Req() req: AuthenticatedRequest, @Body() body: SendDirectMessageDto) { return this.management.sendDirectMessage(currentUser(req), body); }
-  @Post('messages/batch') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') sendBatchMessage(@Req() req: AuthenticatedRequest, @Body() body: SendMessageDto) { return this.management.sendMessage(currentUser(req), body.recipientIds, body.subject, body.body); }
-  @Post('messages/broadcast/factory-managers') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') broadcastFactoryManagers(@Req() req: AuthenticatedRequest, @Body() body: BroadcastFactoryManagersMessageDto) { return this.management.broadcastToFactoryManagers(currentUser(req), body.subject, body.body); }
+  @Post('messages/batch') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Messages') sendBatchMessage(@Req() req: AuthenticatedRequest, @Body() body: SendMessageDto) { return this.management.sendMessage(currentUser(req), body.recipientIds, body.subject, body.body); }
+  @Post('messages/broadcast') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Messages') broadcastMessage(@Req() req: AuthenticatedRequest, @Body() body: BroadcastMessageDto) { return this.management.broadcastMessage(currentUser(req), body); }
+  @Post('messages/broadcast/factory-managers') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Messages') broadcastFactoryManagers(@Req() req: AuthenticatedRequest, @Body() body: BroadcastFactoryManagersMessageDto) { return this.management.broadcastMessage(currentUser(req), { subject: body.subject, body: body.body, audience: 'PARK_ALL' }); }
   @Get('messages/recipients') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') messageRecipients(@Req() req: AuthenticatedRequest) { return this.management.messageRecipients(currentUser(req)); }
   @Get('messages/inbox') @ApiTags('Messages') inboxMessages(@Req() req: AuthenticatedRequest) { return this.management.inboxMessages(currentUser(req)); }
   @Get('messages/sent') @ApiTags('Messages') sentMessages(@Req() req: AuthenticatedRequest) { return this.management.sentMessages(currentUser(req)); }

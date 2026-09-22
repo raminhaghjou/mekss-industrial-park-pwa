@@ -12,7 +12,8 @@
     "test:unit": "vitest run --config vitest.config.js",
     "test:property:exploration": "vitest run --config vitest.exploration.config.js",
     "test:integration": "vitest run --config vitest.integration.config.js",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "models:iran-plate": "node scripts/download-iran-plate-models.mjs"
   },
   "dependencies": {
     "@code-plate/iran-cities": "^1.0.2",
@@ -32,6 +33,7 @@
     "jspdf-autotable": "^5.0.8",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.39.0",
+    "onnxruntime-web": "^1.21.0",
     "qrcode": "^1.5.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

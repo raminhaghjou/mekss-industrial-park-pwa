@@ -19,6 +19,8 @@ import { gatePassApi } from '../../services/api/gatePass.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { semanticFilter } from '../../utils/semanticSearch';
+import { displayIranLicensePlate, formatIranLicensePlate, parseIranLicensePlate } from '../../utils/iranLicensePlate';
+import IranPlateOcrCamera from '../../components/gate-pass/IranPlateOcrCamera';
 
 const SCANNER_REGION_ID = 'mekss-qr-scanner';
 const MIN_SEARCH_LEN = 4;
@@ -33,12 +35,19 @@ const statusLabel = {
   DENIED: 'رد خروج',
 };
 
+const canonicalizePlate = (value) => {
+  const parts = parseIranLicensePlate(value);
+  return formatIranLicensePlate(parts) || String(value || '').trim();
+};
+
 export const ScanQrPage = () => {
   const navigate = useNavigate();
   const { showNotification } = useNotification();
   const [code, setCode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [plateCameraOpen, setPlateCameraOpen] = useState(false);
+  const [plateCode, setPlateCode] = useState('');
   const scannerRef = useRef(null);
   const handlingScanRef = useRef(false);
 
@@ -57,15 +66,13 @@ export const ScanQrPage = () => {
   });
 
   const plateLookup = useMutation({
-    mutationFn: (plate) => gatePassApi.getByPlate(String(plate).trim()).then((res) => res.data),
+    mutationFn: (plate) => gatePassApi.getByPlate(canonicalizePlate(plate)).then((res) => res.data),
     onSuccess: (pass) => {
       showNotification('برگ خروج مرتبط با پلاک یافت شد', 'success');
       navigate(`/guard/gate-passes/${pass.id}/verify`);
     },
     onError: (error) => showNotification(getErrorMessage(error, 'برگ خروجی برای این پلاک یافت نشد'), 'error'),
   });
-
-  const [plateCode, setPlateCode] = useState('');
 
   const stopScanner = async () => {
     const scanner = scannerRef.current;
@@ -110,10 +117,9 @@ export const ScanQrPage = () => {
   const startScanner = async () => {
     setCameraError('');
     handlingScanRef.current = false;
+    setPlateCameraOpen(false);
     await stopScanner();
     setScanning(true);
-
-    // Wait one frame so the scanner container is mounted.
     await new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
     try {
@@ -133,9 +139,7 @@ export const ScanQrPage = () => {
         (decoded) => {
           handleDecoded(decoded);
         },
-        () => {
-          /* ignore frame decode misses */
-        },
+        () => {},
       );
     } catch (error) {
       setScanning(false);
@@ -183,6 +187,11 @@ export const ScanQrPage = () => {
     lookup.mutate(value);
   };
 
+  const openPlateCamera = async () => {
+    await stopScanner();
+    setPlateCameraOpen(true);
+  };
+
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-4 animate-fade-in">
       <Card className="rounded-3xl border border-default-200 shadow-sm">
@@ -192,9 +201,9 @@ export const ScanQrPage = () => {
               <ScanLine className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">اسکن کد QR</h1>
+              <h1 className="text-xl font-bold">اسکن کد QR / پلاک</h1>
               <p className="mt-0.5 text-xs text-foreground-500">
-                دوربین را باز کنید یا با وارد کردن حداقل ۴ کاراکتر، برگ خروج را جستجو کنید.
+                QR با دوربین، یا پلاک ایران با OCR تخصصی روی دستگاه.
               </p>
             </div>
           </div>
@@ -205,15 +214,15 @@ export const ScanQrPage = () => {
                 variant="primary"
                 className="h-12 font-bold"
                 onPress={startScanner}
-                isDisabled={lookup.isPending}
+                isDisabled={lookup.isPending || plateCameraOpen}
               >
                 <Camera className="h-5 w-5" />
-                اسکن با دوربین
+                اسکن QR با دوربین
               </Button>
             ) : (
               <Button variant="secondary" className="h-11 font-bold" onPress={stopScanner}>
                 <X className="h-4 w-4" />
-                توقف اسکن
+                توقف اسکن QR
               </Button>
             )}
 
@@ -248,41 +257,60 @@ export const ScanQrPage = () => {
                   autoComplete="off"
                 />
               </div>
-              <p className="text-[11px] text-foreground-400">
-                با وارد کردن ۴ تا ۵ حرف یا رقم، نتایج مرتبط در لیست زیر نمایش داده می‌شود.
-              </p>
             </div>
             <Button type="submit" variant="primary" className="h-12 font-bold" isDisabled={lookup.isPending}>
               {lookup.isPending ? <Spinner size="sm" /> : 'جستجو و تایید خروج'}
             </Button>
           </form>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!plateCode.trim()) {
-                showNotification('پلاک را وارد کنید', 'error');
-                return;
-              }
-              plateLookup.mutate(plateCode.trim());
-            }}
-            className="flex flex-col gap-3 rounded-2xl border border-dashed border-default-300 p-4"
-          >
-            <Label className="text-xs font-bold">تشخیص / تطبیق پلاک (OCR کمکی)</Label>
+          <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-default-300 p-4">
+            <Label className="text-xs font-bold">تشخیص پلاک ایران (OCR)</Label>
             <p className="text-[11px] text-foreground-500">
-              پلاک خوانده‌شده از دوربین یا مشاهده خودرو را وارد کنید تا برگ خروج باز مرتبط باز شود. اسکن QR همچنان فعال است.
+              مدل تخصصی پلاک ایران روی گوشی/مرورگر اجرا می‌شود (بدون ارسال تصویر به سرور). پس از خواندن، برگ خروج باز تطبیق داده می‌شود.
             </p>
-            <Input
-              dir="ltr"
-              value={plateCode}
-              onChange={(e) => setPlateCode(e.target.value)}
-              placeholder="مثال: 12ب34567"
-              className="rounded-xl font-mono"
-            />
-            <Button type="submit" variant="secondary" className="font-bold" isDisabled={plateLookup.isPending}>
-              {plateLookup.isPending ? <Spinner size="sm" /> : 'تطبیق پلاک با برگ خروج باز'}
-            </Button>
-          </form>
+
+            {!plateCameraOpen ? (
+              <Button variant="secondary" className="font-bold" onPress={openPlateCamera} isDisabled={scanning}>
+                <Camera className="h-4 w-4" />
+                باز کردن دوربین OCR پلاک
+              </Button>
+            ) : (
+              <IranPlateOcrCamera
+                initialPlate={plateCode}
+                onCancel={() => setPlateCameraOpen(false)}
+                onPlateRead={(plate) => {
+                  setPlateCode(plate);
+                  setPlateCameraOpen(false);
+                  showNotification(`پلاک ${displayIranLicensePlate(plate)} خوانده شد`, 'success');
+                  plateLookup.mutate(plate);
+                }}
+              />
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!plateCode.trim()) {
+                  showNotification('پلاک را وارد کنید', 'error');
+                  return;
+                }
+                plateLookup.mutate(plateCode.trim());
+              }}
+              className="flex flex-col gap-2"
+            >
+              <Label className="text-xs">یا ورود / اصلاح دستی پلاک</Label>
+              <Input
+                dir="ltr"
+                value={plateCode}
+                onChange={(e) => setPlateCode(e.target.value)}
+                placeholder="مثال: 12ب34567"
+                className="rounded-xl font-mono"
+              />
+              <Button type="submit" variant="tertiary" className="font-bold" isDisabled={plateLookup.isPending}>
+                {plateLookup.isPending ? <Spinner size="sm" /> : 'تطبیق پلاک با برگ خروج باز'}
+              </Button>
+            </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -326,13 +354,8 @@ export const ScanQrPage = () => {
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-foreground-600">
                       <span>راننده: {pass.driverName || '—'}</span>
-                      <span className="font-mono" dir="ltr">پلاک: {pass.licensePlate || '—'}</span>
+                      <span className="font-mono" dir="ltr">پلاک: {displayIranLicensePlate(pass.licensePlate)}</span>
                     </div>
-                    {pass.qrCode && (
-                      <span className="truncate font-mono text-[11px] text-foreground-400" dir="ltr">
-                        {pass.qrCode}
-                      </span>
-                    )}
                   </button>
                 </li>
               ))}

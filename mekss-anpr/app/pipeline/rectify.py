@@ -90,6 +90,94 @@ def deskew(crop: np.ndarray) -> np.ndarray | None:
     return cv2.warpAffine(crop, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
 
+def estimate_tilt(crop: np.ndarray, max_angle: float = 25.0) -> float | None:
+    """Dominant near-horizontal edge angle (degrees, image coordinates) from the plate's long borders."""
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.ndim == 3 else crop
+    h, w = gray.shape[:2]
+    if h < 12 or w < 30:
+        return None
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 50, 150)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=max(12, w // 6), minLineLength=max(15, w // 3), maxLineGap=4)
+    if lines is None:
+        return None
+    angles, weights = [], []
+    for x1, y1, x2, y2 in lines[:, 0]:
+        if x2 == x1:
+            continue
+        angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+        if angle > 90:
+            angle -= 180
+        elif angle < -90:
+            angle += 180
+        if abs(angle) <= max_angle:
+            angles.append(angle)
+            weights.append(float(np.hypot(x2 - x1, y2 - y1)))
+    if not angles:
+        return None
+    order = np.argsort(angles)
+    cum = np.cumsum(np.asarray(weights)[order])
+    return float(np.asarray(angles)[order][np.searchsorted(cum, cum[-1] / 2)])
+
+
+def text_band(crop: np.ndarray) -> np.ndarray:
+    """Trim a roughly level plate crop to the rows/columns that carry character strokes."""
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.ndim == 3 else crop
+    h, w = gray.shape[:2]
+    gx = np.abs(cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3))
+    rows = cv2.GaussianBlur(gx.sum(axis=1).reshape(-1, 1), (1, 5), 0).ravel()
+    if rows.max() <= 0:
+        return crop
+    on = rows >= 0.45 * rows.max()
+    best, start = (0, h), None
+    best_len = 0
+    for y, flag in enumerate(np.append(on, False)):
+        if flag and start is None:
+            start = y
+        elif not flag and start is not None:
+            if y - start > best_len:
+                best, best_len = (start, y), y - start
+            start = None
+    y1, y2 = best
+    band_h = y2 - y1
+    if band_h < 6:
+        return crop
+    y1, y2 = max(0, int(y1 - 0.25 * band_h)), min(h, int(y2 + 0.25 * band_h))
+    cols = gx[y1:y2].sum(axis=0)
+    xs = np.nonzero(cols >= 0.12 * cols.max())[0]
+    x1, x2 = (int(xs[0]), int(xs[-1]) + 1) if len(xs) else (0, w)
+    pad = int(0.03 * (x2 - x1))
+    x1, x2 = max(0, x1 - pad), min(w, x2 + pad)
+    if x2 - x1 < 2.0 * (y2 - y1):
+        return crop[y1:y2]
+    return crop[y1:y2, x1:x2]
+
+
+def rotate_level(crop: np.ndarray, angle: float) -> np.ndarray:
+    h, w = crop.shape[:2]
+    M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
+    return cv2.warpAffine(crop, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+
+
+def rescue_crops(image: np.ndarray, box: tuple[int, int, int, int]) -> list[np.ndarray]:
+    """Extra geometric hypotheses for a weak read: de-rotated text band and a widened box."""
+    x, y, w, h = box
+    H, W = image.shape[:2]
+    out: list[np.ndarray] = []
+    px, py, pw, ph = pad_box(x, y, w, h, (H, W), 0.2)
+    padded = image[py : py + ph, px : px + pw]
+    angle = estimate_tilt(padded)
+    if angle is not None and abs(angle) >= 2.0:
+        out.append(text_band(rotate_level(padded, angle)))
+    elif w / max(h, 1) < 2.8:
+        for a in (-12.0, 12.0):
+            out.append(text_band(rotate_level(padded, a)))
+    wx1, wx2 = max(0, x - int(0.35 * w)), min(W, x + w + int(0.35 * w))
+    wide = image[y : y + h, wx1:wx2]
+    if wide.shape[1] > w:
+        out.append(text_band(wide))
+    return [c for c in out if c.shape[0] >= 8 and c.shape[1] >= 24]
+
+
 def rectify(crop: np.ndarray) -> tuple[np.ndarray | None, str]:
     quad = find_plate_quad(crop)
     if quad is not None:

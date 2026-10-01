@@ -22,7 +22,7 @@ describe('canonical Persian enum labels', () => {
   it('covers every status/priority/type enum used across admin pages', () => {
     expect(Object.keys(requestStatusLabels).sort()).toEqual(['APPROVED', 'CANCELLED', 'PENDING', 'REJECTED'].sort());
     expect(Object.keys(requestPriorityLabels).sort()).toEqual(['HIGH', 'LOW', 'MEDIUM', 'URGENT'].sort());
-    expect(Object.keys(invoiceStatusLabels).sort()).toEqual(['CANCELLED', 'OVERDUE', 'PAID', 'PENDING'].sort());
+    expect(Object.keys(invoiceStatusLabels).sort()).toEqual(['AWAITING_CONFIRMATION', 'CANCELLED', 'OVERDUE', 'PAID', 'PENDING'].sort());
     expect(Object.keys(gatePassStatusLabels).sort()).toEqual(['APPROVED', 'COMPLETED', 'EXPIRED', 'PENDING', 'REJECTED'].sort());
     expect(Object.keys(factoryStatusLabels).sort()).toEqual(['ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED'].sort());
     expect(Object.keys(advertisementStatusLabels).sort()).toEqual(['APPROVED', 'EXPIRED', 'PENDING', 'REJECTED'].sort());

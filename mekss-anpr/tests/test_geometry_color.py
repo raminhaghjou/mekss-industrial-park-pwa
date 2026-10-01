@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 from app.pipeline.color import classify_plate_color, color_conflicts
-from app.pipeline.rectify import find_plate_quad, pad_box, rectify
+from app.pipeline.rectify import estimate_tilt, find_plate_quad, pad_box, rectify, rescue_crops, rotate_level, text_band
 from app.pipeline.recognizer import prep_crnn, shift_variants
 
 
@@ -61,6 +61,39 @@ def test_perspective_quad_found_on_tilted_plate():
     assert method == "perspective"
     h, w = rectified.shape[:2]
     assert 4.0 < w / h < 5.0
+
+
+def rotated_plate_scene(angle: float) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    plate = synthetic_plate(size=(230, 50))
+    cv2.rectangle(plate, (0, 0), (plate.shape[1] - 1, plate.shape[0] - 1), (0, 0, 0), 2)
+    canvas = np.full((240, 360, 3), 60, dtype=np.uint8)
+    canvas[95:145, 65:295] = plate
+    return rotate_level(canvas, angle), (95, 70, 170, 100)
+
+
+def test_estimate_tilt_recovers_plate_rotation():
+    scene, (x, y, w, h) = rotated_plate_scene(-12.0)
+    angle = estimate_tilt(scene[y - 30 : y + h + 30, x - 40 : x + w + 40])
+    assert angle is not None
+    assert abs(abs(angle) - 12.0) < 3.0
+
+
+def test_rescue_crops_level_and_trim_a_tilted_plate():
+    scene, box = rotated_plate_scene(-12.0)
+    crops = rescue_crops(scene, box)
+    assert crops
+    level = crops[0]
+    h, w = level.shape[:2]
+    assert w / h > 2.0
+    residual = estimate_tilt(cv2.copyMakeBorder(level, 10, 10, 10, 10, cv2.BORDER_REPLICATE))
+    assert residual is None or abs(residual) < 4.0
+
+
+def test_text_band_drops_empty_rows():
+    plate = synthetic_plate(size=(300, 60))
+    tall = cv2.copyMakeBorder(plate, 60, 60, 0, 0, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    band = text_band(tall)
+    assert band.shape[0] < tall.shape[0] * 0.6
 
 
 def test_pad_box_is_clamped():

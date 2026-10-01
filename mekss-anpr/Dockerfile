@@ -19,6 +19,7 @@ RUN pip install -r requirements.txt
 COPY app ./app
 COPY scripts ./scripts
 COPY models/manifest.json models/ocr_crnn.labels.json ./models/
+COPY models/bundled ./models/bundled
 
 RUN mkdir -p /models && cp models/ocr_crnn.labels.json /models/ && chown -R mekss:mekss /models
 

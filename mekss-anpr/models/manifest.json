@@ -13,7 +13,9 @@
     },
     "ocr_crnn.onnx": {
       "required": true,
-      "sha256": "45f8c45f29eb1ee91f6274cb8d9c328da1a2050ea7d8596bae61f4a6b9f9fb1e"
+      "sha256": "18038a470157eb62971a4ae5707f8fcd1c05e5fdcfea7c33c72b1e6830d45ddc",
+      "bundled": "bundled/ocr_crnn.onnx",
+      "origin": "Platrix ocr_crnn.onnx (sha256 45f8c45f29eb1ee91f6274cb8d9c328da1a2050ea7d8596bae61f4a6b9f9fb1e) fine-tuned on the IR-LPR plate split (GPL-3.0 dataset); see training/README.md"
     },
     "ocr_crnn.labels.json": {
       "required": true,

@@ -163,11 +163,11 @@ describe('admin panel production-readiness preservation baseline', () => {
     }
 
     expectSourceTokens(service, baseline.observations.scopePolicyTokens);
-    expect(service).toContain('where: { status: AdvertisementStatus.APPROVED }');
+    expect(service).toMatch(/async publicAdvertisements\([^)]*\) \{[\s\S]{0,300}?status: AdvertisementStatus\.APPROVED,/);
     expect(service).toContain("if (request.status !== RequestStatus.PENDING) throw new BadRequestException('Request is not pending')");
-    expect(service).toContain('findUnique({ where: { id: invoiceId } })');
+    expect(service).toMatch(/invoice\.findUnique\(\{\s*where: \{ id: invoiceId \}/);
     expect(service).toContain('findUnique({ where: { idempotencyKey: key } })');
-    expect(service).toContain('if (existing) return this.paymentResponse(existing.authority)');
+    expect(service).toMatch(/if \(existing\) \{?\s*return \{?\s*(?:\.\.\.)?this\.paymentResponse\(existing\.authority\)/);
 
     const appModule = read(paths.appModule);
     const coreModule = read(paths.coreModule);

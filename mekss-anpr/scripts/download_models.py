@@ -7,7 +7,8 @@ HuggingFace is often unreachable from Iranian servers:
     ANPR_MODEL_BASE_URL=https://minio.internal/models/iran-plate python scripts/download_models.py
 
 ``--pin`` writes the observed hashes back into ``models/manifest.json`` so later
-downloads from any mirror are verified against them.
+downloads from any mirror are verified against them. Files with a ``bundled`` path in the
+manifest ship inside this repository and are copied (and verified) instead of downloaded.
 """
 
 from __future__ import annotations
@@ -67,7 +68,11 @@ def main() -> int:
             lock[name] = sha256_file(dest)
             print(f"ok       {name} (cached)")
             continue
-        if name.endswith(".labels.json") and (ROOT / "models" / name).exists() and out != ROOT / "models":
+        bundled = ROOT / "models" / meta["bundled"] if meta.get("bundled") else None
+        if bundled is not None and bundled.exists():
+            print(f"copy     {bundled.relative_to(ROOT)}")
+            shutil.copy2(bundled, dest)
+        elif name.endswith(".labels.json") and (ROOT / "models" / name).exists() and out != ROOT / "models":
             shutil.copy2(ROOT / "models" / name, dest)
         else:
             url = f"{base}/{name}"

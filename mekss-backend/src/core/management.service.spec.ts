@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { AdvertisementStatus, FactoryStatus, GatePassStatus, InvoiceStatus, RequestStatus, Role } from '@prisma/client';
+import { AdvertisementStatus, FactoryStatus, GatePassStatus, InvoiceStatus, InvoiceTarget, RequestStatus, Role } from '@prisma/client';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn(async (value: string) => `hashed:${value}`) }));
 
@@ -151,7 +151,11 @@ describe('ManagementService transactional foundation', () => {
   it('uses explicit empty predicates for a zero-scope dashboard and keeps the global emergency feed truthful', async () => {
     const prisma = readTransaction({
       factory: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
-      industrialPark: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      industrialPark: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+      },
       gatePass: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
       invoice: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 } }) },
       request: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
@@ -198,7 +202,11 @@ describe('ManagementService transactional foundation', () => {
 
   it('applies park scope before pagination and returns only safe deterministic priority projections', async () => {
     const prisma = readTransaction({
-      industrialPark: { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]), count: jest.fn().mockResolvedValue(1) },
+      industrialPark: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'park-1', name: 'Scoped park', logo: null }),
+        count: jest.fn().mockResolvedValue(1),
+      },
       factory: { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) },
       gatePass: {
         count: jest.fn().mockResolvedValueOnce(4).mockResolvedValueOnce(1),
@@ -310,7 +318,11 @@ describe('ManagementService transactional foundation', () => {
       industrialPark: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       factory: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockRejectedValue(databaseFailure) },
       gatePass: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
-      invoice: { count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 } }) },
+      invoice: {
+        count: jest.fn().mockResolvedValue(0),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 0 } }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       request: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
       emergencyAlert: { count: jest.fn().mockResolvedValue(0) },
       advertisement: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
@@ -352,6 +364,8 @@ describe('ManagementService industrial-park CRUD contract', () => {
         { name: { contains: 'alpha', mode: 'insensitive' } },
         { code: { contains: 'alpha', mode: 'insensitive' } },
         { city: { contains: 'alpha', mode: 'insensitive' } },
+        { province: { contains: 'alpha', mode: 'insensitive' } },
+        { address: { contains: 'alpha', mode: 'insensitive' } },
       ] },
     }));
   });
@@ -879,9 +893,10 @@ describe('ManagementService gate-pass state machine contract', () => {
     const factory = {
       findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
       count: jest.fn().mockResolvedValue(1),
-      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', gatePassWalletBalance: 100_000 }),
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', name: 'F1', parkId: 'park-1', gatePassWalletBalance: 100_000 }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     };
+    const industrialPark = { update: jest.fn().mockResolvedValue({ id: 'park-1' }) };
     const gatePass = { create: jest.fn().mockResolvedValue({ id: 'pass-1' }) };
     const appSetting = { findUnique: jest.fn().mockResolvedValue(null) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
@@ -889,7 +904,8 @@ describe('ManagementService gate-pass state machine contract', () => {
       factory,
       gatePass,
       appSetting,
-      $transaction: jest.fn(async (callback) => callback({ factory, gatePass, appSetting })),
+      industrialPark,
+      $transaction: jest.fn(async (callback) => callback({ factory, gatePass, appSetting, industrialPark })),
     } as any;
     const service = new ManagementService(prisma, audit, config);
 
@@ -898,6 +914,9 @@ describe('ManagementService gate-pass state machine contract', () => {
       driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
     })).resolves.toEqual({ id: 'pass-1' });
     expect(factory.updateMany).toHaveBeenCalled();
+    expect(industrialPark.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'park-1' }, data: { gatePassFeeRevenue: { increment: expect.any(Number) } },
+    }));
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'GATE_PASS_CREATED', entityId: 'pass-1' }));
   });
 
@@ -1050,10 +1069,15 @@ describe('ManagementService gate-pass state machine contract', () => {
 
 describe('ManagementService request review contract', () => {
   it('creates a scoped pending request and audits it once', async () => {
-    const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
+    const factory = {
+      findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
+      count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', name: 'F1', parkId: 'park-1', managerId: 'actor-1' }),
+    };
     const request = { create: jest.fn().mockResolvedValue({ id: 'request-1' }) };
+    const user = { findUnique: jest.fn().mockResolvedValue({ name: 'Owner' }), findMany: jest.fn().mockResolvedValue([]) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ factory, request } as any, audit, config);
+    const service = new ManagementService({ factory, request, user } as any, audit, config);
 
     await expect(service.createRequest(actor(Role.FACTORY_OWNER), {
       factoryId: 'factory-1', type: 'OTHER', title: 'Title', description: 'Description',
@@ -1075,7 +1099,11 @@ describe('ManagementService request review contract', () => {
 
     await expect(service.requestAction(actor(Role.SUPER_ADMIN), 'request-1', action, action === 'reject' ? 'Invalid request' : undefined))
       .resolves.toEqual({ id: 'request-1', status: 'updated' });
-    expect(request.update).toHaveBeenCalledWith({ where: { id: 'request-1' }, data: expectedData });
+    expect(request.update).toHaveBeenCalledWith({
+      where: { id: 'request-1' },
+      data: expectedData,
+      include: { approver: { select: { id: true, name: true } } },
+    });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: `REQUEST_${action.toUpperCase()}`, entityId: 'request-1' }));
   });
 
@@ -1357,7 +1385,9 @@ describe('ManagementService reports contract', () => {
     await expect(service.report(actor(Role.FACTORY_OWNER), 'financial')).resolves.toEqual(expect.objectContaining({
       type: 'financial', count: 2, totalAmount: 1500, paidAmount: 1000, unpaidAmount: 500, latePenaltyAmount: 0,
     }));
-    expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { factoryId: { in: ['factory-1'] } } }));
+    expect(invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { factoryId: { in: ['factory-1'] }, targetType: InvoiceTarget.FACTORY },
+    }));
   });
 
   it('scopes gate-pass status aggregation to the caller\'s factories', async () => {

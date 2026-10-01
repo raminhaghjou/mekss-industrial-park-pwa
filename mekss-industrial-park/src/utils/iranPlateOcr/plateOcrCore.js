@@ -2,6 +2,7 @@
  * Iranian plate OCR utilities — normalize Platrix CRNN output to MEKSS canonical form.
  * Canonical: `12ب34567` (2 digits + letter + 3 digits + 2 region digits).
  */
+import { prepCrnnGray, rgbToGray } from './crnnPrep.js';
 
 const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
 const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
@@ -204,80 +205,21 @@ export function parseYoloPlates(output, meta, { confThreshold = 0.25, iouThresho
 }
 
 /**
- * Crop ImageData region and enhance for CRNN (grayscale 128×32 /255).
+ * Crop an ImageData region and apply the CRNN training transform (grayscale 128×32, 0..1).
  */
 export function cropEnhanceToCrnnTensor(imageData, box) {
   const { width: srcW, height: srcH, data } = imageData;
-  let { x, y, w, h } = box;
-  // Pad crop slightly
-  const pad = Math.round(Math.min(w, h) * 0.08);
-  x = Math.max(0, x - pad);
-  y = Math.max(0, y - pad);
-  w = Math.min(srcW - x, w + pad * 2);
-  h = Math.min(srcH - y, h + pad * 2);
-
-  const crop = new Uint8ClampedArray(w * h * 4);
+  const x = Math.max(0, Math.min(srcW - 1, Math.floor(box.x)));
+  const y = Math.max(0, Math.min(srcH - 1, Math.floor(box.y)));
+  const w = Math.max(1, Math.min(srcW - x, Math.round(box.w)));
+  const h = Math.max(1, Math.min(srcH - y, Math.round(box.h)));
+  const gray = new Uint8Array(w * h);
   for (let row = 0; row < h; row += 1) {
-    for (let col = 0; col < w; col += 1) {
-      const si = ((y + row) * srcW + (x + col)) * 4;
-      const di = (row * w + col) * 4;
-      crop[di] = data[si];
-      crop[di + 1] = data[si + 1];
-      crop[di + 2] = data[si + 2];
-      crop[di + 3] = 255;
-    }
+    const line = rgbToGray(data.subarray(((y + row) * srcW + x) * 4, ((y + row) * srcW + x + w) * 4), w, 1);
+    gray.set(line, row * w);
   }
-
-  // Contrast stretch on grayscale
-  const gray = new Float32Array(w * h);
-  let min = 255;
-  let max = 0;
-  for (let i = 0; i < w * h; i += 1) {
-    const v = 0.299 * crop[i * 4] + 0.587 * crop[i * 4 + 1] + 0.114 * crop[i * 4 + 2];
-    gray[i] = v;
-    if (v < min) min = v;
-    if (v > max) max = v;
-  }
-  const span = Math.max(1, max - min);
-  for (let i = 0; i < gray.length; i += 1) {
-    let v = ((gray[i] - min) / span) * 255;
-    // mild sharpen via unsharp residual against neighbor average
-    v = Math.min(255, Math.max(0, v * 1.15 - 19));
-    gray[i] = v;
-  }
-
-  const outW = 128;
-  const outH = 32;
-  const tensor = bilinearResize(gray, w, h, outW, outH);
-  for (let i = 0; i < tensor.length; i += 1) tensor[i] /= 255;
-
+  const tensor = prepCrnnGray({ data: gray, width: w, height: h }, 128, 32);
   return { tensor, cropBox: { x, y, w, h } };
-}
-
-/**
- * Bilinear resample of a single-channel image (pixel-centre aligned, like cv2.INTER_LINEAR).
- * Nearest-neighbour aliasing breaks thin Persian glyph strokes (e.g. the dots of ب/پ/ت/ث).
- */
-export function bilinearResize(src, srcW, srcH, outW, outH) {
-  const out = new Float32Array(outW * outH);
-  const sx = srcW / outW;
-  const sy = srcH / outH;
-  for (let oy = 0; oy < outH; oy += 1) {
-    const fy = Math.min(srcH - 1, Math.max(0, (oy + 0.5) * sy - 0.5));
-    const y0 = Math.floor(fy);
-    const y1 = Math.min(srcH - 1, y0 + 1);
-    const wy = fy - y0;
-    for (let ox = 0; ox < outW; ox += 1) {
-      const fx = Math.min(srcW - 1, Math.max(0, (ox + 0.5) * sx - 0.5));
-      const x0 = Math.floor(fx);
-      const x1 = Math.min(srcW - 1, x0 + 1);
-      const wx = fx - x0;
-      const top = src[y0 * srcW + x0] * (1 - wx) + src[y0 * srcW + x1] * wx;
-      const bottom = src[y1 * srcW + x0] * (1 - wx) + src[y1 * srcW + x1] * wx;
-      out[oy * outW + ox] = top * (1 - wy) + bottom * wy;
-    }
-  }
-  return out;
 }
 
 /** Guided center crop when detector finds nothing — uses middle band (plate guide). */

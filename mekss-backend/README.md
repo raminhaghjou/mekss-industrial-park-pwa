@@ -323,7 +323,9 @@ Guards, park managers and super admins only.
 Engines: `ANPR_SERVICE_URL` (Python `mekss-anpr`, default) with automatic failover to the in-process
 `onnxruntime-node` engine after `ANPR_BREAKER_FAILURES` consecutive failures; engine A is re-probed after
 `ANPR_BREAKER_COOLDOWN_MS`. Engine B needs the ONNX models in `ANPR_MODEL_DIR` (the compose file shares the
-`anpr-models` volume). A plate locks after multi-frame agreement (≥3 frames at fused confidence ≥0.97), then
+`anpr-models` volume). Its recogniser input is an exact TypeScript port of the Python `prep_crnn`
+(`src/anpr/engines/crnn-prep.ts`, tested against `shared/anpr/crnn-prep.opencv.json`), so both engines read
+plates the same way. A plate locks after multi-frame agreement (≥3 frames at fused confidence ≥0.97), then
 it is matched against open gate passes (exact → N-best → confusable-weighted fuzzy). Every decision is written
 to `PlateReadEvent`; frames and plate crops go to the MinIO bucket `plate-reads` and are purged after
 `ANPR_AUDIT_RETENTION_DAYS`.

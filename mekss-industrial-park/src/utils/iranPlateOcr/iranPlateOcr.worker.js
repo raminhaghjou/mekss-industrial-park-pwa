@@ -16,7 +16,10 @@ import { constrainedBeamSearch, softmaxRows } from './plateDecoder.js';
 import { iranPlateTypeOf } from '../iranLicensePlate.js';
 
 const DEFAULT_MODEL_BASE = '/models/iran-plate';
-const YOLO_SIZE = 640;
+// Same detector sizes as mekss-anpr (ANPR_DET_SIZE / ANPR_DET_FALLBACK_SIZE): Platrix plate_yolo is
+// most confident at 416; 640 is the retry for small or distant plates.
+const YOLO_SIZES = [416, 640];
+let yoloFixed640 = false;
 
 ort.env.wasm.wasmPaths = '/ort/';
 ort.env.wasm.simd = true;
@@ -91,11 +94,23 @@ async function recognize(imageBitmap, requestId) {
     /* ignore */
   }
 
-  const meta = letterboxRgbToYoloTensor(imageData, YOLO_SIZE);
-  const yoloOut = await yoloSession.run({
-    [yoloSession.inputNames[0]]: new ort.Tensor('float32', meta.tensor, [1, 3, YOLO_SIZE, YOLO_SIZE]),
-  });
-  let boxes = parseYoloPlates(yoloOut[yoloSession.outputNames[0]], meta, { confThreshold: 0.22, iouThreshold: 0.4 });
+  let boxes = [];
+  for (const size of yoloFixed640 ? [640] : YOLO_SIZES) {
+    const meta = letterboxRgbToYoloTensor(imageData, size);
+    let yoloOut;
+    try {
+      yoloOut = await yoloSession.run({
+        [yoloSession.inputNames[0]]: new ort.Tensor('float32', meta.tensor, [1, 3, size, size]),
+      });
+    } catch (error) {
+      // Some exports pin the input to 640x640.
+      if (size === 640) throw error;
+      yoloFixed640 = true;
+      continue;
+    }
+    boxes = parseYoloPlates(yoloOut[yoloSession.outputNames[0]], meta, { confThreshold: 0.22, iouThreshold: 0.4 });
+    if (boxes.length) break;
+  }
   const detectorHits = boxes.length;
   if (!boxes.length) boxes = [guidedPlateBox(imageData.width, imageData.height)];
   post('progress', { id: requestId, stage: 'ocr', message: 'خواندن پلاک…' });

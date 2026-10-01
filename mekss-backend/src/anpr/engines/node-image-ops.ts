@@ -6,6 +6,7 @@
  */
 import sharp = require('sharp');
 import { InvalidImageError } from '../anpr.types';
+import { prepCrnnGray } from './crnn-prep';
 
 export interface RgbImage {
   data: Buffer;
@@ -117,41 +118,15 @@ function replicatePad(img: RgbImage, dx: number, dy: number): RgbImage {
 export function toGray(img: RgbImage): Uint8Array {
   const out = new Uint8Array(img.width * img.height);
   for (let i = 0; i < out.length; i += 1) {
-    out[i] = Math.round(0.299 * img.data[i * 3] + 0.587 * img.data[i * 3 + 1] + 0.114 * img.data[i * 3 + 2]);
+    // OpenCV's fixed-point BGR2GRAY, so engine B sees the same gray levels as mekss-anpr.
+    out[i] = (img.data[i * 3] * 4899 + img.data[i * 3 + 1] * 9617 + img.data[i * 3 + 2] * 1868 + 8192) >> 14;
   }
   return out;
 }
 
-/** Platrix CRNN preprocessing approximated with libvips operations. */
+/** Platrix CRNN preprocessing (exact port of mekss-anpr `prep_crnn`). */
 export async function prepCrnn(img: RgbImage): Promise<Float32Array> {
-  let gray = sharp(Buffer.from(toGray(img)), { raw: { width: img.width, height: img.height, channels: 1 } });
-  let width = img.width;
-  let height = img.height;
-  if (height < 40) {
-    width = Math.max(1, Math.floor((width * 40) / height));
-    height = 40;
-    gray = sharp(await gray.resize(width, height, { fit: 'fill', kernel: 'cubic' }).raw().toBuffer(), {
-      raw: { width, height, channels: 1 },
-    });
-  }
-  const tile = (n: number) => Math.max(3, Math.floor(n / 8));
-  const enhanced = await gray
-    .median(3)
-    .clahe({ width: tile(width), height: tile(height), maxSlope: 2 })
-    .raw()
-    .toBuffer();
-  const blurred = await sharp(enhanced, { raw: { width, height, channels: 1 } }).blur(1.0).raw().toBuffer();
-  const sharpened = Buffer.allocUnsafe(enhanced.length);
-  for (let i = 0; i < enhanced.length; i += 1) {
-    sharpened[i] = Math.max(0, Math.min(255, Math.round(1.4 * enhanced[i] - 0.4 * blurred[i])));
-  }
-  const resized = await sharp(sharpened, { raw: { width, height, channels: 1 } })
-    .resize(CRNN_W, CRNN_H, { fit: 'fill', kernel: 'cubic' })
-    .raw()
-    .toBuffer();
-  const tensor = new Float32Array(CRNN_W * CRNN_H);
-  for (let i = 0; i < tensor.length; i += 1) tensor[i] = resized[i] / 255;
-  return tensor;
+  return prepCrnnGray({ data: toGray(img), width: img.width, height: img.height }, CRNN_W, CRNN_H);
 }
 
 function otsuThreshold(gray: Uint8Array): number {

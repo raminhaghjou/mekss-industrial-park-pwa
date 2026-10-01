@@ -5,7 +5,9 @@ Only the NestJS backend talks to it; it is not exposed publicly.
 
 Pipeline: decode → YOLO plate detector (ONNX, letterboxed) → corner refinement + perspective rectification
 → CRNN/CTC recogniser → grammar-constrained beam search (`2 digits + letter + 3 digits + 2-digit region`,
-free-zone formats) → plate type from the letter and plate-face colour. Output includes per-character
+free-zone formats) → plate type from the letter and plate-face colour. When the merged read is invalid or
+below 0.5 probability, rescue crops (Hough de-rotated text band, horizontally widened box) are read too
+and replace it only if they decode more confidently. Output includes per-character
 confidences and N-best alternatives so the backend can fuse frames and do confusable-aware matching.
 
 ## API
@@ -23,7 +25,11 @@ The service sheds load (`503 busy`) instead of queueing, so the backend fails ov
 
 ## Models
 
-Model files are listed with their checksums in `models/manifest.json` and are not committed.
+Model files are listed with their checksums in `models/manifest.json`. The detectors are downloaded; the
+recogniser is the Platrix CRNN fine-tuned on IR-LPR, committed under `models/bundled/` and copied from
+there (IR-LPR test split: 81.3% → 92.6% plate accuracy, 99.0% when confidence ≥ 0.9). See
+[`training/README.md`](training/README.md) for the benchmark, the GPL-3.0 dataset licence note, how to
+reproduce it and how to revert to the original weights.
 
 ```bash
 python scripts/download_models.py                      # into ./models (or $ANPR_MODEL_DIR)
@@ -61,6 +67,12 @@ uvicorn app.main:app --reload --port 8000
 
 `tests/` do not need the model files; the grammar tests share `../shared/anpr/plate-grammar.vectors.json`
 with the backend and frontend so all three normalise plates identically.
+
+The backend's Node engine and the PWA's on-device worker re-implement `prep_crnn` without OpenCV
+(`src/anpr/engines/crnn-prep.ts`, `src/utils/iranPlateOcr/crnnPrep.js`) and are tested against
+`../shared/anpr/crnn-prep.opencv.json`. After changing `prep_crnn`, run
+`python scripts/refresh_prep_fixture.py` and port the change to both; `tests/test_prep_fixture.py` fails
+until the fixture is refreshed.
 
 ## Accuracy / latency evaluation
 

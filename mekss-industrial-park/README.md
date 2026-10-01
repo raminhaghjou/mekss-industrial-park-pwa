@@ -74,6 +74,10 @@ npm run models:iran-plate          # downloads into public/models/iran-plate (ch
 IRAN_PLATE_MODEL_BASE_URL=https://mirror.example/iran-plate npm run models:iran-plate   # internal mirror
 ```
 
+The worker uses the same models and the same recogniser preprocessing as the server
+(`src/utils/iranPlateOcr/crnnPrep.js`, a port of mekss-anpr's `prep_crnn`), and runs the detector at
+416 px with a 640 px retry, like `ANPR_DET_SIZE` / `ANPR_DET_FALLBACK_SIZE`.
+
 ONNX Runtime's WASM files are self-hosted under `/ort/` (copied from `onnxruntime-web` at build time) and,
 like the models, cached by the service worker after first use. Multi-threaded WASM is only used when the
 page is cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin` +

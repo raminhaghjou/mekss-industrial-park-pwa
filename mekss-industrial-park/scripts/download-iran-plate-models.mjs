@@ -8,6 +8,8 @@
  *   --base-url <url>   same, on the command line
  *   --force            re-download even if a verified file exists
  *   --pin              record the SHA-256 of the downloaded files into the manifest
+ *
+ * Manifest entries with a `bundled` path ship inside mekss-anpr/models and are copied, not downloaded.
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -70,8 +72,18 @@ for (const name of wanted) {
     }
     console.log(`! ${name} checksum mismatch — re-downloading`);
   }
-  process.stdout.write(`Downloading ${name} from ${base} … `);
-  const buf = await download(`${base}/${name}`);
+  const manifestDir = path.dirname(manifestPath);
+  const bundledPath = entry.bundled
+    ? path.resolve(manifestDir, entry.bundled)
+    : name.endsWith('.labels.json') ? path.resolve(manifestDir, name) : null;
+  let buf;
+  if (bundledPath && existsSync(bundledPath)) {
+    process.stdout.write(`Copying bundled ${name} … `);
+    buf = await readFile(bundledPath);
+  } else {
+    process.stdout.write(`Downloading ${name} from ${base} … `);
+    buf = await download(`${base}/${name}`);
+  }
   const digest = sha256(buf);
   if (entry.sha256 && entry.sha256 !== digest) {
     throw new Error(`${name}: SHA-256 mismatch (expected ${entry.sha256}, got ${digest}). Refusing to install.`);

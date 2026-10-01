@@ -5,3 +5,4 @@ __pycache__
 tests
 models/*.onnx
 models/manifest.lock.json
+training

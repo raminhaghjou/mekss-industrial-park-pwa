@@ -16,7 +16,7 @@ from .decoder import DecodeResult, constrained_beam_search, merge_decodes
 from .detector import Detection, YoloDetector
 from .grammar import normalize_plate
 from .recognizer import CrnnRecognizer, shift_variants
-from .rectify import pad_box, rectify
+from .rectify import pad_box, rectify, rescue_crops
 
 MODEL_FILES = {
     "detector": "plate_yolo.onnx",
@@ -26,6 +26,7 @@ MODEL_FILES = {
 }
 
 EARLY_EXIT_PROBABILITY = 0.9
+RESCUE_BELOW_PROBABILITY = 0.5
 
 
 class ModelsMissingError(RuntimeError):
@@ -135,6 +136,17 @@ class AnprEngine:
             constrained_beam_search(p, labels, beam_width=self.settings.beam_width) for p in probs
         ]
         merged = merge_decodes(decodes) or decodes[0]
+        if not merged.valid or merged.probability < RESCUE_BELOW_PROBABILITY:
+            extra = rescue_crops(image, (det.x, det.y, det.w, det.h))
+            rescued = [
+                constrained_beam_search(p, labels, beam_width=self.settings.beam_width)
+                for p in self.recognizer.probabilities(extra)
+            ]
+            best = max((r for r in rescued if r.valid), key=lambda r: r.probability, default=None)
+            if best is not None and best.probability > (merged.probability if merged.valid else 0.0):
+                agreeing = [r for r in rescued + decodes if r.valid and r.plate == best.plate]
+                merged = merge_decodes(agreeing) or best
+                crops.extend(extra)
         color = classify_plate_color(rectified if rectified is not None else tight)
 
         normalized = normalize_plate(merged.plate) if merged.valid else None

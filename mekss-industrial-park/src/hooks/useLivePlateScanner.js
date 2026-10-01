@@ -253,6 +253,7 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
   // Lifecycle: start / stop scanning with `enabled`.
   useEffect(() => {
     if (!enabled) return undefined;
+    const frameMeta = metaRef.current;
     aliveRef.current = true;
     sessionRef.current = newSessionId();
     samplerRef.current = createFrameSampler();
@@ -288,7 +289,7 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
       connRef.current = null;
       samplerRef.current?.close();
       samplerRef.current = null;
-      metaRef.current.clear();
+      frameMeta.clear();
       modeRef.current = null;
       dispatch({ type: 'STOP' });
     };

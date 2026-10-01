@@ -98,6 +98,36 @@ enum VehicleType {
   OTHER
 }
 
+/// Iranian plate category, derived from the plate letter / background colour.
+enum PlateType {
+  PRIVATE
+  PUBLIC
+  TAXI
+  GOVERNMENT
+  POLICE
+  MILITARY
+  DISABLED
+  AGRICULTURAL
+  FREE_ZONE
+  OTHER
+}
+
+enum PlateReadEngine {
+  PYTHON
+  NODE
+  DEVICE
+  MANUAL
+}
+
+enum PlateReadOutcome {
+  MATCHED
+  SUGGESTED
+  NOT_FOUND
+  UNREADABLE
+  CONFIRMED
+  CORRECTED
+}
+
 enum EmployeeStatus {
   ACTIVE
   INACTIVE
@@ -256,6 +286,7 @@ model User {
   mediaAssets             MediaAsset[]            @relation("MediaAssetUploader")
   feedbackSent            Feedback[]              @relation("FeedbackSender")
   marketRateUpdates       MarketRate[]            @relation("MarketRateUpdater")
+  plateReads              PlateReadEvent[]        @relation("PlateReadGuard")
 
   @@index([role, isApproved, isActive])
   @@index([bootstrapCreatedAt])
@@ -298,6 +329,7 @@ model IndustrialPark {
   payments       PaymentTransaction[] @relation("PaymentPark")
   scopedFiles    ScopedFile[]
   feedback       Feedback[]      @relation("FeedbackRecipientPark")
+  plateReads     PlateReadEvent[]
 
   @@index([province, city])
   @@index([status])
@@ -396,6 +428,7 @@ model GatePass {
   driverPhone       String
   vehicleType       VehicleType
   licensePlate      String
+  plateType         PlateType      @default(PRIVATE)
   licensePlatePhoto String?
   exitDate          DateTime
   entryDate         DateTime?
@@ -414,11 +447,47 @@ model GatePass {
   approvedBy   User?   @relation("GatePassApprover", fields: [approvedById], references: [id])
   verifiedById String?
   verifiedBy   User?   @relation("GatePassVerifier", fields: [verifiedById], references: [id])
+  plateReads   PlateReadEvent[]
 
   @@index([factoryId, status])
   @@index([createdAt])
   @@index([driverNationalId])
   @@index([licensePlate])
+  @@index([status, licensePlate])
+}
+
+/// One plate recognition at a gate (live scan, device fallback or manual entry).
+/// Guard confirmations/corrections make these rows labelled data for model evaluation.
+model PlateReadEvent {
+  id             String           @id @default(cuid())
+  sessionId      String?
+  rawText        String
+  plate          String
+  plateType      PlateType?
+  confidence     Float
+  engine         PlateReadEngine
+  outcome        PlateReadOutcome
+  correctedPlate String?
+  frames         Int              @default(1)
+  latencyMs      Int?
+  bbox           Json?
+  imageKey       String?
+  cropKey        String?
+  confirmedAt    DateTime?
+  createdAt      DateTime         @default(now())
+
+  guardId    String
+  guard      User            @relation("PlateReadGuard", fields: [guardId], references: [id], onDelete: Cascade)
+  parkId     String?
+  park       IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: SetNull)
+  gatePassId String?
+  gatePass   GatePass?       @relation(fields: [gatePassId], references: [id], onDelete: SetNull)
+
+  @@index([parkId, createdAt])
+  @@index([plate])
+  @@index([guardId, createdAt])
+  @@index([gatePassId])
+  @@index([createdAt])
 }
 
 model Invoice {

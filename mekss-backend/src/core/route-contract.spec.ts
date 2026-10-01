@@ -6,6 +6,8 @@ jest.mock('bcrypt', () => ({
 }));
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, MODULE_METADATA, PATH_METADATA } from '@nestjs/common/constants';
+import { AnprController } from '../anpr/anpr.controller';
+import { AnprModule } from '../anpr/anpr.module';
 import { AppModule } from '../app.module';
 import { AuthController } from './auth.controller';
 import { CoreModule } from './core.module';
@@ -61,12 +63,24 @@ const moduleName = (entry: unknown): string | undefined => {
 };
 
 describe('active backend route contract', () => {
-  it('keeps AppModule limited to configuration and the active CoreModule', async () => {
+  it('keeps AppModule limited to configuration, the active CoreModule and the ANPR module', async () => {
     const imports = Reflect.getMetadata(MODULE_METADATA.IMPORTS, AppModule) as unknown[];
     const resolvedImports = await Promise.all(imports);
     const importedModuleNames = resolvedImports.map(moduleName).filter((name): name is string => Boolean(name)).sort();
 
-    expect(importedModuleNames).toEqual(['ConfigModule', 'CoreModule']);
+    expect(importedModuleNames).toEqual(['AnprModule', 'ConfigModule', 'CoreModule']);
+  });
+
+  it('exposes the ANPR REST fallback endpoints', () => {
+    const controllers = Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, AnprModule) as ControllerType[];
+    expect(controllers).toEqual([AnprController]);
+    expect(controllers.flatMap(routesFor).sort()).toEqual([
+      'GET /api/v1/anpr/status',
+      'POST /api/v1/anpr/match',
+      'POST /api/v1/anpr/reads/:id/confirm',
+      'POST /api/v1/anpr/recognize',
+      'POST /api/v1/anpr/sessions/:sessionId/reset',
+    ]);
   });
 
   it('does not register inactive parallel controllers', () => {

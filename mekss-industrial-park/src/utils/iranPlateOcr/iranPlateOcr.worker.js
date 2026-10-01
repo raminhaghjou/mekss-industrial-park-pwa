@@ -1,80 +1,69 @@
 /* eslint-disable no-restricted-globals */
 /**
- * Web Worker — Iranian plate OCR (Platrix YOLO + CRNN via onnxruntime-web).
- * Runs off the UI thread so mobile/desktop browsers stay responsive.
+ * Web Worker — on-device Iranian plate OCR (Platrix YOLO + CRNN via onnxruntime-web).
+ * Only used when the server engines are unreachable. Everything is self-hosted on this origin:
+ * ORT WASM under /ort/ (copied from node_modules at build time) and models under /models/iran-plate/
+ * (runtime-cached by the service worker), so it keeps working without internet access.
  */
 import * as ort from 'onnxruntime-web';
 import {
-  ctcGreedyDecode,
   cropEnhanceToCrnnTensor,
   guidedPlateBox,
   letterboxRgbToYoloTensor,
-  normalizeIranPlateOcr,
   parseYoloPlates,
 } from './plateOcrCore.js';
+import { constrainedBeamSearch, softmaxRows } from './plateDecoder.js';
+import { iranPlateTypeOf } from '../iranLicensePlate.js';
 
-const MODEL_BASE = '/models/iran-plate';
-const HF_BASE = 'https://huggingface.co/Dibachain/Platrix/resolve/main';
+const DEFAULT_MODEL_BASE = '/models/iran-plate';
+const YOLO_SIZE = 640;
 
-ort.env.wasm.numThreads = 1;
+ort.env.wasm.wasmPaths = '/ort/';
 ort.env.wasm.simd = true;
-// Load WASM from npm package CDN so Vite/worker bundling stays simple.
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/';
+// SharedArrayBuffer (threads) is only available on cross-origin-isolated pages.
+ort.env.wasm.numThreads = self.crossOriginIsolated
+  ? Math.max(1, Math.min(4, (self.navigator?.hardwareConcurrency || 2) - 1))
+  : 1;
+ort.env.wasm.proxy = false;
 
 let yoloSession = null;
 let crnnSession = null;
 let labels = null;
-let ready = false;
+let loading = null;
 let activeId = null;
 
 function post(type, payload = {}) {
   self.postMessage({ type, id: activeId, ...payload });
 }
 
-async function fetchArrayBuffer(urls) {
-  let lastError;
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, { cache: 'force-cache' });
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      return await res.arrayBuffer();
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error('Model download failed');
+async function fetchModel(url) {
+  const res = await fetch(url, { cache: 'force-cache' });
+  if (!res.ok) throw new Error(`مدل ${url.split('/').pop()} روی سرور موجود نیست (HTTP ${res.status})`);
+  return res.arrayBuffer();
 }
 
-async function ensureModels() {
-  if (ready) return;
-  post('progress', { stage: 'load', message: 'بارگذاری مدل تشخیص پلاک…' });
-
-  const labelsRes = await fetch(`${MODEL_BASE}/ocr_crnn.labels.json`, { cache: 'force-cache' });
-  if (!labelsRes.ok) throw new Error('labels.json یافت نشد — اسکریپت download-iran-plate-models را اجرا کنید');
-  labels = await labelsRes.json();
-
-  post('progress', { stage: 'load', message: 'بارگذاری مدل YOLO…' });
-  const yoloBuf = await fetchArrayBuffer([
-    `${MODEL_BASE}/plate_yolo.onnx`,
-    `${HF_BASE}/plate_yolo.onnx`,
-  ]);
-  yoloSession = await ort.InferenceSession.create(yoloBuf, {
-    executionProviders: ['wasm'],
-    graphOptimizationLevel: 'all',
-  });
-
-  post('progress', { stage: 'load', message: 'بارگذاری مدل OCR…' });
-  const crnnBuf = await fetchArrayBuffer([
-    `${MODEL_BASE}/ocr_crnn.onnx`,
-    `${HF_BASE}/ocr_crnn.onnx`,
-  ]);
-  crnnSession = await ort.InferenceSession.create(crnnBuf, {
-    executionProviders: ['wasm'],
-    graphOptimizationLevel: 'all',
-  });
-
-  ready = true;
-  post('ready', { message: 'مدل‌ها آماده است' });
+async function ensureModels(modelBase = DEFAULT_MODEL_BASE) {
+  if (yoloSession && crnnSession && labels) return;
+  if (!loading) {
+    loading = (async () => {
+      post('progress', { stage: 'load', message: 'بارگذاری مدل تشخیص پلاک روی دستگاه…' });
+      const labelsRes = await fetch(`${modelBase}/ocr_crnn.labels.json`, { cache: 'force-cache' });
+      if (!labelsRes.ok) throw new Error('labels.json یافت نشد — اسکریپت models:iran-plate را اجرا کنید');
+      labels = await labelsRes.json();
+      const options = { executionProviders: ['wasm'], graphOptimizationLevel: 'all' };
+      const [yoloBuf, crnnBuf] = await Promise.all([
+        fetchModel(`${modelBase}/plate_yolo.onnx`),
+        fetchModel(`${modelBase}/ocr_crnn.onnx`),
+      ]);
+      yoloSession = await ort.InferenceSession.create(yoloBuf, options);
+      crnnSession = await ort.InferenceSession.create(crnnBuf, options);
+      post('ready', { message: 'مدل‌ها آماده است', threads: ort.env.wasm.numThreads });
+    })().catch((error) => {
+      loading = null;
+      throw error;
+    });
+  }
+  await loading;
 }
 
 function imageDataFromBitmap(bitmap) {
@@ -84,10 +73,17 @@ function imageDataFromBitmap(bitmap) {
   return ctx.getImageData(0, 0, bitmap.width, bitmap.height);
 }
 
+async function readCrop(imageData, box) {
+  const { tensor } = cropEnhanceToCrnnTensor(imageData, box);
+  const out = await crnnSession.run({ [crnnSession.inputNames[0]]: new ort.Tensor('float32', tensor, [1, 1, 32, 128]) });
+  const logits = out[crnnSession.outputNames[0]];
+  const [, timeSteps, classCount] = logits.dims;
+  const probs = softmaxRows(logits.data, timeSteps, classCount);
+  return constrainedBeamSearch(probs, timeSteps, labels);
+}
+
 async function recognize(imageBitmap, requestId) {
   await ensureModels();
-  post('progress', { id: requestId, stage: 'detect', message: 'جست‌وجوی پلاک در تصویر…' });
-
   const imageData = imageDataFromBitmap(imageBitmap);
   try {
     imageBitmap.close?.();
@@ -95,53 +91,55 @@ async function recognize(imageBitmap, requestId) {
     /* ignore */
   }
 
-  const meta = letterboxRgbToYoloTensor(imageData, 640);
-  const yoloInput = new ort.Tensor('float32', meta.tensor, [1, 3, 640, 640]);
-  const yoloOut = await yoloSession.run({ images: yoloInput });
-  const output0 = yoloOut.output0;
-  let boxes = parseYoloPlates(output0, meta, { confThreshold: 0.22, iouThreshold: 0.4 });
+  const meta = letterboxRgbToYoloTensor(imageData, YOLO_SIZE);
+  const yoloOut = await yoloSession.run({
+    [yoloSession.inputNames[0]]: new ort.Tensor('float32', meta.tensor, [1, 3, YOLO_SIZE, YOLO_SIZE]),
+  });
+  let boxes = parseYoloPlates(yoloOut[yoloSession.outputNames[0]], meta, { confThreshold: 0.22, iouThreshold: 0.4 });
+  const detectorHits = boxes.length;
+  if (!boxes.length) boxes = [guidedPlateBox(imageData.width, imageData.height)];
+  post('progress', { id: requestId, stage: 'ocr', message: 'خواندن پلاک…' });
 
-  if (!boxes.length) {
-    boxes = [guidedPlateBox(imageData.width, imageData.height)];
-    post('progress', { id: requestId, stage: 'detect', message: 'پلاک با راهنما برش شد…' });
-  } else {
-    post('progress', { id: requestId, stage: 'ocr', message: 'خواندن پلاک…' });
+  let best = null;
+  for (const box of boxes.slice(0, 2)) {
+    // Light TTA: detector box plus a slightly wider crop; keep whichever decodes more confidently.
+    const wider = { ...box, x: box.x - box.w * 0.04, w: box.w * 1.08, y: box.y - box.h * 0.08, h: box.h * 1.16 };
+    for (const variant of [box, wider]) {
+      const clamped = {
+        x: Math.max(0, Math.floor(variant.x)),
+        y: Math.max(0, Math.floor(variant.y)),
+        w: Math.max(1, Math.min(imageData.width - Math.max(0, Math.floor(variant.x)), Math.ceil(variant.w))),
+        h: Math.max(1, Math.min(imageData.height - Math.max(0, Math.floor(variant.y)), Math.ceil(variant.h))),
+        conf: box.conf,
+      };
+      const decoded = await readCrop(imageData, clamped);
+      const score = (decoded.valid ? 1 : 0) + decoded.probability;
+      if (!best || score > best.score) best = { score, decoded, box: clamped };
+    }
+    if (best?.decoded.valid && best.decoded.probability >= 0.9) break;
   }
 
-  const attempts = [];
-  for (const box of boxes.slice(0, 3)) {
-    const { tensor } = cropEnhanceToCrnnTensor(imageData, box);
-    const crnnInput = new ort.Tensor('float32', tensor, [1, 1, 32, 128]);
-    const crnnOut = await crnnSession.run({ input: crnnInput });
-    const logits = crnnOut.logits;
-    const [, timeSteps, classCount] = logits.dims;
-    const decoded = ctcGreedyDecode(logits.data, timeSteps, classCount, labels);
-    const normalized = normalizeIranPlateOcr(decoded.raw);
-    attempts.push({
-      raw: decoded.raw,
-      plate: normalized.plate,
-      valid: normalized.valid,
-      confidence: Number((decoded.confidence * (box.conf || 0.55)).toFixed(3)),
-      box,
-    });
-    if (normalized.valid) break;
-  }
-
-  attempts.sort((a, b) => Number(b.valid) - Number(a.valid) || b.confidence - a.confidence);
-  const best = attempts[0] || { raw: '', plate: '', valid: false, confidence: 0 };
-
+  const d = best?.decoded;
   return {
-    ...best,
-    attempts: attempts.length,
-    detectorHits: boxes.filter((b) => b.conf > 0).length,
+    raw: d?.raw || '',
+    plate: d?.valid ? d.plate : '',
+    valid: Boolean(d?.valid),
+    confidence: Number((d?.valid ? d.probability : d?.rawConfidence || 0).toFixed(3)),
+    charConfidences: d?.charConfidences || [],
+    positions: d?.positions || [],
+    alternatives: d?.alternatives || [],
+    plateType: d?.valid ? iranPlateTypeOf(d.plate) : null,
+    box: best?.box || null,
+    detectorHits,
   };
 }
 
 self.onmessage = async (event) => {
-  const { type, id, bitmap } = event.data || {};
+  const { type, id, bitmap, modelBase } = event.data || {};
+  activeId = id;
   try {
     if (type === 'init') {
-      await ensureModels();
+      await ensureModels(modelBase);
       post('inited', { id });
       return;
     }
@@ -151,9 +149,6 @@ self.onmessage = async (event) => {
       post('result', { id, result });
     }
   } catch (error) {
-    post('error', {
-      id,
-      message: error?.message || 'خطای OCR پلاک',
-    });
+    post('error', { id, message: error?.message || 'خطای OCR پلاک' });
   }
 };

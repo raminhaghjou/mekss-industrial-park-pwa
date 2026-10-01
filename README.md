@@ -455,6 +455,9 @@ The package includes a complete GitHub Actions workflow:
 - **Code Documentation**: Comprehensive JSDoc comments
 - **README Files**: Detailed setup instructions
 - **Environment Examples**: Complete configuration templates
+- **Live plate recognition (ANPR)**: `mekss-anpr/README.md` (Python engine, models, evaluation),
+  `mekss-backend/README.md` (socket/REST contract, failover, audit) and `mekss-industrial-park/README.md`
+  (camera fallback cascade, on-device models)
 
 ## 🆘 Support & Troubleshooting
 

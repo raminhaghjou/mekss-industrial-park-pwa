@@ -3,13 +3,18 @@ import { Label } from '@heroui/react';
 import {
   CUSTOM_REGION,
   DIGIT_OPTIONS,
+  IRAN_FREE_ZONES,
   IRAN_PLATE_LETTERS,
   IRAN_PLATE_REGIONS,
+  IRAN_PLATE_TYPES,
   TWO_DIGIT_OPTIONS,
   findIranPlateRegion,
+  formatIranFreeZonePlate,
   formatIranLicensePlate,
   iranPlateRegionLabel,
+  parseIranFreeZonePlate,
   parseIranLicensePlate,
+  plateTypeForLetter,
 } from '../../utils/iranLicensePlate';
 
 const selectClass =
@@ -19,7 +24,7 @@ const emptyDigits = () => ['', '', ''];
 
 /**
  * Iranian license-plate picker with dropdown segments.
- * Emits canonical value like `12ب34567`.
+ * Emits canonical value like `12ب34567`, or `FZ-KISH-12345` for free-zone plates.
  */
 export default function IranLicensePlateInput({
   label = 'شماره پلاک',
@@ -27,7 +32,136 @@ export default function IranLicensePlateInput({
   onChange,
   required = false,
   disabled = false,
+  highlight = false,
 }) {
+  const freeZone = useMemo(() => parseIranFreeZonePlate(value), [value]);
+  const [layout, setLayout] = useState(freeZone ? 'free-zone' : 'standard');
+  useEffect(() => {
+    if (freeZone) setLayout('free-zone');
+    else if (parseIranLicensePlate(value).series) setLayout('standard');
+  }, [value, freeZone]);
+
+  if (layout === 'free-zone') {
+    return (
+      <FreeZonePlateInput
+        label={label}
+        value={freeZone}
+        onChange={onChange}
+        required={required}
+        disabled={disabled}
+        highlight={highlight}
+        onLayoutChange={() => {
+          setLayout('standard');
+          onChange?.('');
+        }}
+      />
+    );
+  }
+  return (
+    <StandardPlateInput
+      label={label}
+      value={value}
+      onChange={onChange}
+      required={required}
+      disabled={disabled}
+      highlight={highlight}
+      onLayoutChange={() => {
+        setLayout('free-zone');
+        onChange?.('');
+      }}
+    />
+  );
+}
+
+function PlateTypeBadge({ type }) {
+  const meta = type ? IRAN_PLATE_TYPES[type] : null;
+  if (!meta) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-2 py-0.5 text-[10px] font-bold"
+      style={{ background: meta.bg, color: meta.fg }}
+      data-testid="plate-type-badge"
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function LayoutSwitch({ layout, onPress, disabled }) {
+  return (
+    <button
+      type="button"
+      className="text-[11px] font-medium text-[var(--color-brand)] disabled:opacity-50"
+      disabled={disabled}
+      onClick={onPress}
+    >
+      {layout === 'standard' ? 'پلاک منطقه آزاد' : 'پلاک ملی (استاندارد)'}
+    </button>
+  );
+}
+
+function FreeZonePlateInput({ label, value, onChange, required, disabled, highlight, onLayoutChange }) {
+  const [zone, setZone] = useState(value?.zone || '');
+  const [number, setNumber] = useState(value?.number || '');
+  useEffect(() => {
+    setZone(value?.zone || '');
+    setNumber(value?.number || '');
+  }, [value?.zone, value?.number]);
+
+  const emit = (nextZone, nextNumber) => onChange?.(formatIranFreeZonePlate({ zone: nextZone, number: nextNumber }));
+
+  return (
+    <div className="flex flex-col gap-1 sm:col-span-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs font-medium text-foreground-600">
+          {label}
+          {required ? ' *' : ''}
+        </Label>
+        <PlateTypeBadge type="FREE_ZONE" />
+      </div>
+      <div
+        className={`flex min-h-[4.5rem] items-center justify-center gap-2 overflow-hidden rounded-2xl border-2 border-slate-800 bg-white px-3 py-2 shadow-sm transition ${highlight ? 'ring-4 ring-emerald-400' : ''}`}
+        dir="rtl"
+      >
+        <select
+          aria-label="منطقه آزاد"
+          className={`${selectClass} w-24`}
+          disabled={disabled}
+          required={required}
+          value={zone}
+          onChange={(e) => {
+            setZone(e.target.value);
+            emit(e.target.value, number);
+          }}
+        >
+          <option value="">منطقه</option>
+          {IRAN_FREE_ZONES.map((z) => <option key={z.code} value={z.code}>{z.label}</option>)}
+        </select>
+        <input
+          aria-label="شماره پنج رقمی منطقه آزاد"
+          className={`${selectClass} w-28 tracking-widest`}
+          dir="ltr"
+          disabled={disabled}
+          required={required}
+          inputMode="numeric"
+          maxLength={5}
+          placeholder="12345"
+          value={number}
+          onChange={(e) => {
+            const next = e.target.value.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/\D/g, '').slice(0, 5);
+            setNumber(next);
+            emit(zone, next);
+          }}
+        />
+      </div>
+      <div className="flex justify-end">
+        <LayoutSwitch layout="free-zone" onPress={onLayoutChange} disabled={disabled} />
+      </div>
+    </div>
+  );
+}
+
+function StandardPlateInput({ label, value, onChange, required, disabled, highlight, onLayoutChange }) {
   const parsed = useMemo(() => parseIranLicensePlate(value), [value]);
   const [series, setSeries] = useState(parsed.series);
   const [letter, setLetter] = useState(parsed.letter);
@@ -66,16 +200,22 @@ export default function IranLicensePlateInput({
   }, [letter]);
 
   const selectedRegionMeta = findIranPlateRegion(region);
+  const plateType = plateTypeForLetter(letter);
+  const typeMeta = plateType ? IRAN_PLATE_TYPES[plateType] : null;
 
   return (
     <div className="flex flex-col gap-1 sm:col-span-2">
-      <Label className="text-xs font-medium text-foreground-600">
-        {label}
-        {required ? ' *' : ''}
-      </Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs font-medium text-foreground-600">
+          {label}
+          {required ? ' *' : ''}
+        </Label>
+        <PlateTypeBadge type={plateType} />
+      </div>
 
       <div
-        className="overflow-hidden rounded-2xl border-2 border-slate-800 bg-gradient-to-b from-slate-100 to-slate-200 shadow-sm"
+        className={`overflow-hidden rounded-2xl border-2 border-slate-800 shadow-sm transition ${typeMeta && typeMeta.bg !== '#ffffff' ? '' : 'bg-gradient-to-b from-slate-100 to-slate-200'} ${highlight ? 'ring-4 ring-emerald-400' : ''}`}
+        style={typeMeta && typeMeta.bg !== '#ffffff' ? { background: typeMeta.bg } : undefined}
         dir="ltr"
       >
         <div className="flex min-h-[4.5rem] items-stretch">
@@ -215,6 +355,7 @@ export default function IranLicensePlateInput({
             بازگشت به فهرست استان‌ها
           </button>
         )}
+        <LayoutSwitch layout="standard" onPress={onLayoutChange} disabled={disabled} />
       </div>
     </div>
   );

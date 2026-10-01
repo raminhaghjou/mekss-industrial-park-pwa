@@ -13,7 +13,7 @@ export type StoragePutResult = {
 export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
   private readonly client: Minio.Client;
-  private readonly buckets = ['avatars', 'documents', 'gate-passes', 'invoices', 'announcements', 'media'] as const;
+  private readonly buckets = ['avatars', 'documents', 'gate-passes', 'invoices', 'announcements', 'media', 'plate-reads'] as const;
 
   constructor(private readonly config: ConfigService) {
     const endPoint = this.config.get<string>('MINIO_ENDPOINT') || 'localhost';

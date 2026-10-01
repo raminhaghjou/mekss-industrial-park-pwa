@@ -60,6 +60,23 @@ export const gatePassStatusLabels = {
   EXPIRED: 'منقضی شده',
 };
 
+export const cargoTypeLabels = {
+  RAW_MATERIALS: 'مواد اولیه',
+  FINISHED_GOODS: 'محصول نهایی',
+  WASTE: 'ضایعات',
+  SUPPLIES: 'ملزومات',
+  EQUIPMENT: 'تجهیزات',
+  OTHER: 'سایر',
+};
+
+export const vehicleTypeLabels = {
+  TRUCK: 'کامیون',
+  VAN: 'وانت',
+  CAR: 'سواری',
+  MOTORCYCLE: 'موتورسیکلت',
+  OTHER: 'سایر',
+};
+
 export const factoryStatusLabels = {
   PENDING: 'در انتظار بررسی',
   ACTIVE: 'فعال',

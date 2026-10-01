@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdvertisementStatus, CargoType, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceStatus, InvoiceTarget, MarketRateKey, MessageStatus, ParkStatus, PaymentStatus, Prisma, RequestStatus, RequestType, Role } from '@prisma/client';
+import { AdvertisementStatus, CargoType, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceStatus, InvoiceTarget, MarketRateKey, MessageStatus, ParkStatus, PaymentStatus, PlateType, Prisma, RequestStatus, RequestType, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
@@ -9,7 +9,9 @@ import { AdvertisementAdminQueryDto, CreateAdvertisementCategoryDto, CreateAdver
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 import { SmsGateway } from './sms.gateway';
+import { GatePassEvents } from './gate-pass-events';
 import { buildSemanticContainsOr } from '../shared/utils/semantic-search.util';
+import { canonicalPlateOrRaw, normalizePlate } from '../anpr/plate-grammar';
 
 type AuditPlan<T> = {
   action: string;
@@ -231,6 +233,7 @@ export class ManagementService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly sms: SmsGateway = { sendOtp: async () => undefined, sendText: async () => undefined } as unknown as SmsGateway,
+    private readonly gatePassEvents: GatePassEvents = new GatePassEvents(),
   ) {}
 
   async users(query?: { page?: number; pageSize?: number; search?: string }) {
@@ -1021,7 +1024,7 @@ export class ManagementService {
   }
 
   async findOpenGatePassByPlate(actor: AuthenticatedUser, licensePlate: string) {
-    const plate = String(licensePlate || '').trim();
+    const plate = canonicalPlateOrRaw(String(licensePlate || ''));
     if (!plate) throw new BadRequestException('licensePlate is required');
     const factoryIds = await this.factoryIds(actor);
     const pass = await this.prisma.gatePass.findFirst({
@@ -1038,6 +1041,36 @@ export class ManagementService {
     });
     if (!pass) throw new NotFoundException('No open gate pass found for this plate');
     return pass;
+  }
+
+  /** Open (awaiting guard) gate passes visible to the actor, projected for ANPR plate matching. */
+  async openGatePassPlates(actor: AuthenticatedUser) {
+    const factoryIds = await this.factoryIds(actor);
+    if (!factoryIds.length) return [];
+    return this.prisma.gatePass.findMany({
+      where: { factoryId: { in: factoryIds }, status: { in: [GatePassStatus.PENDING, GatePassStatus.APPROVED] } },
+      select: { id: true, licensePlate: true, plateType: true, factoryId: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    });
+  }
+
+  /** Full guard-facing details for gate passes already resolved from the actor's scope. */
+  async gatePassesForGuard(actor: AuthenticatedUser, ids: string[]) {
+    if (!ids.length) return [];
+    const factoryIds = await this.factoryIds(actor);
+    return this.prisma.gatePass.findMany({
+      where: { id: { in: ids }, factoryId: { in: factoryIds } },
+      include: {
+        factory: { select: { id: true, name: true, parkId: true } },
+        createdBy: { select: { id: true, name: true, phoneNumber: true } },
+      },
+    });
+  }
+
+  async actorParkId(actor: AuthenticatedUser): Promise<string | null> {
+    const park = await this.resolveDashboardActivePark(actor, this.prisma as unknown as Prisma.TransactionClient);
+    return park?.id ?? null;
   }
 
   private static readonly REQUIRE_GATE_PASS_WALLET_KEY = 'require_gate_pass_wallet';
@@ -1231,6 +1264,7 @@ export class ManagementService {
           driverPhone: input.driverPhone,
           vehicleType: input.vehicleType,
           licensePlate: input.licensePlate,
+          plateType: this.plateTypeFor(input.licensePlate, input.plateType),
           licensePlatePhoto: input.licensePlatePhoto || null,
           exitDate: new Date(input.exitDate),
           createdById: actor.id,
@@ -1274,7 +1308,13 @@ export class ManagementService {
       entityId: pass.id,
       changes: { fee: shouldCharge ? fee : 0, requireWallet, parkShare },
     });
+    this.gatePassEvents.emit({ gatePassId: pass.id, factoryId: input.factoryId, kind: 'created' });
     return pass;
+  }
+
+  private plateTypeFor(licensePlate: string | undefined, explicit?: string): PlateType {
+    if (explicit && Object.values(PlateType).includes(explicit as PlateType)) return explicit as PlateType;
+    return (normalizePlate(licensePlate).plateType as PlateType | null) ?? PlateType.PRIVATE;
   }
 
   async updateGatePass(actor: AuthenticatedUser, id: string, input: {
@@ -1285,6 +1325,7 @@ export class ManagementService {
     driverPhone?: string;
     vehicleType?: string;
     licensePlate?: string;
+    plateType?: string;
     licensePlatePhoto?: string;
     exitDate?: string;
   }) {
@@ -1306,6 +1347,9 @@ export class ManagementService {
         ...(input.driverPhone !== undefined ? { driverPhone: input.driverPhone } : {}),
         ...(input.vehicleType !== undefined ? { vehicleType: input.vehicleType as any } : {}),
         ...(input.licensePlate !== undefined ? { licensePlate: input.licensePlate } : {}),
+        ...(input.licensePlate !== undefined || input.plateType !== undefined
+          ? { plateType: this.plateTypeFor(input.licensePlate ?? existing.licensePlate, input.plateType) }
+          : {}),
         ...(input.licensePlatePhoto !== undefined ? { licensePlatePhoto: input.licensePlatePhoto || null } : {}),
         ...(input.exitDate !== undefined ? { exitDate: new Date(input.exitDate) } : {}),
         // Re-submit rejected passes for guard review.
@@ -1314,6 +1358,7 @@ export class ManagementService {
       include: { factory: true },
     });
     await this.audit.record({ userId: actor.id, action: 'GATE_PASS_UPDATED', entity: 'GatePass', entityId: id, changes: input as any });
+    this.gatePassEvents.emit({ gatePassId: id, factoryId: existing.factoryId, kind: 'updated' });
     return updated;
   }
 
@@ -1351,6 +1396,7 @@ export class ManagementService {
           };
     const updated = await this.prisma.gatePass.update({ where: { id }, data });
     await this.audit.record({ userId: actor.id, action: `GATE_PASS_${action.toUpperCase()}`, entity: 'GatePass', entityId: id });
+    this.gatePassEvents.emit({ gatePassId: id, factoryId: pass.factoryId, kind: 'decided' });
 
     if (action === 'approve' || action === 'verify') {
       const managerPhone = pass.factory?.manager?.phoneNumber;

@@ -5,6 +5,6 @@
     "sourceMap": false,
     "incremental": false
   },
-  "include": ["src/main.ts", "src/app.module.ts", "src/core/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test", "src/advertisement", "src/analytics", "src/announcement", "src/auth", "src/emergency", "src/factory", "src/gate-pass", "src/invoice", "src/message", "src/request", "src/shared"]
+  "include": ["src/main.ts", "src/app.module.ts", "src/core/**/*.ts", "src/anpr/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "src/advertisement", "src/analytics", "src/announcement", "src/auth", "src/emergency", "src/factory", "src/gate-pass", "src/invoice", "src/message", "src/request", "src/shared", "src/**/*.spec.ts"]
 }

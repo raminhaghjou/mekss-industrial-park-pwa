@@ -22,14 +22,15 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { AdvertisementStatus, CargoType, EmergencySeverity, FactoryStatus, MarketRateKey, ParkStatus, RequestPriority, RequestType, Role, VehicleType } from '@prisma/client';
+import { AdvertisementStatus, CargoType, EmergencySeverity, FactoryStatus, MarketRateKey, ParkStatus, PlateType, RequestPriority, RequestType, Role, VehicleType } from '@prisma/client';
+import { canonicalPlateOrRaw, IRAN_LICENSE_PLATE_PATTERN } from '../anpr/plate-grammar';
 
 const iranianPhone = /^09\d{9}$/;
 const opaqueId = /^[A-Za-z0-9_-]{1,128}$/;
 const strongPassword = /^(?=.*[A-Za-z])(?=.*\d).{10,128}$/;
 const usernamePattern = /^[a-z0-9._-]{3,64}$/;
 const nationalIdPattern = /^\d{10}$/;
-const iranLicensePlatePattern = /^\d{2}[آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیA-Za-z]{1,3}\d{5}$/u;
+const iranLicensePlatePattern = IRAN_LICENSE_PLATE_PATTERN;
 const trimString = ({ value }: TransformFnParams) => typeof value === 'string' ? value.trim() : value;
 const trimNullableString = ({ value }: TransformFnParams) => {
   if (typeof value !== 'string') return value;
@@ -58,10 +59,7 @@ const normalizeNationalId = ({ value }: TransformFnParams) => {
 };
 const normalizeLicensePlate = ({ value }: TransformFnParams) => {
   if (typeof value !== 'string') return value;
-  return toAsciiDigits(value.trim())
-    .replace(/ایران/gi, '')
-    .replace(/IRAN/gi, '')
-    .replace(/[\s\-_|]/g, '');
+  return canonicalPlateOrRaw(value);
 };
 
 export class OpaqueIdParamDto {
@@ -301,6 +299,7 @@ export class CreateGatePassDto {
   @Transform(normalizeIranianPhone) @Matches(iranianPhone, { message: 'شماره موبایل باید به صورت 09XXXXXXXXX باشد' }) driverPhone!: string;
   @IsEnum(VehicleType) vehicleType!: VehicleType;
   @Transform(normalizeLicensePlate) @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate!: string;
+  @IsOptional() @IsEnum(PlateType) plateType?: PlateType;
   @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
   @IsDateString({}, { message: 'تاریخ خروج نامعتبر است' }) exitDate!: string;
   @IsOptional() @IsBoolean() saveAsDefaultDriver?: boolean;
@@ -314,6 +313,7 @@ export class UpdateGatePassDto {
   @Transform(normalizeIranianPhone) @IsOptional() @Matches(iranianPhone, { message: 'شماره موبایل باید به صورت 09XXXXXXXXX باشد' }) driverPhone?: string;
   @IsOptional() @IsEnum(VehicleType) vehicleType?: VehicleType;
   @Transform(normalizeLicensePlate) @IsOptional() @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate?: string;
+  @IsOptional() @IsEnum(PlateType) plateType?: PlateType;
   @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
   @IsOptional() @IsDateString({}, { message: 'تاریخ خروج نامعتبر است' }) exitDate?: string;
 }

@@ -1,0 +1,36 @@
+{
+  "normalize": [
+    { "input": "12ب34567", "plate": "12ب34567", "valid": true, "plateType": "PRIVATE" },
+    { "input": "۱۲ ب ۳۴۵ ۶۷", "plate": "12ب34567", "valid": true, "plateType": "PRIVATE" },
+    { "input": "۱۲ ب ۳۴۵ ایران ۶۷", "plate": "12ب34567", "valid": true, "plateType": "PRIVATE" },
+    { "input": "١٢ب٣٤٥٦٧", "plate": "12ب34567", "valid": true, "plateType": "PRIVATE" },
+    { "input": "12-ب-345-67", "plate": "12ب34567", "valid": true, "plateType": "PRIVATE" },
+    { "input": "12الف34567", "plate": "12ا34567", "valid": true, "plateType": "GOVERNMENT" },
+    { "input": "12آ34567", "plate": "12ا34567", "valid": true, "plateType": "GOVERNMENT" },
+    { "input": "12ي34567", "plate": "12ی34567", "valid": true, "plateType": "PRIVATE" },
+    { "input": "12ك34567", "plate": "12ک34567", "valid": true, "plateType": "AGRICULTURAL" },
+    { "input": "45ع12311", "plate": "45ع12311", "valid": true, "plateType": "PUBLIC" },
+    { "input": "12ت34567", "plate": "12ت34567", "valid": true, "plateType": "TAXI" },
+    { "input": "12پ34567", "plate": "12پ34567", "valid": true, "plateType": "POLICE" },
+    { "input": "12ش34567", "plate": "12ش34567", "valid": true, "plateType": "MILITARY" },
+    { "input": "12ژ34567", "plate": "12ژ34567", "valid": true, "plateType": "DISABLED" },
+    { "input": "FZ-KISH-12345", "plate": "FZ-KISH-12345", "valid": true, "plateType": "FREE_ZONE" },
+    { "input": "کیش ۱۲۳۴۵", "plate": "FZ-KISH-12345", "valid": true, "plateType": "FREE_ZONE" },
+    { "input": "12345 قشم", "plate": "FZ-QESHM-12345", "valid": true, "plateType": "FREE_ZONE" },
+    { "input": "1ب34567", "plate": "", "valid": false, "plateType": null },
+    { "input": "12ب3456", "plate": "", "valid": false, "plateType": null },
+    { "input": "12X34567", "plate": "", "valid": false, "plateType": null },
+    { "input": "", "plate": "", "valid": false, "plateType": null }
+  ],
+  "regions": {
+    "known": ["10", "11", "13", "63", "99"],
+    "unknown": ["00", "05", "39", "70", "80", "90"]
+  },
+  "distance": [
+    { "a": "12ب34567", "b": "12ب34567", "max": 0 },
+    { "a": "12ب34567", "b": "12پ34567", "max": 0.45 },
+    { "a": "12س34567", "b": "12ش34567", "max": 0.45 },
+    { "a": "12ب34567", "b": "12ب34561", "min": 0.9 },
+    { "a": "12ب34567", "b": "98م76543", "min": 5 }
+  ]
+}

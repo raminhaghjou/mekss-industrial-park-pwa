@@ -15,6 +15,7 @@ import { ApiExceptionFilter } from './api-exception.filter';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
 import { StorageService } from './storage.service';
+import { GatePassEvents } from './gate-pass-events';
 
 @Module({
   imports: [
@@ -39,10 +40,11 @@ import { StorageService } from './storage.service';
     ManagementService,
     StorageService,
     FilesService,
+    GatePassEvents,
     JwtAuthGuard,
     RolesGuard,
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
   ],
-  exports: [PrismaService, AuditService, JwtAuthGuard, RolesGuard, StorageService, FilesService],
+  exports: [PrismaService, AuditService, JwtAuthGuard, RolesGuard, StorageService, FilesService, GatePassEvents, ManagementService, JwtModule],
 })
 export class CoreModule {}

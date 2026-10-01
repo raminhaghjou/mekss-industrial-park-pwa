@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -16,11 +16,14 @@ import {
 import { Camera, QrCode, ScanLine, Search, X } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { gatePassApi } from '../../services/api/gatePass.api';
+import { anprApi } from '../../services/api/anpr.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { semanticFilter } from '../../utils/semanticSearch';
-import { displayIranLicensePlate, formatIranLicensePlate, parseIranLicensePlate } from '../../utils/iranLicensePlate';
+import { displayIranLicensePlate, isCompleteIranLicensePlate, normalizeIranPlate } from '../../utils/iranLicensePlate';
 import IranPlateOcrCamera from '../../components/gate-pass/IranPlateOcrCamera';
+import IranLicensePlateInput from '../../components/common/IranLicensePlateInput';
+import GatePassQuickVerifyCard from '../../components/gate-pass/GatePassQuickVerifyCard';
 
 const SCANNER_REGION_ID = 'mekss-qr-scanner';
 const MIN_SEARCH_LEN = 4;
@@ -35,10 +38,7 @@ const statusLabel = {
   DENIED: 'رد خروج',
 };
 
-const canonicalizePlate = (value) => {
-  const parts = parseIranLicensePlate(value);
-  return formatIranLicensePlate(parts) || String(value || '').trim();
-};
+const canonicalizePlate = (value) => normalizeIranPlate(value).plate || String(value || '').trim();
 
 export const ScanQrPage = () => {
   const navigate = useNavigate();
@@ -48,6 +48,10 @@ export const ScanQrPage = () => {
   const [cameraError, setCameraError] = useState('');
   const [plateCameraOpen, setPlateCameraOpen] = useState(false);
   const [plateCode, setPlateCode] = useState('');
+  const [plateFilledByScan, setPlateFilledByScan] = useState(false);
+  const [decision, setDecision] = useState(null);
+  const [selectedPassId, setSelectedPassId] = useState(null);
+  const scanControlsRef = useRef(null);
   const scannerRef = useRef(null);
   const handlingScanRef = useRef(false);
 
@@ -73,6 +77,63 @@ export const ScanQrPage = () => {
     },
     onError: (error) => showNotification(getErrorMessage(error, 'برگ خروجی برای این پلاک یافت نشد'), 'error'),
   });
+
+  const applyDecision = useCallback((next) => {
+    setDecision(next);
+    const outcome = next?.match?.outcome;
+    setSelectedPassId(outcome === 'MATCHED' ? next.match.gatePasses?.[0]?.id || null : null);
+    if (next?.plate) {
+      setPlateCode(next.plate);
+      setPlateFilledByScan(true);
+    }
+  }, []);
+
+  /** Manual / corrected plate: matched with the same confusion-aware matcher as the camera. */
+  const manualMatch = useMutation({
+    mutationFn: (plate) => anprApi.match({ plate: canonicalizePlate(plate), engine: 'MANUAL' }).then((res) => res.data),
+    onSuccess: (result) => {
+      applyDecision(result);
+      setPlateFilledByScan(false);
+    },
+    onError: (error, plate) => {
+      if (!error?.response) plateLookup.mutate(plate);
+      else showNotification(getErrorMessage(error, 'تطبیق پلاک ناموفق بود'), 'error');
+    },
+  });
+
+  const onScanDecision = useCallback((next, controls) => {
+    scanControlsRef.current = controls;
+    applyDecision(next);
+    const outcome = next?.match?.outcome;
+    const label = displayIranLicensePlate(next.plate);
+    if (outcome === 'MATCHED') showNotification(`پلاک ${label} — برگ خروج یافت شد`, 'success');
+    else if (outcome === 'SUGGESTED') showNotification(`پلاک ${label} خوانده شد؛ برگ خروج مشابه پیشنهاد شد`, 'warning');
+    else showNotification(`پلاک ${label} خوانده شد؛ برگ خروج بازی یافت نشد`, 'error');
+  }, [applyDecision, showNotification]);
+
+  const scanNext = () => {
+    setDecision(null);
+    setSelectedPassId(null);
+    setPlateCode('');
+    setPlateFilledByScan(false);
+    scanControlsRef.current?.rescan();
+  };
+
+  const onPassDecided = (kind, pass) => {
+    const readPlate = decision?.plate;
+    if (decision?.readId) {
+      scanControlsRef.current?.confirm?.({
+        plate: kind === 'verified' ? pass.licensePlate || readPlate : readPlate,
+        gatePassId: pass.id,
+      });
+    }
+    scanNext();
+  };
+
+  const selectedPass = useMemo(
+    () => decision?.match?.gatePasses?.find((p) => p.id === selectedPassId) || null,
+    [decision, selectedPassId],
+  );
 
   const stopScanner = async () => {
     const scanner = scannerRef.current;
@@ -264,55 +325,62 @@ export const ScanQrPage = () => {
           </form>
 
           <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-default-300 p-4">
-            <Label className="text-xs font-bold">تشخیص پلاک ایران (OCR)</Label>
+            <Label className="text-xs font-bold">تشخیص زنده پلاک ایران</Label>
             <p className="text-[11px] text-foreground-500">
-              مدل تخصصی پلاک ایران روی گوشی/مرورگر اجرا می‌شود (بدون ارسال تصویر به سرور). پس از خواندن، برگ خروج باز تطبیق داده می‌شود.
+              دوربین را به سمت پلاک بگیرید؛ پلاک به‌صورت خودکار خوانده و برگ خروج مربوط بلافاصله نمایش داده می‌شود.
+              در صورت قطع شبکه، خواندن روی همین دستگاه انجام می‌شود.
             </p>
 
             {!plateCameraOpen ? (
               <Button variant="secondary" className="font-bold" onPress={openPlateCamera} isDisabled={scanning}>
                 <Camera className="h-4 w-4" />
-                باز کردن دوربین OCR پلاک
+                شروع اسکن زنده پلاک
               </Button>
             ) : (
-              <IranPlateOcrCamera
-                initialPlate={plateCode}
-                onCancel={() => setPlateCameraOpen(false)}
-                onPlateRead={(plate) => {
-                  setPlateCode(plate);
-                  setPlateCameraOpen(false);
-                  showNotification(`پلاک ${displayIranLicensePlate(plate)} خوانده شد`, 'success');
-                  plateLookup.mutate(plate);
-                }}
-              />
+              <IranPlateOcrCamera onCancel={() => setPlateCameraOpen(false)} onDecision={onScanDecision} />
             )}
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!plateCode.trim()) {
-                  showNotification('پلاک را وارد کنید', 'error');
+                if (!isCompleteIranLicensePlate(plateCode)) {
+                  showNotification('پلاک را کامل وارد کنید', 'error');
                   return;
                 }
-                plateLookup.mutate(plateCode.trim());
+                if (decision?.readId && plateCode !== decision.plate) {
+                  scanControlsRef.current?.confirm?.({ plate: plateCode });
+                }
+                manualMatch.mutate(plateCode);
               }}
               className="flex flex-col gap-2"
             >
-              <Label className="text-xs">یا ورود / اصلاح دستی پلاک</Label>
-              <Input
-                dir="ltr"
+              <IranLicensePlateInput
+                label={plateFilledByScan ? 'پلاک خوانده‌شده (قابل اصلاح)' : 'ورود / اصلاح دستی پلاک'}
                 value={plateCode}
-                onChange={(e) => setPlateCode(e.target.value)}
-                placeholder="مثال: 12ب34567"
-                className="rounded-xl font-mono"
+                highlight={plateFilledByScan}
+                onChange={(next) => {
+                  setPlateCode(next);
+                  setPlateFilledByScan(false);
+                }}
               />
-              <Button type="submit" variant="tertiary" className="font-bold" isDisabled={plateLookup.isPending}>
-                {plateLookup.isPending ? <Spinner size="sm" /> : 'تطبیق پلاک با برگ خروج باز'}
+              <Button type="submit" variant="tertiary" className="font-bold" isDisabled={manualMatch.isPending || plateLookup.isPending}>
+                {manualMatch.isPending || plateLookup.isPending ? <Spinner size="sm" /> : 'تطبیق پلاک با برگ خروج باز'}
               </Button>
             </form>
           </div>
         </CardContent>
       </Card>
+
+      {decision && (
+        <PlateMatchResult
+          decision={decision}
+          selectedPass={selectedPass}
+          onSelect={setSelectedPassId}
+          onDecided={onPassDecided}
+          onOpenDetails={(pass) => navigate(`/guard/gate-passes/${pass.id}/verify`)}
+          onScanNext={scanNext}
+        />
+      )}
 
       {code.trim().length >= MIN_SEARCH_LEN && (
         <Card className="rounded-2xl border border-default-200">
@@ -366,5 +434,78 @@ export const ScanQrPage = () => {
     </div>
   );
 };
+
+function PlateMatchResult({ decision, selectedPass, onSelect, onDecided, onOpenDetails, onScanNext }) {
+  const outcome = decision.match?.outcome;
+  const passes = decision.match?.gatePasses || [];
+  const suggestions = decision.match?.suggestions || [];
+  const plateLabel = displayIranLicensePlate(decision.plate);
+
+  if (selectedPass) {
+    return (
+      <div className="flex flex-col gap-2">
+        {outcome === 'MATCHED' && passes.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            {passes.map((pass) => (
+              <Button key={pass.id} size="sm" variant={pass.id === selectedPass.id ? 'primary' : 'secondary'} onPress={() => onSelect(pass.id)}>
+                {pass.factory?.name || pass.id}
+              </Button>
+            ))}
+          </div>
+        )}
+        <GatePassQuickVerifyCard
+          pass={selectedPass}
+          scannedPlate={decision.plate}
+          onDecided={onDecided}
+          onOpenDetails={onOpenDetails}
+        />
+      </div>
+    );
+  }
+
+  if (outcome === 'SUGGESTED' && suggestions.length) {
+    return (
+      <Card className="rounded-2xl border-2 border-amber-400/70" data-testid="plate-suggestions">
+        <CardContent className="gap-3 p-4">
+          <p className="text-sm font-bold">
+            پلاک «<span dir="ltr" className="font-mono">{plateLabel}</span>» دقیقاً یافت نشد. آیا منظور شما یکی از این‌ها بود؟
+          </p>
+          <ul className="flex flex-col gap-2">
+            {suggestions.map((s) => {
+              const pass = passes.find((p) => p.id === s.gatePassId);
+              return (
+                <li key={s.gatePassId}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(s.gatePassId)}
+                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-default-200 bg-default-50 px-4 py-3 text-right transition hover:border-[var(--color-brand)]"
+                  >
+                    <span className="font-mono font-bold" dir="ltr">{displayIranLicensePlate(s.plate)}</span>
+                    <span className="text-xs text-foreground-600">
+                      {pass?.factory?.name || ''} {pass?.driverName ? `· ${pass.driverName}` : ''}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <Button variant="tertiary" onPress={onScanNext}>هیچ‌کدام — اسکن مجدد</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Alert status="danger" data-testid="plate-not-found">
+      <AlertContent>
+        <AlertTitle>برگ خروج بازی برای این پلاک یافت نشد</AlertTitle>
+        <AlertDescription>
+          پلاک «<span dir="ltr" className="font-mono">{plateLabel}</span>»
+          {decision.offline ? ' به‌صورت آفلاین خوانده شد؛ پس از اتصال شبکه دوباره تطبیق دهید.' : ' در برگ‌های خروج باز این شهرک نیست. پلاک را بررسی و در صورت نیاز اصلاح کنید.'}
+        </AlertDescription>
+      </AlertContent>
+    </Alert>
+  );
+}
 
 export default ScanQrPage;

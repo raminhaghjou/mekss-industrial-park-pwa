@@ -1,21 +1,109 @@
-/** Valid Persian letters used on standard Iranian vehicle plates. */
-export const IRAN_PLATE_LETTERS = [
-  { value: 'ب', label: 'ب' },
-  { value: 'ج', label: 'ج' },
-  { value: 'د', label: 'د' },
-  { value: 'س', label: 'س' },
-  { value: 'ص', label: 'ص' },
-  { value: 'ط', label: 'ط' },
-  { value: 'ق', label: 'ق' },
-  { value: 'ل', label: 'ل' },
-  { value: 'م', label: 'م' },
-  { value: 'ن', label: 'ن' },
-  { value: 'و', label: 'و' },
-  { value: 'ه', label: 'ه' },
-  { value: 'ی', label: 'ی' },
-  { value: 'ت', label: 'ت' },
-  { value: 'ا', label: 'الف' },
+/**
+ * Plate categories. Colours follow the physical plates: white private, yellow public/taxi,
+ * red government, blue police, green military, and so on.
+ */
+export const IRAN_PLATE_TYPES = {
+  PRIVATE: { label: 'شخصی', bg: '#ffffff', fg: '#0f172a' },
+  TAXI: { label: 'تاکسی', bg: '#facc15', fg: '#0f172a' },
+  PUBLIC: { label: 'عمومی / باری', bg: '#facc15', fg: '#0f172a' },
+  GOVERNMENT: { label: 'دولتی', bg: '#dc2626', fg: '#ffffff' },
+  POLICE: { label: 'انتظامی', bg: '#1d4ed8', fg: '#ffffff' },
+  MILITARY: { label: 'نظامی', bg: '#166534', fg: '#ffffff' },
+  DISABLED: { label: 'جانبازان / معلولین', bg: '#ffffff', fg: '#0f172a' },
+  AGRICULTURAL: { label: 'کشاورزی', bg: '#ffffff', fg: '#0f172a' },
+  FREE_ZONE: { label: 'منطقه آزاد', bg: '#ffffff', fg: '#0f172a' },
+  OTHER: { label: 'سایر', bg: '#ffffff', fg: '#0f172a' },
+};
+
+const LETTER_TYPES = {
+  ب: 'PRIVATE', ج: 'PRIVATE', د: 'PRIVATE', س: 'PRIVATE', ص: 'PRIVATE', ط: 'PRIVATE', ق: 'PRIVATE',
+  ل: 'PRIVATE', م: 'PRIVATE', ن: 'PRIVATE', و: 'PRIVATE', ه: 'PRIVATE', ی: 'PRIVATE',
+  ت: 'TAXI',
+  ع: 'PUBLIC',
+  ا: 'GOVERNMENT',
+  پ: 'POLICE',
+  ث: 'MILITARY', ش: 'MILITARY', ز: 'MILITARY', ف: 'MILITARY',
+  ژ: 'DISABLED',
+  ک: 'AGRICULTURAL',
+  ح: 'OTHER', گ: 'OTHER',
+};
+
+/** Every letter issued on Iranian plates (same set as mekss-backend plate-grammar.ts). */
+export const IRAN_PLATE_LETTERS = Object.keys(LETTER_TYPES).map((value) => ({
+  value,
+  label: value === 'ا' ? 'الف' : value,
+  type: LETTER_TYPES[value],
+}));
+
+/** Free-trade-zone plates, canonical `FZ-<ZONE>-12345`. */
+export const IRAN_FREE_ZONES = [
+  { code: 'KISH', label: 'کیش' },
+  { code: 'QESHM', label: 'قشم' },
+  { code: 'ARVAND', label: 'اروند' },
+  { code: 'ANZALI', label: 'انزلی' },
+  { code: 'CHABAHAR', label: 'چابهار' },
+  { code: 'ARAS', label: 'ارس' },
+  { code: 'MAKU', label: 'ماکو' },
 ];
+
+const LETTER_ALIASES = { آ: 'ا', أ: 'ا', إ: 'ا', ٱ: 'ا', ي: 'ی', ى: 'ی', ئ: 'ی', ك: 'ک', ۀ: 'ه', ة: 'ه' };
+const UNALLOCATED_REGIONS = new Set(['39', '70', '80', '90']);
+const PLATE_LETTER_CLASS = Object.keys(LETTER_TYPES).join('');
+const STANDARD_RE = new RegExp(`^(\\d{2})([${PLATE_LETTER_CLASS}])(\\d{3})(\\d{2})$`, 'u');
+const FREE_ZONE_RE = /^FZ-([A-Z]+)-(\d{5})$/;
+
+export function plateTypeForLetter(letter = '') {
+  return LETTER_TYPES[letter] || null;
+}
+
+export function isKnownIranPlateRegion(code = '') {
+  return /^[1-9]\d$/.test(String(code)) && !UNALLOCATED_REGIONS.has(String(code));
+}
+
+/**
+ * Canonicalise any user/OCR plate string. Mirrors `normalizePlate` in the backend and
+ * mekss-anpr so all three agree on `shared/anpr/plate-grammar.vectors.json`.
+ * @returns {{ plate: string, valid: boolean, plateType: string|null, parts: object|null }}
+ */
+export function normalizeIranPlate(raw) {
+  const invalid = { plate: '', valid: false, plateType: null, parts: null };
+  if (typeof raw !== 'string' || !raw.trim()) return invalid;
+  let text = toAsciiDigits(raw).trim();
+
+  const fz = FREE_ZONE_RE.exec(text.toUpperCase());
+  if (fz && IRAN_FREE_ZONES.some((z) => z.code === fz[1])) {
+    return { plate: text.toUpperCase(), valid: true, plateType: 'FREE_ZONE', parts: { zone: fz[1], number: fz[2] } };
+  }
+  for (const zone of IRAN_FREE_ZONES) {
+    if (text.includes(zone.label)) {
+      const digits = text.replace(zone.label, '').replace(/\D/g, '');
+      if (digits.length !== 5) return invalid;
+      return { plate: `FZ-${zone.code}-${digits}`, valid: true, plateType: 'FREE_ZONE', parts: { zone: zone.code, number: digits } };
+    }
+  }
+
+  text = text.replace(/ایران/g, '').replace(/iran/gi, '').replace(/الف/g, 'ا');
+  text = [...text].map((ch) => LETTER_ALIASES[ch] || ch).join('');
+  text = text.replace(/[\s\-_|./\\,:;]+/g, '');
+  const match = STANDARD_RE.exec(text);
+  if (!match) return invalid;
+  const [, series, letter, middle, region] = match;
+  return { plate: `${series}${letter}${middle}${region}`, valid: true, plateType: LETTER_TYPES[letter], parts: { series, letter, middle, region } };
+}
+
+export function parseIranFreeZonePlate(value = '') {
+  const n = normalizeIranPlate(value);
+  return n.valid && n.plateType === 'FREE_ZONE' ? n.parts : null;
+}
+
+export function formatIranFreeZonePlate({ zone = '', number = '' } = {}) {
+  if (!IRAN_FREE_ZONES.some((z) => z.code === zone) || !/^\d{5}$/.test(number)) return '';
+  return `FZ-${zone}-${number}`;
+}
+
+export function iranPlateTypeOf(value = '') {
+  return normalizeIranPlate(value).plateType;
+}
 
 /**
  * Official Iran plate region codes (دو رقم سمت راست / ایران) at province level.
@@ -178,7 +266,7 @@ export function formatIranLicensePlate(parts) {
 }
 
 export function isCompleteIranLicensePlate(value) {
-  return Boolean(formatIranLicensePlate(parseIranLicensePlate(value)));
+  return Boolean(formatIranLicensePlate(parseIranLicensePlate(value))) || Boolean(parseIranFreeZonePlate(value));
 }
 
 /**
@@ -189,6 +277,11 @@ export function isCompleteIranLicensePlate(value) {
  * @returns {string}
  */
 export function displayIranLicensePlate(value = '', options = {}) {
+  const fz = parseIranFreeZonePlate(value);
+  if (fz) {
+    const text = `${IRAN_FREE_ZONES.find((z) => z.code === fz.zone)?.label || fz.zone} ${fz.number}`;
+    return options.persianDigits ? toPersianDigits(text) : text;
+  }
   const parts = parseIranLicensePlate(value);
   if (!parts.series || !parts.letter || !parts.middle || !parts.region) {
     return String(value || '').trim() || '—';

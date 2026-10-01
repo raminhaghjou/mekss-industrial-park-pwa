@@ -18,7 +18,7 @@ const clearSession = () => {
   localStorage.removeItem('refreshToken');
 };
 
-const refreshSession = () => {
+export const refreshSession = () => {
   if (refreshPromise) return refreshPromise;
   const refreshToken = localStorage.getItem('refreshToken');
   if (!refreshToken) return Promise.reject(new Error('Refresh token is unavailable'));

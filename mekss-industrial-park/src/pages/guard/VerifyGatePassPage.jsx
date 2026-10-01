@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Card,
   CardContent,
@@ -15,17 +15,13 @@ import {
 } from '@heroui/react';
 import { ArrowRight, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
-import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
-import { getErrorMessage } from '../../utils/apiError';
-import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 import { gatePassStatusLabels } from '../../constants/persianLabels';
+import { useGatePassDecision } from '../../hooks/useGatePassDecision';
 
 const VerifyGatePassPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { showNotification } = useNotification();
   const [denyOpen, setDenyOpen] = React.useState(false);
   const [verifyOpen, setVerifyOpen] = React.useState(false);
 
@@ -34,35 +30,13 @@ const VerifyGatePassPage = () => {
     queryFn: () => gatePassApi.getGatePass(id).then((res) => res.data),
   });
 
-  const plateLabel = displayIranLicensePlate(pass?.licensePlate || '');
-
-  const refreshLists = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['gate-passes'] }),
-      queryClient.invalidateQueries({ queryKey: ['gate-pass', id] }),
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-    ]);
-  };
-
-  const verifyMutation = useMutation({
-    mutationFn: () => gatePassApi.verifyGatePass(id),
-    onSuccess: async () => {
-      showNotification(`خروج خودرو با پلاک ${plateLabel} با موفقیت ثبت شد.`, 'success');
+  const { plateLabel, verifyMutation, denyMutation } = useGatePassDecision(id, {
+    licensePlate: pass?.licensePlate,
+    onVerified: () => {
       setVerifyOpen(false);
-      await refreshLists();
       navigate('/guard/gate-passes');
     },
-    onError: (err) => showNotification(getErrorMessage(err, 'ثبت خروج ناموفق بود.'), 'error'),
-  });
-
-  const denyMutation = useMutation({
-    mutationFn: (/** @type {string} */ reason) => gatePassApi.denyGatePassExit(id, { reason }),
-    onSuccess: async () => {
-      showNotification('گزارش مغایرت ثبت و به مدیر شهرک ارجاع داده شد.', 'success');
-      await refreshLists();
-      navigate('/guard/gate-passes');
-    },
-    onError: (err) => showNotification(getErrorMessage(err, 'ثبت گزارش مغایرت ناموفق بود.'), 'error'),
+    onDenied: () => navigate('/guard/gate-passes'),
   });
 
   if (isLoading) {

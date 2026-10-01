@@ -124,8 +124,10 @@ export function letterboxRgbToYoloTensor(imageData, size = 640) {
 
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = 'rgb(114,114,114)';
   ctx.fillRect(0, 0, size, size);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   const srcCanvas = new OffscreenCanvas(srcW, srcH);
   const sctx = srcCanvas.getContext('2d');
@@ -246,16 +248,36 @@ export function cropEnhanceToCrnnTensor(imageData, box) {
 
   const outW = 128;
   const outH = 32;
-  const tensor = new Float32Array(1 * 1 * outH * outW);
-  for (let oy = 0; oy < outH; oy += 1) {
-    for (let ox = 0; ox < outW; ox += 1) {
-      const sx = Math.min(w - 1, Math.floor((ox + 0.5) * w / outW));
-      const sy = Math.min(h - 1, Math.floor((oy + 0.5) * h / outH));
-      tensor[oy * outW + ox] = gray[sy * w + sx] / 255;
-    }
-  }
+  const tensor = bilinearResize(gray, w, h, outW, outH);
+  for (let i = 0; i < tensor.length; i += 1) tensor[i] /= 255;
 
   return { tensor, cropBox: { x, y, w, h } };
+}
+
+/**
+ * Bilinear resample of a single-channel image (pixel-centre aligned, like cv2.INTER_LINEAR).
+ * Nearest-neighbour aliasing breaks thin Persian glyph strokes (e.g. the dots of ب/پ/ت/ث).
+ */
+export function bilinearResize(src, srcW, srcH, outW, outH) {
+  const out = new Float32Array(outW * outH);
+  const sx = srcW / outW;
+  const sy = srcH / outH;
+  for (let oy = 0; oy < outH; oy += 1) {
+    const fy = Math.min(srcH - 1, Math.max(0, (oy + 0.5) * sy - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(srcH - 1, y0 + 1);
+    const wy = fy - y0;
+    for (let ox = 0; ox < outW; ox += 1) {
+      const fx = Math.min(srcW - 1, Math.max(0, (ox + 0.5) * sx - 0.5));
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(srcW - 1, x0 + 1);
+      const wx = fx - x0;
+      const top = src[y0 * srcW + x0] * (1 - wx) + src[y0 * srcW + x1] * wx;
+      const bottom = src[y1 * srcW + x0] * (1 - wx) + src[y1 * srcW + x1] * wx;
+      out[oy * outW + ox] = top * (1 - wy) + bottom * wy;
+    }
+  }
+  return out;
 }
 
 /** Guided center crop when detector finds nothing — uses middle band (plate guide). */

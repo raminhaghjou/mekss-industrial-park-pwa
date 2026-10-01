@@ -1,12 +1,55 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   IRAN_PLATE_REGIONS,
   displayIranLicensePlate,
   findIranPlateRegion,
+  formatIranFreeZonePlate,
   formatIranLicensePlate,
+  iranPlateTypeOf,
   isCompleteIranLicensePlate,
+  isKnownIranPlateRegion,
+  normalizeIranPlate,
+  parseIranFreeZonePlate,
   parseIranLicensePlate,
+  plateTypeForLetter,
 } from './iranLicensePlate';
+
+const vectors = JSON.parse(
+  readFileSync(resolve(process.cwd(), '..', 'shared', 'anpr', 'plate-grammar.vectors.json'), 'utf8'),
+);
+
+describe('shared plate grammar vectors (same file as backend and mekss-anpr)', () => {
+  it.each(vectors.normalize)('normalises $input', ({ input, plate, valid, plateType }) => {
+    const out = normalizeIranPlate(input);
+    expect(out.plate).toBe(plate);
+    expect(out.valid).toBe(valid);
+    expect(out.plateType).toBe(plateType);
+  });
+
+  it('classifies region codes', () => {
+    vectors.regions.known.forEach((code) => expect(isKnownIranPlateRegion(code)).toBe(true));
+    vectors.regions.unknown.forEach((code) => expect(isKnownIranPlateRegion(code)).toBe(false));
+  });
+});
+
+describe('plate types and free-zone plates', () => {
+  it('derives plate type from the letter', () => {
+    expect(plateTypeForLetter('ب')).toBe('PRIVATE');
+    expect(plateTypeForLetter('ع')).toBe('PUBLIC');
+    expect(plateTypeForLetter('X')).toBeNull();
+    expect(iranPlateTypeOf('12ت34567')).toBe('TAXI');
+  });
+
+  it('parses, formats and displays free-zone plates', () => {
+    expect(parseIranFreeZonePlate('FZ-KISH-12345')).toEqual({ zone: 'KISH', number: '12345' });
+    expect(formatIranFreeZonePlate({ zone: 'KISH', number: '12345' })).toBe('FZ-KISH-12345');
+    expect(formatIranFreeZonePlate({ zone: 'NOPE', number: '12345' })).toBe('');
+    expect(isCompleteIranLicensePlate('FZ-KISH-12345')).toBe(true);
+    expect(displayIranLicensePlate('FZ-KISH-12345')).toContain('12345');
+  });
+});
 
 describe('iranLicensePlate', () => {
   it('parses canonical and spaced plate strings', () => {

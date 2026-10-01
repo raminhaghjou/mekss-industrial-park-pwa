@@ -239,6 +239,12 @@ npm run test:cov
 | `JWT_REFRESH_SECRET` | JWT refresh secret | - |
 | `KAVEH_NEGAR_API_KEY` | SMS service API key | - |
 | `ZARINPAL_MERCHANT_ID` | Payment gateway merchant ID | - |
+| `ANPR_SERVICE_URL` | Python ANPR service (engine A); unset = Node engine only | - |
+| `ANPR_TIMEOUT_MS` | Per-frame timeout for engine A | `400` |
+| `ANPR_BREAKER_FAILURES` / `ANPR_BREAKER_COOLDOWN_MS` | Failover to engine B and re-probe delay | `3` / `30000` |
+| `ANPR_MODEL_DIR` | ONNX models for engine B | `./models/iran-plate` |
+| `ANPR_AUDIT_IMAGES` | Store plate-read frames in MinIO | `true` |
+| `ANPR_AUDIT_RETENTION_DAYS` / `ANPR_AUDIT_ROW_RETENTION_DAYS` | Image / row retention | `90` / `365` |
 
 ## API Endpoints
 
@@ -299,6 +305,28 @@ npm run test:cov
 - `GET /api/v1/analytics/gate-passes` - Gate pass analytics
 - `GET /api/v1/analytics/invoices` - Invoice analytics
 - `GET /api/v1/analytics/reports` - Generate reports
+
+### Live plate recognition (ANPR)
+Guards, park managers and super admins only.
+
+- Socket.IO namespace `/anpr` (JWT in `auth.token`, `sessionId` in handshake auth)
+  - `frame` `{ seq, image: <JPEG bytes> }` → ack `{ seq, state, candidates, fused, decision? }` (or `{ dropped: true }` when a newer frame superseded it)
+  - `session:reset`, `read:confirm`; server events `frame:result`, `plate:candidate`, `plate:locked`, `error`
+  - Limits: 8 fps and 400 KB per frame; the newest frame always wins
+- REST fallback (same semantics, used when WebSockets are blocked):
+  - `POST /api/v1/anpr/recognize?sessionId=&mode=live|photo` (raw `image/jpeg` body, ≤2 MB)
+  - `POST /api/v1/anpr/sessions/:sessionId/reset`
+  - `POST /api/v1/anpr/match` (plate read on-device or typed by the guard)
+  - `POST /api/v1/anpr/reads/:id/confirm` (guard confirmation / correction for the audit log)
+  - `GET /api/v1/anpr/status`
+
+Engines: `ANPR_SERVICE_URL` (Python `mekss-anpr`, default) with automatic failover to the in-process
+`onnxruntime-node` engine after `ANPR_BREAKER_FAILURES` consecutive failures; engine A is re-probed after
+`ANPR_BREAKER_COOLDOWN_MS`. Engine B needs the ONNX models in `ANPR_MODEL_DIR` (the compose file shares the
+`anpr-models` volume). A plate locks after multi-frame agreement (≥3 frames at fused confidence ≥0.97), then
+it is matched against open gate passes (exact → N-best → confusable-weighted fuzzy). Every decision is written
+to `PlateReadEvent`; frames and plate crops go to the MinIO bucket `plate-reads` and are purged after
+`ANPR_AUDIT_RETENTION_DAYS`.
 
 ## User Roles & Permissions
 

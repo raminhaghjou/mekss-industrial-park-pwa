@@ -12,6 +12,33 @@ export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 export type AuthenticatedUser = { id: string; role: Role; phoneNumber: string };
 type AccessTokenPayload = { sub: string; sessionVersion?: number };
 
+/** Verifies a bearer access token against the live user record (shared by HTTP and WebSocket auth). */
+export async function verifyAccessToken(jwt: JwtService, prisma: PrismaService, token: string | undefined): Promise<AuthenticatedUser> {
+  if (!token) throw new UnauthorizedException('Authentication is required');
+
+  let payload: AccessTokenPayload;
+  try {
+    payload = await jwt.verifyAsync<AccessTokenPayload>(token);
+  } catch {
+    throw new UnauthorizedException('Invalid or expired access token');
+  }
+
+  if (!payload || typeof payload.sub !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.sub)) {
+    throw new UnauthorizedException('Invalid or expired access token');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { id: true, role: true, phoneNumber: true, isActive: true, isApproved: true, sessionVersion: true },
+  });
+  const tokenSessionVersion = payload.sessionVersion ?? 0;
+  const currentSessionVersion = user?.sessionVersion ?? 0;
+  if (!user?.isActive || !user.isApproved || !Number.isInteger(tokenSessionVersion) || tokenSessionVersion !== currentSessionVersion) {
+    throw new UnauthorizedException('Invalid or expired access token');
+  }
+  return { id: user.id, role: user.role, phoneNumber: user.phoneNumber };
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -31,30 +58,7 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const value = request.headers.authorization;
     const token = typeof value === 'string' && value.startsWith('Bearer ') ? value.slice(7) : undefined;
-    if (!token) throw new UnauthorizedException('Authentication is required');
-
-    let payload: AccessTokenPayload;
-    try {
-      payload = await this.jwt.verifyAsync<AccessTokenPayload>(token);
-    } catch {
-      throw new UnauthorizedException('Invalid or expired access token');
-    }
-
-    if (!payload || typeof payload.sub !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.sub)) {
-      throw new UnauthorizedException('Invalid or expired access token');
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: { id: true, role: true, phoneNumber: true, isActive: true, isApproved: true, sessionVersion: true },
-    });
-    const tokenSessionVersion = payload.sessionVersion ?? 0;
-    const currentSessionVersion = user?.sessionVersion ?? 0;
-    if (!user?.isActive || !user.isApproved || !Number.isInteger(tokenSessionVersion) || tokenSessionVersion !== currentSessionVersion) {
-      throw new UnauthorizedException('Invalid or expired access token');
-    }
-
-    request.user = { id: user.id, role: user.role, phoneNumber: user.phoneNumber } satisfies AuthenticatedUser;
+    request.user = await verifyAccessToken(this.jwt, this.prisma, token);
     return true;
   }
 }

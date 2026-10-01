@@ -1,7 +1,10 @@
 # Build stage: install the full lockfile dependency set before Prisma generation and Nest compilation.
-FROM node:20-alpine AS builder
+# Debian (glibc) rather than Alpine: onnxruntime-node and sharp ship glibc prebuilt binaries.
+FROM node:20-bookworm-slim AS builder
 
-RUN apk add --no-cache openssl python3 make g++
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl python3 make g++ ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -13,11 +16,13 @@ COPY src ./src
 RUN npx prisma generate && npm run build
 
 # Runtime stage: keep only production dependencies and generated runtime artifacts.
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 
-RUN apk add --no-cache dumb-init openssl \
-    && addgroup --gid 1001 --system mekss \
-    && adduser --uid 1001 --system --ingroup mekss mekss
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends dumb-init openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1001 --system mekss \
+    && useradd --uid 1001 --system --gid mekss --no-create-home mekss
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -27,7 +32,9 @@ COPY --from=builder --chown=mekss:mekss /app/dist ./dist
 COPY --from=builder --chown=mekss:mekss /app/prisma ./prisma
 COPY --from=builder --chown=mekss:mekss /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=mekss:mekss /app/node_modules/@prisma/client ./node_modules/@prisma/client
-RUN mkdir -p uploads logs && chown -R mekss:mekss uploads logs
+# Engine B (in-process ANPR) reads the same ONNX models as the Python service; mount the shared volume here.
+RUN mkdir -p uploads logs models/iran-plate && chown -R mekss:mekss uploads logs models
+ENV ANPR_MODEL_DIR=/app/models/iran-plate
 
 USER 1001
 EXPOSE 3000

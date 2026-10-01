@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as compression from 'compression';
 import helmet from 'helmet';
+import { CorsIoAdapter } from './anpr/socket-io.adapter';
 import { AppModule } from './app.module';
 import { requestContextMiddleware } from './core/request-context';
 
@@ -26,6 +27,7 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Request-ID'],
     exposedHeaders: ['X-Request-ID'],
   });
+  app.useWebSocketAdapter(new CorsIoAdapter(app, origins));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
   if (environment !== 'production' || config.get<string>('SWAGGER_ENABLED') === 'true') {

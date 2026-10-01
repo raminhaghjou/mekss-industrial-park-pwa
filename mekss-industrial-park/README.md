@@ -57,7 +57,27 @@ Create a `.env` file in the root directory:
 ```env
 VITE_API_URL=http://localhost:3000/api/v1
 VITE_WS_URL=ws://localhost:3000
+# Optional: Socket.IO origin for live plate scanning (defaults to the page origin, proxied by Vite/nginx)
+VITE_SOCKET_URL=
 ```
+
+### Live plate scanning (guard panel)
+The camera on the guard's scan page streams small ROI-cropped JPEG frames (sharpness/motion gated in a
+Web Worker, ≤2 in flight) to the backend over Socket.IO (`/socket.io`, namespace `/anpr`). When the plate is
+locked, it is auto-filled into the plate input and the matching exit pass is shown for one-tap confirmation.
+
+Fallback cascade: Socket.IO → HTTP (`POST /api/v1/anpr/recognize`) → on-device ONNX Runtime Web (offline)
+→ manual entry. The on-device fallback needs the models locally:
+
+```bash
+npm run models:iran-plate          # downloads into public/models/iran-plate (checksums from mekss-anpr/models/manifest.json)
+IRAN_PLATE_MODEL_BASE_URL=https://mirror.example/iran-plate npm run models:iran-plate   # internal mirror
+```
+
+ONNX Runtime's WASM files are self-hosted under `/ort/` (copied from `onnxruntime-web` at build time) and,
+like the models, cached by the service worker after first use. Multi-threaded WASM is only used when the
+page is cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin` +
+`Cross-Origin-Embedder-Policy: require-corp`); otherwise a single thread is used.
 
 ## 📁 Project Structure
 

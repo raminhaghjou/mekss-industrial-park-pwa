@@ -36,6 +36,7 @@
     "src/main.ts",
     "src/app.module.ts",
     "src/core/**/*.ts",
+    "src/anpr/**/*.ts",
     "src/preservation/**/*.ts",
     "test/**/*.ts"
   ],

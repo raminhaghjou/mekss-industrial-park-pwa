@@ -44,6 +44,28 @@ services:
       retries: 12
       start_period: 5s
 
+  # Engine A for live plate recognition (Python + OpenCV + ONNX Runtime). Downloads the models into the
+  # shared volume on first start; the backend's in-process engine B reads the same files.
+  anpr:
+    build:
+      context: ../mekss-anpr
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      ANPR_MODEL_DIR: /models
+      ANPR_MODEL_BASE_URL: ${MEKSS_ANPR_MODEL_BASE_URL:-}
+      ANPR_WORKERS: ${MEKSS_ANPR_WORKERS:-2}
+      ANPR_INTRA_THREADS: ${MEKSS_ANPR_INTRA_THREADS:-2}
+      ANPR_TTA: ${MEKSS_ANPR_TTA:-1}
+    volumes:
+      - anpr-models:/models
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
   migrate:
     build:
       context: .
@@ -88,7 +110,19 @@ services:
       ZARINPAL_CALLBACK_URL: http://localhost:3000/api/v1/invoices/payment/verify
       ZARINPAL_SANDBOX: "true"
       LOG_LEVEL: ${MEKSS_LOCAL_LOG_LEVEL:-info}
+      ANPR_SERVICE_URL: http://anpr:8000
+      ANPR_TIMEOUT_MS: ${MEKSS_ANPR_TIMEOUT_MS:-400}
+      ANPR_MODEL_DIR: /app/models/iran-plate
+      ANPR_BREAKER_FAILURES: "3"
+      ANPR_BREAKER_COOLDOWN_MS: "30000"
+      ANPR_AUDIT_IMAGES: "true"
+      ANPR_AUDIT_RETENTION_DAYS: ${MEKSS_ANPR_AUDIT_RETENTION_DAYS:-90}
+    volumes:
+      - anpr-models:/app/models/iran-plate:ro
     depends_on:
+      # Only "started": if engine A is down the backend serves plates with engine B.
+      anpr:
+        condition: service_started
       postgres:
         condition: service_healthy
       redis:
@@ -127,3 +161,4 @@ volumes:
   postgres-data:
   redis-data:
   minio-data:
+  anpr-models:

@@ -92,8 +92,8 @@
         "condition: service_completed_successfully", "postgres-data:", "redis-data:", "minio-data:"
       ],
       "dockerfileTokens": [
-        "FROM node:20-alpine AS builder", "RUN npm ci", "RUN npx prisma generate && npm run build",
-        "FROM node:20-alpine AS runtime", "RUN npm ci --omit=dev", "USER 1001", "CMD [\"node\", \"dist/main\"]"
+        "FROM node:20-bookworm-slim AS builder", "RUN npm ci", "RUN npx prisma generate && npm run build",
+        "FROM node:20-bookworm-slim AS runtime", "RUN npm ci --omit=dev", "USER 1001", "CMD [\"node\", \"dist/main\"]"
       ]
     },
     "nonBugRouteRoles": [

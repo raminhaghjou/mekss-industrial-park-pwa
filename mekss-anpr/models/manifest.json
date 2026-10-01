@@ -1,0 +1,23 @@
+{
+  "name": "platrix-iran-plate",
+  "license": "MIT",
+  "source": "https://huggingface.co/Dibachain/Platrix/resolve/main",
+  "files": {
+    "plate_yolo.onnx": {
+      "required": true,
+      "sha256": "a54e475c402e6036bb5c70f1a6ff75179e76098a5c8039bb5d148c0b6421f5c6"
+    },
+    "plate_yolo_fallback.onnx": {
+      "required": false,
+      "sha256": "a6974fcb0a79755c270d50f1ebefd4d96d765c879a29051a19aac00dfda8b5af"
+    },
+    "ocr_crnn.onnx": {
+      "required": true,
+      "sha256": "45f8c45f29eb1ee91f6274cb8d9c328da1a2050ea7d8596bae61f4a6b9f9fb1e"
+    },
+    "ocr_crnn.labels.json": {
+      "required": true,
+      "sha256": "10d8f542d82a9c459f9bf9c5f6f3806b620a2aae74b6f81dd7ac537b36e2f16f"
+    }
+  }
+}

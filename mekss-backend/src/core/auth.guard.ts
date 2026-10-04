@@ -9,7 +9,20 @@ export const Public = () => SetMetadata(PUBLIC_ROUTE_KEY, true);
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 
-export type AuthenticatedUser = { id: string; role: Role; phoneNumber: string };
+/** activeFactoryId: a factory owner's verified X-Factory-Id selection (multi-factory accounts). */
+export type AuthenticatedUser = { id: string; role: Role; phoneNumber: string; activeFactoryId?: string };
+
+const ACTIVE_FACTORY_HEADER = 'x-factory-id';
+const opaqueIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** Narrows a factory owner to the factory picked in the UI, but only if they own it. */
+export async function resolveActiveFactoryId(prisma: PrismaService, user: AuthenticatedUser, headerValue: unknown): Promise<string | undefined> {
+  if (user.role !== Role.FACTORY_OWNER) return undefined;
+  const requested = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+  if (typeof requested !== 'string' || !opaqueIdPattern.test(requested)) return undefined;
+  const owned = await prisma.factory.count({ where: { id: requested, managerId: user.id } });
+  return owned ? requested : undefined;
+}
 type AccessTokenPayload = { sub: string; sessionVersion?: number };
 
 /** Verifies a bearer access token against the live user record (shared by HTTP and WebSocket auth). */
@@ -59,6 +72,8 @@ export class JwtAuthGuard implements CanActivate {
     const value = request.headers.authorization;
     const token = typeof value === 'string' && value.startsWith('Bearer ') ? value.slice(7) : undefined;
     request.user = await verifyAccessToken(this.jwt, this.prisma, token);
+    const activeFactoryId = await resolveActiveFactoryId(this.prisma, request.user, request.headers[ACTIVE_FACTORY_HEADER]);
+    if (activeFactoryId) request.user.activeFactoryId = activeFactoryId;
     return true;
   }
 }

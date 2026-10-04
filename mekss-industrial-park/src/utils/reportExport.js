@@ -1,9 +1,20 @@
 import * as XLSX from 'xlsx';
+import { saveBlob } from '../services/api/files.api';
+import { escapeHtml, printHtml } from './printHtml';
+import {
+  cargoTypeLabels,
+  labelFor,
+  requestPriorityLabels,
+  requestTypeLabels,
+  vehicleTypeLabels,
+} from '../constants/persianLabels';
 
 const STATUS_FA = {
   PENDING: 'در انتظار',
   PAID: 'پرداخت شده',
   OVERDUE: 'سررسید گذشته',
+  INSTALLMENTS: 'تقسیط‌شده',
+  AWAITING_CONFIRMATION: 'در انتظار تأیید پرداخت',
   CANCELLED: 'لغو شده',
   APPROVED: 'تایید شده',
   REJECTED: 'رد شده',
@@ -30,26 +41,6 @@ const formatFaDate = (value) => {
 
 const formatFaMoney = (value) =>
   Number(value || 0).toLocaleString('fa-IR', { maximumFractionDigits: 0 });
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function stamp() {
   const now = new Date();
@@ -113,8 +104,8 @@ function detailRows(data) {
       item.factoryName || '—',
       item.driverName || '—',
       item.licensePlate || '—',
-      item.cargoType || '—',
-      item.vehicleType || '—',
+      labelFor(cargoTypeLabels, item.cargoType) || '—',
+      labelFor(vehicleTypeLabels, item.vehicleType) || '—',
       STATUS_FA[item.status] || item.status,
       item.qrCode || '—',
       formatFaDate(item.createdAt),
@@ -123,10 +114,10 @@ function detailRows(data) {
   }
   return items.map((item) => [
     item.title || '—',
-    item.type || '—',
+    labelFor(requestTypeLabels, item.type) || '—',
     item.factoryName || '—',
     item.creatorName || '—',
-    item.priority || '—',
+    labelFor(requestPriorityLabels, item.priority) || '—',
     STATUS_FA[item.status] || item.status,
     formatFaDate(item.createdAt),
   ]);
@@ -161,20 +152,7 @@ export function exportReportPdf(data) {
     }</tbody></table>`
     : '<p class="empty">رکوردی برای بازه انتخاب‌شده یافت نشد.</p>';
 
-  const html = `<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/vazirmatn@5.2.5/index.css" />
-  <style>
-    :root { --brand: #21aa58; --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; padding: 28px;
-      font-family: "Vazirmatn", Tahoma, sans-serif;
-      color: var(--ink); background: #fff; line-height: 1.7;
-    }
+  const css = `
     .hero {
       display: flex; justify-content: space-between; align-items: flex-start;
       gap: 16px; padding-bottom: 18px; border-bottom: 3px solid var(--brand); margin-bottom: 22px;
@@ -189,17 +167,11 @@ export function exportReportPdf(data) {
     tr:nth-child(even) td { background: #f8fafc; }
     .empty { color: var(--muted); }
     .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
-    @media print {
-      body { padding: 12px; }
-      .no-print { display: none !important; }
-    }
-  </style>
-</head>
-<body>
-  <div class="no-print" style="margin-bottom:16px;display:flex;gap:8px;justify-content:flex-end">
-    <button onclick="window.print()" style="background:var(--brand);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:700;cursor:pointer">ذخیره / چاپ PDF</button>
-    <button onclick="window.close()" style="background:#e2e8f0;border:0;border-radius:10px;padding:10px 16px;font-family:inherit;cursor:pointer">بستن</button>
-  </div>
+    @page { size: A4 landscape; margin: 10mm; }
+    @media print { body { padding: 0; } }
+  `;
+
+  const bodyHtml = `
   <div class="hero">
     <div>
       <div class="brand">MEKSS Industrial Park</div>
@@ -211,19 +183,9 @@ export function exportReportPdf(data) {
   <table><tbody>${summaryHtml}</tbody></table>
   ${statusHtml}
   ${detailHtml}
-  <div class="footer">تولیدشده توسط سامانه مدیریت شهرک صنعتی مکس · گزارش جامع</div>
-  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 450));</script>
-</body>
-</html>`;
+  <div class="footer">تولیدشده توسط سامانه مدیریت شهرک صنعتی مکس · گزارش جامع</div>`;
 
-  const win = window.open('', '_blank');
-  if (!win) {
-    downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `mekss-report-${data.type}-${stamp()}.html`);
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  return printHtml({ title: `${title} ${stamp()}`, bodyHtml, css });
 }
 
 export function exportReportExcel(data) {
@@ -249,7 +211,7 @@ export function exportReportExcel(data) {
   XLSX.utils.book_append_sheet(wb, details, 'جزئیات');
 
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  downloadBlob(
+  saveBlob(
     new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
     `mekss-report-${data.type}-${stamp()}.xlsx`,
   );

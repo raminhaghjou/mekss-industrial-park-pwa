@@ -80,3 +80,31 @@ describe('API refresh interceptor', () => {
     expect(secondConfig.headers.Authorization).toBe('Bearer rotated-access');
   });
 });
+
+describe('API active-factory header', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: createLocalStorageMock(),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('sends X-Factory-Id for the stored active factory', () => {
+    localStorage.setItem('accessToken', 'access');
+    localStorage.setItem('activeFactoryId', 'factory-2');
+    const fulfilled = mocks.requestUse.mock.calls[0][0];
+    const config = fulfilled({ url: '/invoices', method: 'get', headers: {} });
+    expect(config.headers['X-Factory-Id']).toBe('factory-2');
+    expect(config.headers.Authorization).toBe('Bearer access');
+  });
+
+  it('omits the header when nothing is selected or the request opts out', () => {
+    const fulfilled = mocks.requestUse.mock.calls[0][0];
+    expect(fulfilled({ url: '/invoices', method: 'get', headers: {} }).headers['X-Factory-Id']).toBeUndefined();
+
+    localStorage.setItem('activeFactoryId', 'factory-2');
+    const optOut = fulfilled({ url: '/factories', method: 'get', headers: {}, skipActiveFactory: true });
+    expect(optOut.headers['X-Factory-Id']).toBeUndefined();
+  });
+});

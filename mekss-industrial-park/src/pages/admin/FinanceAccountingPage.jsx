@@ -27,13 +27,25 @@ import {
   Wallet,
   Bell,
   Printer,
+  FileSpreadsheet,
+  Pencil,
+  Percent,
+  SplitSquareHorizontal,
+  BadgeCheck,
+  CalendarClock,
+  History,
 } from 'lucide-react';
 import { invoiceApi, printInvoicePayload } from '../../services/api/invoice.api';
 import { messageApi } from '../../services/api/message.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
 import { useNotification } from '../../providers/NotificationProvider';
-import { invoiceStatusLabels } from '../../constants/persianLabels';
+import { useAuth } from '../../providers/AuthProvider';
+import { invoiceCategoryLabels, invoiceStatusLabels } from '../../constants/persianLabels';
+import { InvoiceItemsList } from '../../components/invoices/InvoiceItemsList';
+import { InvoiceImportDialog } from '../../components/invoices/InvoiceImportDialog';
+import { InvoiceOperationDialog } from '../../components/invoices/InvoiceOperationDialog';
+import { invoiceDueInfo } from '../../utils/invoiceDue';
 
 const statusColors = {
   PENDING: 'warning',
@@ -41,7 +53,16 @@ const statusColors = {
   PAID: 'success',
   OVERDUE: 'danger',
   CANCELLED: 'default',
+  INSTALLMENTS: 'accent',
 };
+
+const operationButtons = [
+  { mode: 'edit', label: 'ویرایش', icon: Pencil, permission: 'canEdit' },
+  { mode: 'discount', label: 'تخفیف', icon: Percent, permission: 'canOperate' },
+  { mode: 'installments', label: 'تقسیط', icon: SplitSquareHorizontal, permission: 'canOperate', hideForInstallment: true },
+  { mode: 'settle', label: 'تسویه دستی', icon: BadgeCheck, permission: 'canOperate' },
+  { mode: 'extend', label: 'تمدید مهلت', icon: CalendarClock, permission: 'canOperate' },
+];
 
 const formatRial = (value) => `${Number(value || 0).toLocaleString('fa-IR')} ریال`;
 
@@ -54,6 +75,10 @@ export const FinanceAccountingPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showNotification } = useNotification();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const [importOpen, setImportOpen] = useState(false);
+  const [operation, setOperation] = useState({ invoice: null, mode: null });
   const [tab, setTab] = useState('unpaid');
   const [composeFor, setComposeFor] = useState(null);
   const [compose, setCompose] = useState({ subject: '', body: '' });
@@ -90,9 +115,10 @@ export const FinanceAccountingPage = () => {
 
   const stats = useMemo(() => {
     const unpaid = invoices.filter((inv) => inv.status === 'PENDING' || inv.status === 'OVERDUE');
-    const paid = invoices.filter((inv) => inv.status === 'PAID');
+    // A completed split parent is already counted through its paid installments.
+    const paid = invoices.filter((inv) => inv.status === 'PAID' && inv.paymentMethod !== 'INSTALLMENTS');
     const unpaidTotal = unpaid.reduce((sum, inv) => sum + Number(inv.payableAmount ?? inv.totalAmount ?? 0), 0);
-    const paidTotal = paid.reduce((sum, inv) => sum + Number(inv.totalAmount ?? 0), 0);
+    const paidTotal = paid.reduce((sum, inv) => sum + Number(inv.payableAmount ?? inv.totalAmount ?? 0), 0);
     const factoryIds = new Set(unpaid.map((inv) => inv.factoryId).filter(Boolean));
     return {
       unpaidCount: unpaid.length,
@@ -114,11 +140,13 @@ export const FinanceAccountingPage = () => {
   const byFactory = useMemo(() => {
     const map = new Map();
     for (const inv of filtered) {
-      const key = inv.factoryId || 'unknown';
+      const key = inv.factoryId || (inv.parkId ? `park:${inv.parkId}` : 'unknown');
       if (!map.has(key)) {
         map.set(key, {
+          key,
           factoryId: inv.factoryId,
-          factoryName: inv.factory?.name || 'واحد نامشخص',
+          factoryName: inv.factory?.name || (inv.park?.name ? `شهرک ${inv.park.name}` : 'واحد نامشخص'),
+          isPark: !inv.factoryId && Boolean(inv.parkId),
           managerId: inv.factory?.managerId || null,
           invoices: [],
           unpaidTotal: 0,
@@ -194,15 +222,30 @@ export const FinanceAccountingPage = () => {
             اطلاعیه مالی
           </Button>
           <Button
+            variant="secondary"
+            className="gap-2 font-bold"
+            onPress={() => setImportOpen(true)}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            صدور گروهی با اکسل
+          </Button>
+          <Button
             variant="primary"
             className="gap-2 font-bold"
             onPress={() => navigate('/admin/invoices/create')}
           >
             <Plus className="h-4 w-4" />
-            صدور قبض واحد
+            {isSuperAdmin ? 'صدور صورتحساب' : 'صدور قبض واحد'}
           </Button>
         </div>
       </div>
+
+      <InvoiceImportDialog open={importOpen} onClose={() => setImportOpen(false)} isSuperAdmin={isSuperAdmin} />
+      <InvoiceOperationDialog
+        invoice={operation.invoice}
+        mode={operation.mode}
+        onClose={() => setOperation({ invoice: null, mode: null })}
+      />
 
       <Card className="rounded-2xl border border-default-200">
         <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -305,7 +348,7 @@ export const FinanceAccountingPage = () => {
       ) : (
         <div className="flex flex-col gap-4">
           {byFactory.map((unit) => (
-            <Card key={unit.factoryId || unit.factoryName} className="rounded-2xl border border-default-200">
+            <Card key={unit.key} className="rounded-2xl border border-default-200">
               <CardContent className="p-0">
                 <div className="flex flex-col gap-3 border-b border-default-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -322,6 +365,7 @@ export const FinanceAccountingPage = () => {
                       {unit.invoices.length.toLocaleString('fa-IR')} قبض در این فهرست
                     </p>
                   </div>
+                  {!unit.isPark && (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
@@ -342,9 +386,10 @@ export const FinanceAccountingPage = () => {
                       قبض جدید
                     </Button>
                   </div>
+                  )}
                 </div>
 
-                {composeFor?.factoryId === unit.factoryId && (
+                {composeFor?.key === unit.key && (
                   <form
                     className="flex flex-col gap-3 border-b border-default-100 bg-default-50/60 px-4 py-4"
                     onSubmit={(e) => {
@@ -392,21 +437,47 @@ export const FinanceAccountingPage = () => {
                 )}
 
                 <ul className="divide-y divide-default-100">
-                  {unit.invoices.map((inv) => (
-                    <li key={inv.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  {unit.invoices.map((inv) => {
+                    const due = invoiceDueInfo(inv);
+                    return (
+                    <li key={inv.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-foreground">{inv.description}</span>
                           <Chip size="sm" color={statusColors[inv.status] || 'default'} variant="soft">
                             {invoiceStatusLabels[inv.status] || inv.status}
                           </Chip>
+                          {inv.category && (
+                            <Chip size="sm" variant="soft">{invoiceCategoryLabels[inv.category] || inv.category}</Chip>
+                          )}
+                          {inv.installmentNo ? (
+                            <Chip size="sm" variant="soft" color="accent">قسط {Number(inv.installmentNo).toLocaleString('fa-IR')}</Chip>
+                          ) : null}
                         </div>
+                        <InvoiceItemsList items={inv.items} compact />
                         <p className="mt-1 text-xs text-foreground-500">
                           {inv.invoiceNumber}
                           {' · '}
-                          سررسید {new Date(inv.dueDate).toLocaleDateString('fa-IR')}
+                          مهلت {due.dateFa}
+                          {due.text ? ` (${due.text})` : ''}
                           {inv.paymentDate ? ` · پرداخت ${new Date(inv.paymentDate).toLocaleDateString('fa-IR')}` : ''}
+                          {inv.paymentMethod?.startsWith('MANUAL_') ? ' · تسویه دستی' : ''}
+                          {inv.createdBy?.name ? ` · صادرکننده: ${inv.createdBy.name}` : ''}
                         </p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {operationButtons
+                            .filter((op) => inv[op.permission] && !(op.hideForInstallment && inv.parentInvoiceId))
+                            .map((op) => (
+                              <Button key={op.mode} size="sm" variant="tertiary" className="gap-1 rounded-xl" onPress={() => setOperation({ invoice: inv, mode: op.mode })}>
+                                <op.icon className="h-3.5 w-3.5" />
+                                {op.label}
+                              </Button>
+                            ))}
+                          <Button size="sm" variant="ghost" className="gap-1 rounded-xl" onPress={() => setOperation({ invoice: inv, mode: 'history' })}>
+                            <History className="h-3.5 w-3.5" />
+                            تاریخچه
+                          </Button>
+                        </div>
                       </div>
                       <div className="text-start sm:text-end">
                         <Button size="sm" variant="tertiary" className="mb-1 gap-1 rounded-xl" onPress={() => handlePrint(inv.id)}>
@@ -416,6 +487,11 @@ export const FinanceAccountingPage = () => {
                         <p className="font-bold text-foreground">
                           {formatRial(inv.payableAmount ?? inv.totalAmount)}
                         </p>
+                        {Number(inv.discountAmount || 0) > 0 && (
+                          <p className="text-[11px] text-success-700">
+                            تخفیف {formatRial(inv.discountAmount)}
+                          </p>
+                        )}
                         {Number(inv.latePenaltyAmount || 0) > 0 && (
                           <p className="text-[11px] text-danger-600">
                             شامل جریمه {formatRial(inv.latePenaltyAmount)}
@@ -434,7 +510,8 @@ export const FinanceAccountingPage = () => {
                         )}
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </CardContent>
             </Card>
@@ -445,7 +522,8 @@ export const FinanceAccountingPage = () => {
   );
 };
 
-const SummaryCard = ({ icon: Icon, tone, label, value, hint }) => {
+const SummaryCard = ({ icon, tone, label, value, hint }) => {
+  const Icon = icon;
   const tones = {
     danger: 'bg-danger-50 text-danger-700 border-danger-100',
     warning: 'bg-warning-50 text-warning-800 border-warning-100',

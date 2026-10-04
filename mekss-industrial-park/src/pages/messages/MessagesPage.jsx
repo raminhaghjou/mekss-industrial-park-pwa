@@ -693,15 +693,19 @@ export const MessagesPage = () => {
                 </div>
                 {(selectedMessage.attachments || []).length > 0 && (
                   <ul className="mt-4 flex flex-col gap-2">
-                    {(selectedMessage.attachments || []).map((fileId) => (
+                    {(selectedMessage.attachments || []).map((fileId, index, all) => (
                       <li key={fileId}>
                         <Button
                           size="sm"
                           variant="tertiary"
                           className="rounded-xl"
-                          onPress={() => filesApi.download(fileId, `attachment-${fileId}`)}
+                          onPress={() => {
+                            filesApi.download(fileId, `پیوست-${index + 1}`).catch((err) => (
+                              showNotification(getErrorMessage(err, 'دانلود پیوست ناموفق بود'), 'error')
+                            ));
+                          }}
                         >
-                          دانلود پیوست
+                          {all.length > 1 ? `دانلود پیوست ${(index + 1).toLocaleString('fa-IR')}` : 'دانلود پیوست'}
                         </Button>
                       </li>
                     ))}

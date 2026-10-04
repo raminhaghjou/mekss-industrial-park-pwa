@@ -1,8 +1,21 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { AuthenticatedUser, JwtAuthGuard, Public, Roles, RolesGuard } from './auth.guard';
+import { IMPORT_MAX_FILE_BYTES } from './invoice-import';
 import {
+  CreateBannerDto,
+  InvoiceDiscountDto,
+  InvoiceExtendDueDto,
+  InvoiceImportQueryDto,
+  InvoiceInstallmentsDto,
+  InvoiceSettleDto,
+  InvoiceTemplateQueryDto,
+  ResolveEmergencyDto,
+  UpdateBannerDto,
   AdvertisementAdminQueryDto,
   AdvertisementModerationDto,
   ApproveRegistrationDto,
@@ -103,6 +116,8 @@ export class ManagementController {
   @Post('factories/:id/pending-changes/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') rejectPendingFactoryChanges(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decidePendingFactoryChanges(currentUser(req), params.id, false); }
   @Post('factories/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') approveFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.decideFactory(currentUser(req), params.id, true); }
   @Post('factories/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') rejectFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.decideFactory(currentUser(req), params.id, false, body.reason); }
+  @Post('factories/:id/suspend') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') suspendFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.setFactorySuspended(currentUser(req), params.id, true, body.reason); }
+  @Post('factories/:id/unsuspend') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') unsuspendFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.setFactorySuspended(currentUser(req), params.id, false); }
 
   @Get('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePasses(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
     return this.management.listGatePasses(currentUser(req), {
@@ -134,8 +149,25 @@ export class ManagementController {
   @Get('invoices/:id/pdf') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoicePdf(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) {
     return this.management.invoicePdfPayload(currentUser(req), params.id);
   }
+  @Get('invoices/import/template') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') async invoiceImportTemplate(@Req() req: AuthenticatedRequest, @Query() query: InvoiceTemplateQueryDto, @Res() res: Response) {
+    const { buffer, fileName } = await this.management.invoiceImportTemplate(currentUser(req), query);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(buffer);
+  }
+  @Post('invoices/import') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: IMPORT_MAX_FILE_BYTES, files: 1 } }))
+  importInvoices(@Req() req: AuthenticatedRequest, @UploadedFile() file: Express.Multer.File, @Query() query: InvoiceImportQueryDto) {
+    return this.management.importInvoices(currentUser(req), file, { dryRun: query.dryRun === 'true' || query.dryRun === '1', target: query.target });
+  }
   @Post('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') createInvoice(@Req() req: AuthenticatedRequest, @Body() body: CreateInvoiceDto) { return this.management.createInvoice(currentUser(req), body); }
   @Put('invoices/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') updateInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateInvoiceDto) { return this.management.updateInvoice(currentUser(req), params.id, body); }
+  @Get('invoices/:id/adjustments') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoiceAdjustments(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.invoiceAdjustments(currentUser(req), params.id); }
+  @Post('invoices/:id/discount') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') discountInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceDiscountDto) { return this.management.discountInvoice(currentUser(req), params.id, body); }
+  @Post('invoices/:id/installments') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') splitInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceInstallmentsDto) { return this.management.splitInvoiceIntoInstallments(currentUser(req), params.id, body); }
+  @Post('invoices/:id/settle') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') settleInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceSettleDto) { return this.management.settleInvoiceManually(currentUser(req), params.id, body); }
+  @Post('invoices/:id/extend-due') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') extendInvoiceDue(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceExtendDueDto) { return this.management.extendInvoiceDueDate(currentUser(req), params.id, body); }
   @Post('invoices/:id/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Invoices') startPayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Headers('idempotency-key') idempotencyKey?: string) { return this.management.startPayment(currentUser(req), params.id, idempotencyKey); }
   @Post('invoices/:id/confirm-payment') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') confirmInvoicePayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.confirmInvoicePayment(currentUser(req), params.id); }
 
@@ -216,9 +248,16 @@ export class ManagementController {
 
   @Get('emergency') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Emergency') emergencies(@Req() req: AuthenticatedRequest) { return this.management.emergencies(currentUser(req)); }
   @Get('emergency/active') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Emergency') activeEmergencies(@Req() req: AuthenticatedRequest) { return this.management.activeEmergencies(currentUser(req)); }
-  @Post('emergency') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD) @ApiTags('Emergency') createEmergency(@Req() req: AuthenticatedRequest, @Body() body: CreateEmergencyDto) { return this.management.createEmergency(currentUser(req), body); }
+  @Post('emergency') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.EMPLOYEE) @ApiTags('Emergency') createEmergency(@Req() req: AuthenticatedRequest, @Body() body: CreateEmergencyDto) { return this.management.createEmergency(currentUser(req), body); }
   @Post('emergency/:id/acknowledge') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.SECURITY_GUARD) @ApiTags('Emergency') acknowledgeEmergency(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.emergencyAction(currentUser(req), params.id, 'acknowledge'); }
-  @Post('emergency/:id/resolve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Emergency') resolveEmergency(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.emergencyAction(currentUser(req), params.id, 'resolve'); }
+  @Post('emergency/:id/resolve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.EMPLOYEE) @ApiTags('Emergency') resolveEmergency(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ResolveEmergencyDto) { return this.management.emergencyAction(currentUser(req), params.id, 'resolve', body?.note); }
+
+  @Get('banners/active') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Banners') activeBanners(@Req() req: AuthenticatedRequest) { return this.management.activeBanners(currentUser(req)); }
+  @Get('banners/managed') @Roles(Role.SUPER_ADMIN) @ApiTags('Banners') managedBanners() { return this.management.managedBanners(); }
+  @Post('banners/managed') @Roles(Role.SUPER_ADMIN) @ApiTags('Banners') createBanner(@Req() req: AuthenticatedRequest, @Body() body: CreateBannerDto) { return this.management.createBanner(currentUser(req), body); }
+  @Put('banners/managed/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Banners') updateBanner(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateBannerDto) { return this.management.updateBanner(currentUser(req), params.id, body); }
+  @Delete('banners/managed/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Banners') deleteBanner(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteBanner(currentUser(req), params.id); }
+  @Post('banners/:id/click') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Banners') bannerClick(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.recordBannerClick(currentUser(req), params.id); }
 
   @Get('analytics/dashboard') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Analytics') dashboard(@Req() req: AuthenticatedRequest) { return this.management.dashboard(currentUser(req)); }
 }

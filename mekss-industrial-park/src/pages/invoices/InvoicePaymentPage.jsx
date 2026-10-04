@@ -16,6 +16,8 @@ import { ArrowRight, CreditCard } from 'lucide-react';
 import { invoiceApi } from '../../services/api/invoice.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { invoiceDueInfo } from '../../utils/invoiceDue';
+import { InvoiceItemsList } from '../../components/invoices/InvoiceItemsList';
 
 const money = (value) => Number(value || 0).toLocaleString('fa-IR');
 
@@ -75,16 +77,12 @@ const InvoicePaymentPage = () => {
   const latePenaltyPerDay = Number(invoice.latePenaltyPerDay || 0);
   const latePenaltyAmount = Number(invoice.latePenaltyAmount || 0);
   const payableAmount = Number(invoice.payableAmount ?? baseTotal);
+  const discountAmount = Number(invoice.discountAmount || 0);
   const unpaid = invoice.status === 'PENDING' || invoice.status === 'OVERDUE';
+  const dueInfo = invoiceDueInfo(invoice);
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
-      <div className="flex items-center">
-        <Button variant="ghost" onPress={() => navigate('/invoices')} className="rounded-xl font-medium flex items-center gap-2">
-          <ArrowRight className="h-4 w-4" />
-          بازگشت
-        </Button>
-      </div>
       <Card className="border border-default-200 shadow-lg rounded-3xl p-4 dark:border-white/10 glass-card">
         <CardContent className="gap-6 p-6">
           <div className="text-center">
@@ -108,8 +106,11 @@ const InvoicePaymentPage = () => {
             <div className="sm:col-span-2 flex flex-col gap-1 p-3 rounded-2xl bg-default-50 dark:bg-default-100/30">
               <span className="text-xs text-foreground-500 font-medium">شرح قبض</span>
               <span className="font-semibold text-foreground">{invoice.description}</span>
+              {dueInfo.text && <span className={`text-xs ${dueInfo.tone === 'danger' ? 'text-danger' : 'text-foreground-500'}`}>{dueInfo.text}</span>}
             </div>
           </div>
+
+          <InvoiceItemsList items={invoice.items} />
 
           <Separator />
 
@@ -122,6 +123,12 @@ const InvoicePaymentPage = () => {
               <span className="text-foreground-500">مالیات</span>
               <span dir="ltr">{money(invoice.taxAmount)} ریال</span>
             </div>
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-success-700">
+                <span>تخفیف</span>
+                <span dir="ltr">-{money(discountAmount)} ریال</span>
+              </div>
+            )}
             <div className="flex items-center justify-between font-medium">
               <span className="text-foreground-600">جمع پایه</span>
               <span dir="ltr">{money(baseTotal)} ریال</span>
@@ -177,6 +184,20 @@ const InvoicePaymentPage = () => {
               <AlertContent>
                 <AlertTitle>لغو شده</AlertTitle>
                 <AlertDescription>این قبض لغو شده و قابل پرداخت نیست.</AlertDescription>
+              </AlertContent>
+            </Alert>
+          ) : invoice.status === 'INSTALLMENTS' ? (
+            <Alert status="accent">
+              <AlertContent>
+                <AlertTitle>تقسیط‌شده</AlertTitle>
+                <AlertDescription>این قبض به چند قسط تقسیم شده است؛ اقساط را از فهرست قبض‌ها پرداخت کنید.</AlertDescription>
+              </AlertContent>
+            </Alert>
+          ) : invoice.status === 'AWAITING_CONFIRMATION' ? (
+            <Alert status="accent">
+              <AlertContent>
+                <AlertTitle>در انتظار تأیید</AlertTitle>
+                <AlertDescription>پرداخت این قبض ثبت شده و منتظر تأیید مدیر شهرک است.</AlertDescription>
               </AlertContent>
             </Alert>
           ) : (

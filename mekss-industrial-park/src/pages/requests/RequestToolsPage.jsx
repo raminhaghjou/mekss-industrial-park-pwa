@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, Button, Input, Label } from '@heroui/react';
-import { ArrowRight, Calculator, Download, FileText } from 'lucide-react';
+import { Calculator, Download, FileText } from 'lucide-react';
+import { escapeHtml, printHtml } from '../../utils/printHtml';
 
 const adminForms = [
   { id: 'settlement', title: 'فرم درخواست تسویه حساب', note: 'نامه تسویه برای مدیر شهرک' },
@@ -10,20 +10,14 @@ const adminForms = [
   { id: 'appointment', title: 'فرم نوبت کارشناسان صمت', note: 'درخواست وقت ملاقات' },
 ];
 
-const printFormGuide = (form) => {
-  const win = window.open('', '_blank', 'noopener,noreferrer');
-  if (!win) return;
-  win.document.write(`<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"/><title>${form.title}</title>
-    <style>body{font-family:Tahoma;padding:24px;line-height:2}h1{font-size:18px}</style></head><body>
-    <h1>${form.title}</h1>
-    <p>${form.note}</p>
-    <p>این نسخه راهنماست. فرم رسمی را از مدیر شهرک دریافت و پس از تکمیل در «ثبت درخواست» بارگذاری کنید.</p>
-    <button onclick="window.print()">پرینت</button></body></html>`);
-  win.document.close();
-};
+const printFormGuide = (form) => printHtml({
+  title: form.title,
+  css: 'body{line-height:2}',
+  bodyHtml: `<div class="header"><div><h1>${escapeHtml(form.title)}</h1><div class="muted">${escapeHtml(form.note)}</div></div><div class="brand">MEKSS</div></div>
+    <p>این نسخه راهنماست. فرم رسمی را از مدیر شهرک دریافت و پس از تکمیل در «ثبت درخواست» بارگذاری کنید.</p>`,
+});
 
 export const RequestToolsPage = () => {
-  const navigate = useNavigate();
   const [area, setArea] = useState('');
   const [chargeRate, setChargeRate] = useState('');
   const [waterRate, setWaterRate] = useState('');
@@ -47,13 +41,7 @@ export const RequestToolsPage = () => {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" onPress={() => navigate('/requests')} className="gap-2 rounded-xl">
-          <ArrowRight className="h-4 w-4" />
-          بازگشت
-        </Button>
-        <h1 className="text-xl font-bold">فرم‌های اداری و محاسبه نرخ</h1>
-      </div>
+      <h1 className="text-xl font-bold">فرم‌های اداری و محاسبه نرخ</h1>
 
       <Card className="rounded-2xl border border-default-200">
         <CardContent className="gap-4 p-6">

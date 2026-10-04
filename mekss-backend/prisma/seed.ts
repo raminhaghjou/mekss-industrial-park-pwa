@@ -173,7 +173,7 @@ async function main() {
         driverName: 'راننده نمونه',
         driverNationalId: '1234567890',
         driverPhone: '09120000006',
-        vehicleType: VehicleType.TRUCK,
+        vehicleType: VehicleType.KHAVAR,
         licensePlate: '12الف123-45',
         exitDate: new Date('2026-12-31T12:00:00Z'),
         qrCode: 'MEKSS-DEMO-GATE-PASS',

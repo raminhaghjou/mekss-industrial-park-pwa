@@ -21,7 +21,7 @@ import {
   Label,
   Spinner,
 } from '@heroui/react';
-import { ArrowRight, FilePlus } from 'lucide-react';
+import { FilePlus } from 'lucide-react';
 import { requestApi } from '../../services/api/request.api';
 import { factoryApi } from '../../services/api/factory.api';
 import { useActiveFactory } from '../../providers/ActiveFactoryProvider';
@@ -83,6 +83,11 @@ const NewRequestPage = () => {
     else if (factories?.length === 1) setFactoryId(factories[0].id);
   }, [activeFactoryId, factories, factoryId]);
 
+  // Owners act on the active unit; follow it when it is switched from the header.
+  React.useEffect(() => {
+    if (user?.role === 'FACTORY_OWNER' && activeFactoryId) setFactoryId(activeFactoryId);
+  }, [user?.role, activeFactoryId]);
+
   const createMutation = useMutation({
     mutationFn: (payload) => requestApi.createRequest(payload),
     onSuccess: () => {
@@ -118,12 +123,6 @@ const NewRequestPage = () => {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div className="flex items-center">
-        <Button variant="ghost" onPress={() => navigate('/requests')} className="flex items-center gap-2 rounded-xl font-medium">
-          <ArrowRight className="h-4 w-4" />
-          بازگشت به لیست
-        </Button>
-      </div>
 
       <Card className="rounded-3xl border border-default-200 p-2 shadow-sm">
         <CardContent className="gap-6 p-6">

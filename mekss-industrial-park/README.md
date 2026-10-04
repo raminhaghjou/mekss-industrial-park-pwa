@@ -83,6 +83,31 @@ like the models, cached by the service worker after first use. Multi-threaded WA
 page is cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin` +
 `Cross-Origin-Embedder-Policy: require-corp`); otherwise a single thread is used.
 
+### Billing, banners and units
+- **Invoices**
+  - Invoices are issued as line items (charge or platform lines).
+  - Bulk issuing works from Excel at `/admin/finance` → «صدور گروهی با اکسل»: download the template, fill it, preview, commit. Units are keyed by national ID and parks by exact name.
+  - Discount, installments, manual settlement and due-date extension are in each invoice's operations on the same page.
+  - Extending the due date of a late invoice does not stop its daily penalty (see the backend README).
+  - The unit dashboard shows a debt banner with the nearest due date and the days left or overdue.
+- **Dashboard banners**
+  - Managed by the super admin at `/superadmin/banners`.
+  - Each banner has a desktop image (1920×480) and a mobile image (1080×540). The carousel loads only the variant that fits the screen.
+  - The carousel rotates every 6.5 s and pauses on hover, focus, a hidden tab or reduced motion.
+  - Links must be `https://…` or an in-app `/…` path.
+- **Several units per owner**
+  - After login, an owner with more than one unit picks a unit at `/select-factory`. The header switcher changes the unit later.
+  - The selected id is stored in `localStorage` (`activeFactoryId`) and sent as the `X-Factory-Id` header.
+  - Switching units resets the query cache.
+- **Gate pass wallet**
+  - The wallet is optional and switched globally by the super admin in Settings.
+  - When it is off, the wallet menu, the dashboard shortcut and the fee notice are hidden for park managers and owners.
+- **Printing**
+  - All printing (invoices, requests, reports, gate passes) goes through `src/utils/printHtml.js`. It uses a hidden iframe and the bundled Vazirmatn font, with no CDN and no popup, so it also works in the installed PWA.
+  - If the print dialog cannot open, an HTML copy is downloaded instead.
+  - A new gate pass opens a printable dialog with its QR code, and every row in the gate-pass list has a print action. Both offer A5 and 80 mm thermal layouts.
+- **Downloads** keep the server file name (from `Content-Disposition`) and add a MIME-based extension when the name has none.
+
 ## 📁 Project Structure
 
 ```

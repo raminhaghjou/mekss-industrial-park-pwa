@@ -69,12 +69,6 @@ const VerifyGatePassPage = () => {
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
-      <div className="flex items-center">
-        <Button variant="ghost" onPress={() => navigate('/guard/gate-passes')} className="rounded-xl font-medium flex items-center gap-2">
-          <ArrowRight className="h-4 w-4" />
-          بازگشت به لیست
-        </Button>
-      </div>
 
       <Card className="border border-default-200 shadow-lg rounded-3xl p-2 dark:border-white/10 glass-card">
         <CardContent className="p-6 gap-6">

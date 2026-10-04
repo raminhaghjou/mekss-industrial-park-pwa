@@ -33,6 +33,9 @@ import JalaliDatePicker from '../common/JalaliDatePicker';
 import IranLicensePlateInput from '../common/IranLicensePlateInput';
 import { isCompleteIranLicensePlate } from '../../utils/iranLicensePlate';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { GatePassPrintDialog } from './GatePassPrintDialog';
+import { useActiveFactory } from '../../providers/ActiveFactoryProvider';
+import { ACTIVE_VEHICLE_TYPES, selectableVehicleType, vehicleTypeLabels } from '../../constants/persianLabels';
 
 const cargoTypes = [
   { value: 'RAW_MATERIALS', label: 'مواد اولیه' },
@@ -43,17 +46,11 @@ const cargoTypes = [
   { value: 'OTHER', label: 'سایر' },
 ];
 
-const vehicleTypes = [
-  { value: 'TRUCK', label: 'کامیون' },
-  { value: 'VAN', label: 'وانت' },
-  { value: 'CAR', label: 'سواری' },
-  { value: 'MOTORCYCLE', label: 'موتورسیکلت' },
-  { value: 'OTHER', label: 'سایر' },
-];
+const vehicleTypes = ACTIVE_VEHICLE_TYPES.map((value) => ({ value, label: vehicleTypeLabels[value] }));
 
 const emptyForm = {
   factoryId: '', cargoType: 'RAW_MATERIALS', cargoDescription: '', driverName: '', driverNationalId: '',
-  driverPhone: '', vehicleType: 'TRUCK', licensePlate: '', exitDate: '',
+  driverPhone: '', vehicleType: '', licensePlate: '', exitDate: '',
 };
 
 const FormSelect = ({ label, value, onChange, options, isDisabled = false, isRequired = false, placeholder = 'انتخاب کنید' }) => (
@@ -103,7 +100,10 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
   const queryClient = useQueryClient();
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [saveDriverPrompt, setSaveDriverPrompt] = useState(null);
+  const [issued, setIssued] = useState(null);
   const { user, refreshProfile } = useAuth();
+  const isOwner = user?.role === 'FACTORY_OWNER';
+  const { activeFactory, activeFactoryId, isLoading: loadingActiveFactory } = useActiveFactory();
   const [form, setForm] = useState(() => {
     const driver = !initialPass && user?.defaultDriver && typeof user.defaultDriver === 'object'
       ? user.defaultDriver
@@ -115,7 +115,7 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
       driverName: initialPass.driverName || '',
       driverNationalId: initialPass.driverNationalId || '',
       driverPhone: initialPass.driverPhone || '',
-      vehicleType: initialPass.vehicleType || 'TRUCK',
+      vehicleType: selectableVehicleType(initialPass.vehicleType),
       licensePlate: initialPass.licensePlate || '',
       exitDate: initialPass.exitDate || '',
     } : {
@@ -123,29 +123,38 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
       driverName: driver?.driverName || '',
       driverNationalId: driver?.driverNationalId || '',
       driverPhone: driver?.driverPhone || '',
-      vehicleType: driver?.vehicleType || 'TRUCK',
+      vehicleType: selectableVehicleType(driver?.vehicleType),
       licensePlate: driver?.licensePlate || '',
     };
   });
 
-  const { data: factories, isLoading: loadingFactories, isError: factoriesError } = useQuery({
+  // Owners always issue for the active unit picked in the header; only the super admin chooses a factory here.
+  const { data: factories, isLoading: loadingFactoryList, isError: factoriesError } = useQuery({
     queryKey: ['factories', 'managed'],
     queryFn: () => factoryApi.getFactories().then((res) => res.data),
+    enabled: !isOwner,
   });
+  const loadingFactories = isOwner ? loadingActiveFactory : loadingFactoryList;
+
+  useEffect(() => {
+    if (!isOwner || isEdit) return;
+    setForm((prev) => (prev.factoryId === activeFactoryId ? prev : { ...prev, factoryId: activeFactoryId || '' }));
+  }, [isOwner, isEdit, activeFactoryId]);
 
   const { data: walletSettings } = useQuery({
     queryKey: ['settings', 'gate-pass-wallet'],
     queryFn: () => settingsApi.getGatePassWallet().then((res) => res.data),
-    enabled: !isEdit,
-  });
-
-  const { data: wallet } = useQuery({
-    queryKey: ['factory-wallet', form.factoryId],
-    queryFn: () => factoryApi.getWallet(form.factoryId).then((res) => res.data),
-    enabled: !isEdit && Boolean(form.factoryId),
+    // The setting endpoint is readable by these roles only; employees rely on the server-side check.
+    enabled: !isEdit && ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'].includes(user?.role),
   });
 
   const requireWallet = walletSettings?.requireWalletBalance !== false;
+  const { data: wallet } = useQuery({
+    queryKey: ['factory-wallet', form.factoryId],
+    queryFn: () => factoryApi.getWallet(form.factoryId).then((res) => res.data),
+    enabled: !isEdit && Boolean(form.factoryId) && Boolean(walletSettings) && requireWallet,
+  });
+
   const fee = Number(walletSettings?.fee || 0);
   const balance = Number(wallet?.balance ?? NaN);
   const walletBlocked = !isEdit
@@ -160,11 +169,11 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
   }, [walletBlocked]);
 
   useEffect(() => {
-    if (isEdit || form.factoryId || !factories?.length) return;
+    if (isOwner || isEdit || form.factoryId || !factories?.length) return;
     if (factories.length === 1) {
       setForm((prev) => ({ ...prev, factoryId: factories[0].id }));
     }
-  }, [factories, form.factoryId, isEdit]);
+  }, [factories, form.factoryId, isEdit, isOwner]);
 
   const saveMutation = useMutation({
     mutationFn: (/** @type {typeof emptyForm} */ payload) => (
@@ -181,7 +190,7 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
           })
         : gatePassApi.createGatePass(payload)
     ),
-    onSuccess: (_res, variables) => {
+    onSuccess: (res, variables) => {
       showNotification(
         isEdit
           ? 'برگ خروج با موفقیت به‌روز شد.'
@@ -191,13 +200,19 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
       queryClient.invalidateQueries({ queryKey: ['gate-passes'] });
       queryClient.invalidateQueries({ queryKey: ['factory-wallet'] });
       if (!isEdit) {
-        setSaveDriverPrompt({
+        const driver = {
           driverName: variables.driverName,
           driverNationalId: variables.driverNationalId,
           driverPhone: variables.driverPhone,
           vehicleType: variables.vehicleType,
           licensePlate: variables.licensePlate,
-        });
+        };
+        const createdPass = res?.data;
+        if (createdPass?.id) {
+          setIssued({ pass: createdPass, driver });
+        } else {
+          setSaveDriverPrompt(driver);
+        }
         return;
       }
       handleBack();
@@ -231,6 +246,14 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     const required = ['factoryId', 'cargoType', 'driverName', 'driverNationalId', 'driverPhone', 'vehicleType', 'licensePlate', 'exitDate'];
+    if (!form.factoryId && isOwner) {
+      showNotification('ابتدا واحد صنعتی فعال را از بالای صفحه انتخاب کنید.', 'error');
+      return;
+    }
+    if (!form.vehicleType) {
+      showNotification('نوع خودرو را انتخاب کنید.', 'error');
+      return;
+    }
     if (required.some((field) => !form[field])) {
       showNotification('لطفا تمام فیلدهای الزامی را پر کنید.', 'error');
       return;
@@ -307,15 +330,29 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormSelect
-                label="واحد صنعتی"
-                value={form.factoryId}
-                onChange={(value) => handleChange('factoryId', value)}
-                options={factoryOptions}
-                isDisabled={loadingFactories || isEdit}
-                isRequired
-                placeholder="واحد صنعتی را انتخاب کنید..."
-              />
+              {isOwner ? (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs font-medium text-foreground-600">واحد صنعتی</Label>
+                  <div className="flex min-h-11 items-center rounded-xl border border-default-200 bg-default-50 px-3 text-sm font-medium text-foreground dark:border-white/10 dark:bg-white/5" data-testid="gate-pass-active-factory">
+                    {isEdit
+                      ? (initialPass?.factory?.name || activeFactory?.name || '—')
+                      : (activeFactory?.name || (loadingFactories ? 'در حال دریافت…' : 'واحد فعالی انتخاب نشده است'))}
+                  </div>
+                  {!isEdit && (
+                    <span className="text-[11px] text-foreground-500">برای ثبت برگ خروج واحد دیگر، واحد فعال را از بالای صفحه عوض کنید.</span>
+                  )}
+                </div>
+              ) : (
+                <FormSelect
+                  label="واحد صنعتی"
+                  value={form.factoryId}
+                  onChange={(value) => handleChange('factoryId', value)}
+                  options={factoryOptions}
+                  isDisabled={loadingFactories || isEdit}
+                  isRequired
+                  placeholder="واحد صنعتی را انتخاب کنید..."
+                />
+              )}
 
               <FormSelect
                 label="نوع بار"
@@ -357,6 +394,7 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
                 onChange={(value) => handleChange('vehicleType', value)}
                 options={vehicleTypes}
                 isRequired
+                placeholder="نوع خودرو را انتخاب کنید..."
               />
 
               <IranLicensePlateInput
@@ -416,14 +454,28 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
         onClose={() => setWalletModalOpen(false)}
       />
 
+      {issued && (
+        <GatePassPrintDialog
+          pass={issued.pass}
+          title="برگ خروج صادر شد"
+          issued
+          onClose={() => {
+            const { driver } = issued;
+            setIssued(null);
+            setSaveDriverPrompt(driver);
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={Boolean(saveDriverPrompt)}
         title="ذخیره راننده؟"
         description="آیا اطلاعات این راننده و خودرو به‌عنوان پیش‌فرض برای دفعات بعد ذخیره شود؟"
         confirmLabel="بله، ذخیره شود"
         cancelLabel="خیر"
+        loading={saveDriverMutation.isPending}
         onConfirm={() => {
-          if (saveDriverPrompt) saveDriverMutation.mutate(saveDriverPrompt);
+          if (saveDriverPrompt && !saveDriverMutation.isPending) saveDriverMutation.mutate(saveDriverPrompt);
         }}
         onClose={() => {
           setSaveDriverPrompt(null);

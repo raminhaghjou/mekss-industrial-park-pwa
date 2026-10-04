@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { BackButton } from '../common/BackButton';
 
 const links = [
   { to: '/welcome', label: 'خانه' },
@@ -19,12 +20,19 @@ export const PublicShell = ({ children, bare = false }) => {
     <div className="min-h-dvh bg-[var(--color-surface-soft)] text-[var(--color-ink)]">
       <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link to="/welcome" className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-brand)] text-sm font-bold text-[var(--color-on-brand)]">
-              M
-            </span>
-            <span className="text-sm font-bold tracking-[0.16em] text-[var(--color-ink)]">MEKSS</span>
-          </Link>
+          <div className="flex items-center gap-1">
+            <BackButton
+              fallback="/welcome"
+              hiddenOn={['/welcome']}
+              className="rounded-[var(--radius-sm)] text-[var(--color-ink)] hover:bg-[var(--color-surface-soft)]"
+            />
+            <Link to="/welcome" className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-brand)] text-sm font-bold text-[var(--color-on-brand)]">
+                M
+              </span>
+              <span className="text-sm font-bold tracking-[0.16em] text-[var(--color-ink)]">MEKSS</span>
+            </Link>
+          </div>
 
           <nav className="hidden items-center gap-1 md:flex">
             {links.map((link) => {

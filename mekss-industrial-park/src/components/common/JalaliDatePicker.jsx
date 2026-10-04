@@ -58,6 +58,17 @@ const JalaliDatePicker = ({
     minutes: selected?.minutes ?? 0,
   });
 
+  const selectedHours = selected?.hours;
+  const selectedMinutes = selected?.minutes;
+  useEffect(() => {
+    if (!includeTime || selectedHours === undefined || selectedMinutes === undefined) return;
+    setTime((current) => (
+      current.hours === selectedHours && current.minutes === selectedMinutes
+        ? current
+        : { hours: selectedHours, minutes: selectedMinutes }
+    ));
+  }, [includeTime, selectedHours, selectedMinutes]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onPointer = (event) => {
@@ -83,8 +94,9 @@ const JalaliDatePicker = ({
     setOpen(false);
   };
 
-  const display = includeTime && value
-    ? `${formatJalaliDate(value)}  ${toFaDigits(`${pad2(time.hours)}:${pad2(time.minutes)}`)}`
+  // Date-time values are UTC ISO strings: show the local (Tehran) day and time, not the UTC date prefix.
+  const display = includeTime && value && selected
+    ? toFaDigits(`${selected.jy}/${pad2(selected.jm)}/${pad2(selected.jd)}  ${pad2(selected.hours)}:${pad2(selected.minutes)}`)
     : formatJalaliDate(value);
 
   const cells = calendarCells(view.jy, view.jm);

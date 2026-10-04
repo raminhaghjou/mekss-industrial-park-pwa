@@ -261,6 +261,9 @@ npm run test:cov
 - `GET /api/v1/factories/:id` - Get factory details
 - `PUT /api/v1/factories/:id` - Update factory
 - `DELETE /api/v1/factories/:id` - Delete factory
+- `POST /api/v1/factories/:id/suspend` (`{ reason }`) / `POST /api/v1/factories/:id/unsuspend` - Suspend or reactivate a unit (super admin, or the manager of its park). A suspended unit cannot issue gate passes or submit requests; reading, paying invoices and messaging stay available.
+
+Owners with several units send the active unit in the `X-Factory-Id` header. The auth guard accepts it only for a unit the owner actually owns (otherwise it is ignored), and every factory-scoped query is narrowed to that unit. `GET /factories` itself is never narrowed, so the unit picker always lists all owned units.
 
 ### Gate Passes
 - `GET /api/v1/gate-passes` - List gate passes
@@ -276,6 +279,28 @@ npm run test:cov
 - `GET /api/v1/invoices/:id` - Get invoice details
 - `PUT /api/v1/invoices/:id` - Update invoice
 - `POST /api/v1/invoices/:id/pay` - Pay invoice
+- `GET /api/v1/invoices/import/template?category=CHARGE|PLATFORM&target=FACTORY|PARK` - Excel template
+- `POST /api/v1/invoices/import?target=FACTORY|PARK&dryRun=true|false` (multipart `file`) - Preview (`dryRun=true`) or commit an Excel import
+- `GET /api/v1/invoices/:id/adjustments` - Change history (discount, installments, settlement, due-date extension)
+- `POST /api/v1/invoices/:id/discount` | `/installments` | `/settle` | `/extend-due` - Invoice operations (super admin / park manager)
+
+#### Invoice lines
+An invoice is a list of lines (`InvoiceItem`); `totalAmount` is always the sum of its lines.
+- Charge invoices (park manager → unit): water, sewage, renovation/repair share, share debt, other.
+- Platform invoices (super admin → park or unit): entrance fee, monthly membership, other.
+- An "other" line needs a title.
+
+#### Excel import
+1. Download the template. The units sheet is keyed by the 11-digit **national ID of the unit**; the parks sheet is keyed by the **exact park name**.
+2. Fill one row per invoice:
+   - Amounts in Rials. Persian digits and thousands separators are accepted.
+   - Due date in the Jalali calendar, e.g. `1405/07/30`, today or later.
+   - Daily late penalty is optional.
+3. Upload with `dryRun=true` to get a row-by-row preview with errors.
+4. Commit only when every row is valid. The whole file is written in one transaction, and the same file (by hash) cannot be imported twice.
+
+#### Late penalty rule
+The daily penalty counts calendar days after the due date. When the due date is extended, `penaltyStartsAt` keeps the original anchor if the invoice was already late. The penalty therefore keeps running, and an extension only moves the payment deadline. The unit dashboard shows the open debt, the nearest due date and the days left or overdue.
 
 ### Requests
 - `GET /api/v1/requests` - List requests
@@ -298,6 +323,17 @@ npm run test:cov
 - `GET /api/v1/emergency/:id` - Get emergency details
 - `PUT /api/v1/emergency/:id` - Update emergency
 - `POST /api/v1/emergency/:id/action` - Take action on emergency
+- `POST /api/v1/emergency/:id/resolve` (`{ note? }`) - Stop the alarm for everyone. Only the reporter, a manager of the alert's park, or a super admin may do this; every alert in the API response carries `canResolve` for the current user. Guards can only acknowledge. Employees may raise alerts.
+
+### Dashboard banners
+- `GET /api/v1/banners/active` - Active banners for the caller's park (global banners have no park), filtered by schedule
+- `GET|POST /api/v1/banners/managed`, `PUT|DELETE /api/v1/banners/managed/:id` - Super admin management
+- `POST /api/v1/banners/:id/click` - Click counter
+
+Each banner has a desktop image (recommended 1920×480, 4:1) and a mobile image (1080×540, 2:1), uploaded to the `banner` file domain. Links may only be `https://…` or an in-app path `/…`.
+
+### Gate pass wallet
+`GET /api/v1/settings/gate-pass-wallet` and `PATCH` (super admin only, global). When `requireWalletBalance` is off, no fee is charged and the wallet UI is hidden from park managers and owners.
 
 ### Analytics
 - `GET /api/v1/analytics/dashboard` - Get dashboard data

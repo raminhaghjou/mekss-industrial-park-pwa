@@ -53,11 +53,19 @@ export const GatePassWalletSettingCard = () => {
               <Wallet className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-foreground">شرط کیف‌پول برگ خروج</h2>
+              <h2 className="text-base font-bold text-foreground">کیف‌پول برگ خروج (تنظیم سراسری)</h2>
+              {!isLoading && !isError && (
+                <p className={`mt-1 text-sm font-semibold ${requireWallet ? 'text-success-700' : 'text-foreground-600'}`} data-testid="wallet-setting-state">
+                  وضعیت فعلی: {requireWallet ? 'فعال' : 'غیرفعال'}
+                </p>
+              )}
               <p className="mt-1 text-sm text-foreground-500">
-                اگر فعال باشد، ثبت برگ خروج فقط با موجودی کافی کیف‌پول واحد صنعتی ممکن است
-                {fee > 0 ? ` (هزینه هر برگ: ${fee.toLocaleString('fa-IR')} ریال)` : ''}.
-                با غیرفعال کردن، ثبت بدون شارژ کیف‌پول مجاز می‌شود.
+                روشن: ثبت هر برگ خروج فقط با موجودی کافی کیف‌پول واحد صنعتی ممکن است
+                {fee > 0 ? ` و ${fee.toLocaleString('fa-IR')} ریال از کیف‌پول کسر می‌شود` : ''}.
+              </p>
+              <p className="mt-1 text-sm text-foreground-500">
+                خاموش: برگ خروج بدون کیف‌پول و بدون هزینه ثبت می‌شود و منوی «کیف پول» و پیام‌های هزینه برای مدیران شهرک و مالکان واحدها پنهان می‌شود.
+                این تنظیم برای همهٔ شهرک‌ها اعمال می‌شود و فقط ادمین کل می‌تواند آن را تغییر دهد.
               </p>
             </div>
           </div>

@@ -21,7 +21,7 @@ import {
   Spinner,
   Label,
 } from '@heroui/react';
-import { ArrowRight, Megaphone, RotateCw } from 'lucide-react';
+import { Megaphone, RotateCw } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
@@ -144,12 +144,6 @@ const NewAdvertisementPage = () => {
 
   return (
     <div className="flex flex-col gap-6 max-w-3xl mx-auto">
-      <div className="flex items-center">
-        <Button variant="ghost" onPress={() => navigate('/advertisements')} className="rounded-xl font-medium flex items-center gap-2">
-          <ArrowRight className="h-4 w-4" />
-          بازگشت به آگهی‌ها
-        </Button>
-      </div>
 
       <Card className="border border-default-200 shadow-sm rounded-3xl p-2 dark:border-white/10 glass-card">
         <CardContent className="p-6 gap-6">

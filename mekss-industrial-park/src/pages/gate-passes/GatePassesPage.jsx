@@ -27,15 +27,23 @@ import {
   ListBoxItem,
   Label,
 } from '@heroui/react';
-import { Download, Pencil, Plus, Ticket } from 'lucide-react';
+import { Download, Pencil, Plus, Printer, Ticket } from 'lucide-react';
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 import { semanticFilter } from '../../utils/semanticSearch';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
-import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
+import {
+  cargoTypeLabels,
+  gatePassStatusLabels as statusLabels,
+  labelFor,
+  vehicleTypeLabels,
+} from '../../constants/persianLabels';
+import { saveBlob } from '../../services/api/files.api';
+import { csvLine } from '../../utils/csv';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import CreateGatePassForm from '../../components/gate-pass/CreateGatePassForm';
+import { GatePassPrintDialog } from '../../components/gate-pass/GatePassPrintDialog';
 
 const statusColors = {
   PENDING: 'warning',
@@ -46,31 +54,27 @@ const statusColors = {
 };
 
 const exportCsv = (rows) => {
-  const header = ['نام راننده', 'پلاک', 'تاریخ خروج', 'وضعیت', 'نوع بار', 'واحد', 'صادرکننده', 'نگهبان', 'زمان تایید'];
-  const lines = rows.map((pass) => [
+  const header = ['نام راننده', 'پلاک', 'تاریخ خروج', 'وضعیت', 'نوع بار', 'نوع خودرو', 'واحد', 'صادرکننده', 'نگهبان', 'زمان تایید'];
+  const lines = rows.map((pass) => csvLine([
     pass.driverName || '',
-    pass.licensePlate || '',
+    displayIranLicensePlate(pass.licensePlate) || pass.licensePlate || '',
     pass.exitDate ? new Date(pass.exitDate).toLocaleDateString('fa-IR') : '',
     statusLabels[pass.status] || pass.status || '',
-    pass.cargoType || '',
+    labelFor(cargoTypeLabels, pass.cargoType),
+    labelFor(vehicleTypeLabels, pass.vehicleType),
     pass.factory?.name || '',
     pass.createdBy?.name || '',
     pass.verifiedBy?.name || '',
     pass.verifiedAt ? new Date(pass.verifiedAt).toLocaleString('fa-IR') : '',
-  ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+  ]));
   const csv = `\uFEFF${[header.join(','), ...lines].join('\n')}`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `gate-passes-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `gate-passes-${new Date().toISOString().slice(0, 10)}.csv`);
 };
 
 export const GatePassesPage = () => {
   const [creating, setCreating] = useState(false);
   const [editingPass, setEditingPass] = useState(null);
+  const [printingPass, setPrintingPass] = useState(null);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -230,19 +234,29 @@ export const GatePassesPage = () => {
                             </Chip>
                           </TableCell>
                           <TableCell>
-                            {canEdit ? (
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <Button
                                 size="sm"
                                 variant="tertiary"
                                 className="rounded-xl gap-1"
-                                onPress={() => setEditingPass(pass)}
+                                onPress={() => setPrintingPass(pass)}
+                                aria-label={`پرینت برگ خروج ${pass.driverName || ''}`}
                               >
-                                <Pencil className="h-3.5 w-3.5" />
-                                ویرایش
+                                <Printer className="h-3.5 w-3.5" />
+                                پرینت
                               </Button>
-                            ) : (
-                              <span className="text-xs text-foreground-400">—</span>
-                            )}
+                              {canEdit && (
+                                <Button
+                                  size="sm"
+                                  variant="tertiary"
+                                  className="rounded-xl gap-1"
+                                  onPress={() => setEditingPass(pass)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  ویرایش
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -254,6 +268,10 @@ export const GatePassesPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {printingPass && (
+        <GatePassPrintDialog pass={printingPass} onClose={() => setPrintingPass(null)} />
+      )}
     </div>
   );
 };

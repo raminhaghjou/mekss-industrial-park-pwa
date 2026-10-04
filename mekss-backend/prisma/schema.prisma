@@ -58,12 +58,41 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+  /// Split into child installment invoices; the parent is no longer payable itself.
+  INSTALLMENTS
 }
 
 /// Who the invoice bills: an industrial unit, or the park itself (admin → park manager).
 enum InvoiceTarget {
   FACTORY
   PARK
+}
+
+/// CHARGE = park-manager charge bills; PLATFORM = super-admin entrance/membership bills.
+enum InvoiceCategory {
+  CHARGE
+  PLATFORM
+}
+
+enum InvoiceItemType {
+  WATER
+  SEWAGE
+  RENOVATION_SHARE
+  SHARE_DEBT
+  CHARGE_OTHER
+  ENTRANCE_FEE
+  MONTHLY_MEMBERSHIP
+  PLATFORM_OTHER
+  /// Carried late penalty of a parent invoice that was split into installments.
+  CARRIED_PENALTY
+}
+
+enum InvoiceAdjustmentType {
+  EDIT
+  DISCOUNT
+  EXTENSION
+  SETTLEMENT
+  INSTALLMENT
 }
 
 enum PaymentStatus {
@@ -91,11 +120,16 @@ enum CargoType {
 }
 
 enum VehicleType {
+  /// Legacy: kept for old gate passes, no longer accepted for new ones.
   TRUCK
   VAN
   CAR
   MOTORCYCLE
   OTHER
+  KHAVAR
+  TAK
+  TEN_WHEELER
+  TRAILER
 }
 
 /// Iranian plate category, derived from the plate letter / background colour.
@@ -279,7 +313,7 @@ model User {
   refreshTokens           RefreshToken[]
   otpChallenges           OtpChallenge[]
   notifications           Notification[]
-  emergencies             EmergencyAlert[]
+  emergencies             EmergencyAlert[]        @relation("EmergencyCreator")
   auditLogs               AuditLog[]              @relation("AuditActor")
   paymentAttempts         PaymentTransaction[]    @relation("PaymentInitiator")
   uploadedFiles           ScopedFile[]            @relation("ScopedFileUploader")
@@ -287,6 +321,10 @@ model User {
   feedbackSent            Feedback[]              @relation("FeedbackSender")
   marketRateUpdates       MarketRate[]            @relation("MarketRateUpdater")
   plateReads              PlateReadEvent[]        @relation("PlateReadGuard")
+  invoiceAdjustments      InvoiceAdjustment[]     @relation("InvoiceAdjustmentActor")
+  invoiceImportBatches    InvoiceImportBatch[]    @relation("InvoiceImportCreator")
+  dashboardBanners        DashboardBanner[]       @relation("DashboardBannerCreator")
+  emergenciesResolved     EmergencyAlert[]        @relation("EmergencyResolver")
 
   @@index([role, isApproved, isActive])
   @@index([bootstrapCreatedAt])
@@ -330,6 +368,7 @@ model IndustrialPark {
   scopedFiles    ScopedFile[]
   feedback       Feedback[]      @relation("FeedbackRecipientPark")
   plateReads     PlateReadEvent[]
+  banners        DashboardBanner[]
 
   @@index([province, city])
   @@index([status])
@@ -371,6 +410,9 @@ model Factory {
   gatePassWalletBalance Decimal @default(0) @db.Decimal(15, 2)
   // Sensitive-field edits are staged here until the managing park manager approves them.
   pendingChanges Json?
+  // Set while status = SUSPENDED (blocked by the park manager / super admin).
+  suspendedReason String?
+  suspendedAt     DateTime?
 
   managerId     String
   manager       User              @relation("FactoryOwner", fields: [managerId], references: [id])
@@ -524,10 +566,99 @@ model Invoice {
   paidBy      User?                @relation("InvoicePayer", fields: [paidById], references: [id])
   payments    PaymentTransaction[]
 
+  category        InvoiceCategory @default(CHARGE)
+  /// Discount on the base (amount + tax); never applied to the late penalty.
+  discountAmount  Decimal         @default(0) @db.Decimal(15, 2)
+  /// When set, late days count from here instead of dueDate (due date extended after the penalty began).
+  penaltyStartsAt DateTime?
+  parentInvoiceId String?
+  parentInvoice   Invoice?            @relation("InvoiceInstallments", fields: [parentInvoiceId], references: [id], onDelete: Restrict)
+  installments    Invoice[]           @relation("InvoiceInstallments")
+  installmentNo   Int?
+  importBatchId   String?
+  importBatch     InvoiceImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  items           InvoiceItem[]
+  adjustments     InvoiceAdjustment[]
+
   @@index([factoryId, status])
   @@index([parkId, status])
   @@index([targetType, status])
   @@index([dueDate])
+  @@index([parentInvoiceId])
+  @@index([importBatchId])
+}
+
+model InvoiceItem {
+  id        String          @id @default(cuid())
+  type      InvoiceItemType
+  title     String?
+  amount    Decimal         @db.Decimal(15, 2)
+  sortOrder Int             @default(0)
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, sortOrder])
+}
+
+/// Audit trail of park-manager / issuer operations, visible to the billed unit.
+model InvoiceAdjustment {
+  id          String                @id @default(cuid())
+  type        InvoiceAdjustmentType
+  amount      Decimal?              @db.Decimal(15, 2)
+  fromDueDate DateTime?
+  toDueDate   DateTime?
+  note        String?
+  details     Json?
+  createdAt   DateTime              @default(now())
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User    @relation("InvoiceAdjustmentActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId, createdAt])
+}
+
+model InvoiceImportBatch {
+  id        String          @id @default(cuid())
+  fileName  String
+  fileHash  String
+  category  InvoiceCategory
+  rowCount  Int
+  createdAt DateTime        @default(now())
+
+  createdById String
+  createdBy   User      @relation("InvoiceImportCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  invoices    Invoice[]
+
+  @@unique([createdById, fileHash])
+}
+
+/// Rotating promotional banner shown at the top of every dashboard.
+model DashboardBanner {
+  id             String    @id @default(cuid())
+  title          String
+  desktopImageId String
+  mobileImageId  String
+  linkUrl        String?
+  openInNewTab   Boolean   @default(true)
+  isActive       Boolean   @default(true)
+  sortOrder      Int       @default(0)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  clickCount     Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  /// null = shown in every park.
+  parkId      String?
+  park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User            @relation("DashboardBannerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([isActive, sortOrder])
+  @@index([parkId])
 }
 
 model PaymentTransaction {
@@ -851,7 +982,10 @@ model EmergencyAlert {
   parkId      String?
   park        IndustrialPark? @relation(fields: [parkId], references: [id], onDelete: Restrict)
   createdById String
-  createdBy   User            @relation(fields: [createdById], references: [id])
+  createdBy   User            @relation("EmergencyCreator", fields: [createdById], references: [id])
+  resolvedById   String?
+  resolvedBy     User?   @relation("EmergencyResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolutionNote String?
 
   @@index([status, severity, createdAt])
   @@index([parkId, status, createdAt])

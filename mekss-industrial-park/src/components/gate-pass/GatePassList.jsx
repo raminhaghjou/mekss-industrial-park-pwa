@@ -11,6 +11,7 @@ import {
   CardContent,
 } from '@heroui/react';
 import { ResponsiveTable } from '../common/ResponsiveTable';
+import { cargoTypeLabels, labelFor } from '../../constants/persianLabels';
 
 const statusColors = {
   PENDING: 'warning',
@@ -55,7 +56,7 @@ const GatePassList = ({ passes }) => {
                   <TableRow key={pass.id} id={pass.id}>
                     <TableCell className="font-medium text-foreground">{pass.driverName}</TableCell>
                     <TableCell className="font-mono dir-ltr text-right">{pass.licensePlate}</TableCell>
-                    <TableCell>{pass.cargoDescription || pass.cargoType}</TableCell>
+                    <TableCell>{pass.cargoDescription || labelFor(cargoTypeLabels, pass.cargoType)}</TableCell>
                     <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
                     <TableCell className="text-center">
                       <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft" className="font-semibold">

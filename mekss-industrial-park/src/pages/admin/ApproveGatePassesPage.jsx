@@ -7,7 +7,14 @@ import { Ticket, CheckCircle2, XCircle, Clock3, User, Car, CalendarClock, Downlo
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
-import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
+import {
+  cargoTypeLabels,
+  gatePassStatusLabels as statusLabels,
+  labelFor,
+  vehicleTypeLabels,
+} from '../../constants/persianLabels';
+import { saveBlob } from '../../services/api/files.api';
+import { csvLine } from '../../utils/csv';
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 
 const TABS = [
@@ -49,26 +56,21 @@ const statusTone = {
 };
 
 const exportCsv = (rows) => {
-  const header = ['واحد', 'راننده', 'کدملی', 'پلاک', 'نوع بار', 'وضعیت', 'صادرکننده', 'نگهبان', 'زمان تایید'];
-  const lines = rows.map((pass) => [
+  const header = ['واحد', 'راننده', 'کدملی', 'پلاک', 'نوع بار', 'نوع خودرو', 'وضعیت', 'صادرکننده', 'نگهبان', 'زمان تایید'];
+  const lines = rows.map((pass) => csvLine([
     pass.factory?.name || '',
     pass.driverName || '',
     pass.driverNationalId || '',
-    pass.licensePlate || '',
-    pass.cargoType || '',
+    displayIranLicensePlate(pass.licensePlate) || pass.licensePlate || '',
+    labelFor(cargoTypeLabels, pass.cargoType),
+    labelFor(vehicleTypeLabels, pass.vehicleType),
     displayStatus(pass.status),
     pass.createdBy?.name || '',
     pass.verifiedBy?.name || '',
     pass.verifiedAt ? new Date(pass.verifiedAt).toLocaleString('fa-IR') : '',
-  ].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+  ]));
   const csv = `\uFEFF${[header.join(','), ...lines].join('\n')}`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `park-gate-passes-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `park-gate-passes-${new Date().toISOString().slice(0, 10)}.csv`);
 };
 
 /** Park manager view-only list — no approve/reject actions. */

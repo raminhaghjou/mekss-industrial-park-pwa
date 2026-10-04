@@ -36,6 +36,7 @@ import {
   ScanLine,
   Factory,
   UserCheck,
+  GalleryHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
 import { useActiveFactory } from '../providers/ActiveFactoryProvider';
@@ -43,6 +44,8 @@ import { useNotification } from '../providers/NotificationProvider';
 import { messageApi } from '../services/api/message.api';
 import { roleLabels } from '../constants/persianLabels';
 import { AuthenticatedImage } from '../components/common/AuthenticatedImage';
+import { BackButton } from '../components/common/BackButton';
+import { useGatePassWallet } from '../hooks/useGatePassWallet';
 
 const navigationItems = [
   { path: '/dashboard', text: 'داشبورد', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
@@ -70,6 +73,7 @@ const navigationItems = [
   { path: '/feedback', text: 'انتقادات و پیشنهادات', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'EMPLOYEE', 'GOVERNMENT_OFFICIAL'] },
   { path: '/superadmin/parks', text: 'شهرک‌ها', icon: MapPin, roles: ['SUPER_ADMIN'] },
   { path: '/superadmin/users', text: 'کاربران', icon: Users, roles: ['SUPER_ADMIN'] },
+  { path: '/superadmin/banners', text: 'بنرهای داشبورد', icon: GalleryHorizontal, roles: ['SUPER_ADMIN'] },
   { path: '/admin/reports', text: 'گزارش‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'GOVERNMENT_OFFICIAL'] },
 ];
 
@@ -96,7 +100,6 @@ const bottomShortLabels = {
   '/guard/gate-passes': 'خروج',
   '/guard/scan': 'اسکن',
   '/emergency': 'اضطراری',
-  '/announcements': 'اطلاعیه',
   '/superadmin/parks': 'شهرک',
   '/superadmin/users': 'کاربر',
   '/admin/reports': 'گزارش',
@@ -154,9 +157,12 @@ export const DashboardLayout = () => {
   });
   const unreadCount = Number(unreadData?.count || 0);
 
+  const { showWalletUi } = useGatePassWallet(user?.role);
+
   const filteredNavItems = useMemo(() => {
-    return navigationItems.filter((item) => item.roles.includes(user?.role));
-  }, [user?.role]);
+    return navigationItems.filter((item) => item.roles.includes(user?.role)
+      && (item.path !== '/factory/wallet' || showWalletUi));
+  }, [user?.role, showWalletUi]);
 
   const bottomItems = useMemo(() => {
     const paths = bottomNavPathsByRole[user?.role] || ['/dashboard'];
@@ -255,6 +261,7 @@ export const DashboardLayout = () => {
             >
               <Menu className="h-5 w-5" />
             </Button>
+            <BackButton />
             <h1 className="truncate text-base font-bold text-foreground lg:text-lg">
               {activeItem?.text || 'سامانه مدیریت شهرک صنعتی'}
             </h1>

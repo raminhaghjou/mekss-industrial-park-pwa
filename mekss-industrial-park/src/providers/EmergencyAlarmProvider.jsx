@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, BellRing, Volume2, VolumeX } from 'lucide-react';
-import { Button } from '@heroui/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, BellRing, BellOff, ShieldCheck, Volume2 } from 'lucide-react';
+import { Button, Spinner } from '@heroui/react';
 import { useAuth } from './AuthProvider';
+import { useNotification } from './NotificationProvider';
 import { emergencyApi } from '../services/api/emergency.api';
 import { createEmergencySiren } from '../utils/emergencySiren';
+import { getErrorMessage } from '../utils/apiError';
 
 const STORAGE_KEY = 'mekss.emergency.silenced';
 const EmergencyAlarmContext = createContext(null);
@@ -34,7 +36,16 @@ const writeSilenced = (ids) => {
   }
 };
 
-const EmergencyAlarmOverlay = ({ alert, soundBlocked, onEnableSound, onMute, onDismiss, muted }) => {
+const EmergencyAlarmOverlay = ({ alert, soundBlocked, onEnableSound, onDismiss, onResolve, resolving }) => {
+  const [confirming, setConfirming] = useState(false);
+  const [note, setNote] = useState('');
+  const alertId = alert?.id;
+
+  useEffect(() => {
+    setConfirming(false);
+    setNote('');
+  }, [alertId]);
+
   if (!alert) return null;
 
   return (
@@ -84,26 +95,70 @@ const EmergencyAlarmOverlay = ({ alert, soundBlocked, onEnableSound, onMute, onD
             </button>
           )}
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              variant="danger"
-              className="flex-1 rounded-2xl font-bold"
-              onPress={onDismiss}
-            >
-              متوجه شدم — قطع آژیر
-            </Button>
-            <Button
-              variant="secondary"
-              className="rounded-2xl font-medium"
-              onPress={onMute}
-            >
-              {muted ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-              {muted ? 'روشن کردن صدا' : 'بی‌صدا'}
-            </Button>
-          </div>
+          {confirming ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-danger-300 bg-white/80 p-4 dark:bg-black/30" data-testid="emergency-resolve-confirm">
+              <p className="text-sm font-bold leading-7">
+                آژیر برای همهٔ افراد شهرک قطع می‌شود. فقط وقتی تأیید کنید که وضعیت واقعاً برطرف شده است.
+              </p>
+              <label className="flex flex-col gap-1 text-xs font-medium">
+                توضیح (اختیاری)
+                <textarea
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  rows={2}
+                  maxLength={1000}
+                  disabled={resolving}
+                  className="rounded-xl border border-danger-200 bg-white p-2 text-sm text-foreground dark:bg-black/40"
+                  placeholder="مثلاً: حریق مهار شد"
+                />
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  variant="danger"
+                  className="flex-1 rounded-2xl font-bold"
+                  onPress={() => onResolve(alert.id, note)}
+                  isDisabled={resolving}
+                >
+                  {resolving ? <Spinner size="sm" /> : <ShieldCheck className="h-4 w-4" />}
+                  بله، برای همه قطع شود
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="rounded-2xl font-medium"
+                  onPress={() => setConfirming(false)}
+                  isDisabled={resolving}
+                >
+                  انصراف
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {alert.canResolve && (
+                <Button
+                  variant="danger"
+                  className="flex-1 rounded-2xl font-bold"
+                  onPress={() => setConfirming(true)}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  قطع اعلام حریق برای همه
+                </Button>
+              )}
+              <Button
+                variant={alert.canResolve ? 'secondary' : 'danger'}
+                className={`${alert.canResolve ? '' : 'flex-1 '}rounded-2xl font-medium`}
+                onPress={onDismiss}
+              >
+                <BellOff className="h-4 w-4" />
+                بی‌صدا روی این دستگاه
+              </Button>
+            </div>
+          )}
 
-          <p className="text-center text-[11px] text-danger-700/70 dark:text-danger-200/70">
-            تا رفع رسمی وضعیت اضطراری، این هشدار برای همه افراد شهرک فعال می‌ماند.
+          <p className="text-center text-[11px] leading-5 text-danger-700/70 dark:text-danger-200/70">
+            {alert.canResolve
+              ? '«بی‌صدا» فقط آژیر همین دستگاه را قطع می‌کند؛ برای پایان هشدار برای همه، گزینهٔ قطع اعلام را بزنید.'
+              : 'فقط اعلام‌کننده یا مدیر شهرک می‌تواند آلارم را برای همه قطع کند. تا آن زمان هشدار برای همهٔ افراد شهرک فعال می‌ماند.'}
           </p>
         </div>
       </div>
@@ -122,9 +177,10 @@ const EmergencyAlarmOverlay = ({ alert, soundBlocked, onEnableSound, onMute, onD
 
 export const EmergencyAlarmProvider = ({ children }) => {
   const { user } = useAuth();
+  const { showNotification } = useNotification();
+  const queryClient = useQueryClient();
   const sirenRef = useRef(null);
   const [silencedIds, setSilencedIds] = useState(() => readSilenced());
-  const [muted, setMuted] = useState(false);
   const [soundBlocked, setSoundBlocked] = useState(false);
 
   useEffect(() => {
@@ -134,7 +190,7 @@ export const EmergencyAlarmProvider = ({ children }) => {
     };
   }, []);
 
-  const { data: activeAlerts = [] } = useQuery({
+  const { data: activeAlerts = [], isSuccess: alertsLoaded } = useQuery({
     queryKey: ['emergency', 'active'],
     queryFn: () => emergencyApi.getActiveEmergencies().then((res) => res.data || []),
     enabled: Boolean(user),
@@ -150,19 +206,21 @@ export const EmergencyAlarmProvider = ({ children }) => {
   }, [activeAlerts, silencedIds]);
 
   useEffect(() => {
+    // Only prune against a real server answer; the initial empty placeholder would wipe the list.
+    if (!alertsLoaded) return;
     const activeIds = new Set((activeAlerts || []).map((item) => item.id));
     setSilencedIds((prev) => {
       const next = prev.filter((id) => activeIds.has(id));
       if (next.length !== prev.length) writeSilenced(next);
       return next.length === prev.length ? prev : next;
     });
-  }, [activeAlerts]);
+  }, [activeAlerts, alertsLoaded]);
 
   useEffect(() => {
     const siren = sirenRef.current;
     if (!siren) return undefined;
 
-    if (!activeAlert || muted) {
+    if (!activeAlert) {
       siren.stop();
       setSoundBlocked(false);
       return undefined;
@@ -200,7 +258,7 @@ export const EmergencyAlarmProvider = ({ children }) => {
       cancelled = true;
       siren.stop();
     };
-  }, [activeAlert, muted]);
+  }, [activeAlert]);
 
   const dismiss = useCallback(() => {
     if (!activeAlert) return;
@@ -213,18 +271,31 @@ export const EmergencyAlarmProvider = ({ children }) => {
   }, [activeAlert]);
 
   const enableSound = useCallback(async () => {
-    setMuted(false);
     const started = await sirenRef.current?.start();
     setSoundBlocked(!started);
   }, []);
 
-  const toggleMute = useCallback(() => {
-    setMuted((prev) => {
-      const next = !prev;
-      if (next) sirenRef.current?.stop();
-      return next;
-    });
-  }, []);
+  const resolveMutation = useMutation({
+    mutationFn: (/** @type {{ id: string, note?: string }} */ input) => emergencyApi.resolveEmergency(input.id, input.note),
+    onSuccess: (_res, input) => {
+      sirenRef.current?.stop();
+      setSilencedIds((prev) => {
+        const next = prev.includes(input.id) ? prev : [...prev, input.id];
+        writeSilenced(next);
+        return next;
+      });
+      showNotification('اعلام اضطراری برای همه قطع شد', 'success');
+      queryClient.invalidateQueries({ queryKey: ['emergency', 'active'] });
+      queryClient.invalidateQueries({ queryKey: ['emergency-alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'قطع اعلام اضطراری ناموفق بود'), 'error'),
+  });
+
+  const { mutate: resolveMutate } = resolveMutation;
+  const resolveAlert = useCallback((id, note) => {
+    resolveMutate({ id, note });
+  }, [resolveMutate]);
 
   const value = useMemo(() => ({
     activeAlert,
@@ -238,10 +309,10 @@ export const EmergencyAlarmProvider = ({ children }) => {
       <EmergencyAlarmOverlay
         alert={activeAlert}
         soundBlocked={soundBlocked}
-        muted={muted}
         onEnableSound={enableSound}
-        onMute={toggleMute}
         onDismiss={dismiss}
+        onResolve={resolveAlert}
+        resolving={resolveMutation.isPending}
       />
       {Boolean(user) && (activeAlerts || []).length > 0 && !activeAlert && (
         <button
@@ -254,7 +325,6 @@ export const EmergencyAlarmProvider = ({ children }) => {
               writeSilenced(next);
               return next;
             });
-            setMuted(false);
           }}
           className="fixed bottom-24 left-4 z-[9990] flex items-center gap-2 rounded-full bg-danger-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg sm:bottom-6"
         >

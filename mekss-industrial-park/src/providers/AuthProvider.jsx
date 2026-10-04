@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../services/api/auth.api';
 import { getErrorMessage } from '../utils/apiError';
+import { ACTIVE_FACTORY_STORAGE_KEY, FACTORY_SELECTION_PENDING_KEY } from '../services/api/base.api';
 
 const AuthContext = createContext(null);
 export const useAuth = () => {
@@ -20,6 +21,8 @@ export const AuthProvider = ({ children }) => {
   const clearSession = useCallback(() => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem(ACTIVE_FACTORY_STORAGE_KEY);
+    localStorage.removeItem(FACTORY_SELECTION_PENDING_KEY);
     setUser(null);
     queryClient.clear();
   }, [queryClient]);
@@ -27,6 +30,14 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     setUser(nextUser);
+  };
+  /** A fresh sign-in starts clean; factory owners with several units pick one on /select-factory. */
+  const beginSignedInSession = (data) => {
+    localStorage.removeItem(ACTIVE_FACTORY_STORAGE_KEY);
+    if (data?.user?.role === 'FACTORY_OWNER') localStorage.setItem(FACTORY_SELECTION_PENDING_KEY, '1');
+    else localStorage.removeItem(FACTORY_SELECTION_PENDING_KEY);
+    queryClient.clear();
+    setSession(data);
   };
   const checkAuth = useCallback(async () => {
     try {
@@ -44,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const { data } = await authApi.login(credentials);
-      setSession(data);
+      beginSignedInSession(data);
       return { success: true, mustChangePassword: Boolean(data.mustChangePassword || data.user?.mustChangePassword) };
     } catch (error) {
       return { success: false, error: getErrorMessage(error, 'ورود ناموفق بود. لطفاً اطلاعات را بررسی کنید.') };
@@ -79,7 +90,7 @@ export const AuthProvider = ({ children }) => {
     catch (error) { return { success: false, error: getErrorMessage(error, 'ارسال رمز یک‌بار مصرف ناموفق بود.') }; }
   };
   const verifyOtp = async (phoneNumber, otp) => {
-    try { const { data } = await authApi.verifyOtp({ phoneNumber, otp }); setSession(data); return { success: true, data }; }
+    try { const { data } = await authApi.verifyOtp({ phoneNumber, otp }); beginSignedInSession(data); return { success: true, data }; }
     catch (error) { return { success: false, error: getErrorMessage(error, 'رمز یک‌بار مصرف نامعتبر است.') }; }
   };
   const refreshProfile = useCallback(async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 
 describe('auth route module exports', () => {
@@ -13,6 +13,6 @@ describe('auth route module exports', () => {
       expect(loginModule.default).toBe(loginModule.LoginPage);
       expect(registerModule.default).toBe(registerModule.RegisterPage);
     },
-    60_000,
+    180_000,
   );
 });

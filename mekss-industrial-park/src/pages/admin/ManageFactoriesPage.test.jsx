@@ -29,6 +29,12 @@ vi.mock('../../services/api/factory.api', () => ({
 vi.mock('../../providers/NotificationProvider', () => ({
   useNotification: () => ({ showNotification: mocks.notify }),
 }));
+vi.mock('../../providers/AuthProvider', () => ({
+  useAuth: () => ({ user: { id: 'manager-1', role: 'PARK_MANAGER' } }),
+}));
+vi.mock('../../services/api/settings.api', () => ({
+  settingsApi: { getGatePassWallet: () => Promise.resolve({ data: { requireWalletBalance: false, fee: 0 } }) },
+}));
 
 import ManageFactoriesPage from './ManageFactoriesPage';
 

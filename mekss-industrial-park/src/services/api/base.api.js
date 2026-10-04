@@ -13,6 +13,11 @@ const apiClient = axios.create({
 
 let refreshPromise = null;
 
+export const ACTIVE_FACTORY_STORAGE_KEY = 'activeFactoryId';
+export const ACTIVE_FACTORY_HEADER = 'X-Factory-Id';
+/** Set at sign-in for factory owners; cleared once a unit is picked on /select-factory. */
+export const FACTORY_SELECTION_PENDING_KEY = 'factorySelectionPending';
+
 const clearSession = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
@@ -54,6 +59,11 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Multi-factory owners: the server narrows data to this factory after verifying ownership.
+    const activeFactoryId = localStorage.getItem(ACTIVE_FACTORY_STORAGE_KEY);
+    if (activeFactoryId && !(/** @type {any} */ (config)).skipActiveFactory) {
+      config.headers[ACTIVE_FACTORY_HEADER] = activeFactoryId;
     }
     // FormData must keep its multipart boundary; drop JSON default.
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {

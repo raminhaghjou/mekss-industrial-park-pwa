@@ -26,6 +26,7 @@ import { getErrorMessage } from '../../utils/apiError';
 import { requestStatusLabels as statusLabels, requestTypeLabels as typeLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
+import { escapeHtml, formatFaDateTime, printHtml } from '../../utils/printHtml';
 
 const statusColors = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', CANCELLED: 'default' };
 
@@ -61,23 +62,23 @@ export const RequestsPage = () => {
   const requests = data || [];
   const canCreate = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE'].includes(user?.role);
 
-  const printRequest = (req) => {
-    const win = window.open('', '_blank', 'noopener,noreferrer');
-    if (!win) return;
+  const printRequest = async (req) => {
     const typeLabel = typeLabels[req.type] || req.type;
-    win.document.write(`<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="utf-8"/><title>${req.title}</title>
-      <style>body{font-family:Tahoma;padding:24px;line-height:1.9}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:8px}</style></head><body>
-      <h1>درخواست ${typeLabel}</h1>
-      <table>
-      <tr><th>موضوع</th><td>${req.title}</td></tr>
-      <tr><th>واحد</th><td>${req.factory?.name || '—'}</td></tr>
-      <tr><th>وضعیت</th><td>${statusLabels[req.status] || req.status}</td></tr>
-      <tr><th>تاییدکننده</th><td>${req.approver?.name || '—'}</td></tr>
-      <tr><th>تاریخ</th><td>${new Date(req.createdAt).toLocaleString('fa-IR')}</td></tr>
-      <tr><th>شرح</th><td>${req.description || ''}</td></tr>
-      </table>
-      <p><button onclick="window.print()">پرینت</button></p></body></html>`);
-    win.document.close();
+    const row = (label, value) => `<tr><th style="width:9rem">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
+    const opened = await printHtml({
+      title: `درخواست ${typeLabel} - ${req.title || ''}`,
+      css: 'td{white-space:pre-wrap}',
+      bodyHtml: `<div class="header"><div><h1>درخواست ${escapeHtml(typeLabel)}</h1><div class="muted">${escapeHtml(formatFaDateTime(req.createdAt))}</div></div><div class="brand">MEKSS</div></div>
+        <table>
+          ${row('موضوع', req.title || '—')}
+          ${row('واحد', req.factory?.name || '—')}
+          ${row('وضعیت', statusLabels[req.status] || req.status || '—')}
+          ${row('تاییدکننده', req.approver?.name || '—')}
+          ${row('تاریخ ثبت', formatFaDateTime(req.createdAt))}
+          ${row('شرح', req.description || '—')}
+        </table>`,
+    });
+    if (!opened) showNotification('پنجرهٔ چاپ باز نشد؛ فایل HTML درخواست دانلود شد', 'warning');
   };
   const canDecideInternal = (req) => {
     if (req.status !== 'PENDING' || req.isToParkManager) return false;

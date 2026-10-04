@@ -16,8 +16,14 @@ function toAsciiDigits(value) {
 /** Strip formatting → plain numeric string (keeps one decimal point). */
 export function parseAmountInput(value, { allowDecimal = false } = {}) {
   let raw = toAsciiDigits(value).replace(/[^\d.]/g, '');
-  if (!allowDecimal) return raw.replace(/\./g, '');
   const parts = raw.split('.');
+  if (!allowDecimal) {
+    if (parts.length === 1) return raw;
+    // "1.500.000" / "1.500" are thousands separators; "1500000.50" has a fraction that must be
+    // dropped — deleting the dot would silently multiply the amount by 100.
+    const thousands = parts.length > 2 || parts[1].length === 3;
+    return thousands ? parts.join('') : parts[0];
+  }
   if (parts.length === 1) return parts[0];
   return `${parts[0]}.${parts.slice(1).join('').slice(0, 6)}`;
 }

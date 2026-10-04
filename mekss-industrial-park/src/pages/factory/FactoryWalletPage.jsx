@@ -28,6 +28,7 @@ import { useActiveFactory } from '../../providers/ActiveFactoryProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { amountInputToNumber, formatAmountInput } from '../../utils/amountFormat';
+import { useGatePassWallet } from '../../hooks/useGatePassWallet';
 
 const formatMoney = (value) =>
   Number(value || 0).toLocaleString('fa-IR', { maximumFractionDigits: 0 });
@@ -39,6 +40,7 @@ export const FactoryWalletPage = () => {
   const queryClient = useQueryClient();
   const { showNotification } = useNotification();
   const canTopUp = ['SUPER_ADMIN', 'PARK_MANAGER'].includes(user?.role);
+  const { setting: walletSetting, walletRequired } = useGatePassWallet(user?.role);
   const paramFactoryId = searchParams.get('factoryId') || '';
   const [managerFactoryId, setManagerFactoryId] = useState(paramFactoryId);
   const [amount, setAmount] = useState('');
@@ -84,6 +86,15 @@ export const FactoryWalletPage = () => {
           موجودی برای صدور برگ خروج از این کیف پول کسر می‌شود.
         </p>
       </div>
+
+      {walletSetting && !walletRequired && (
+        <Alert status="accent">
+          <AlertContent>
+            <AlertTitle>کیف‌پول برگ خروج در حال حاضر غیرفعال است</AlertTitle>
+            <AlertDescription>برگ خروج بدون کسر هزینه و بدون نیاز به موجودی ثبت می‌شود. موجودی فعلی دست‌نخورده باقی می‌ماند.</AlertDescription>
+          </AlertContent>
+        </Alert>
+      )}
 
       {canTopUp && (
         <div className="flex flex-col gap-1">

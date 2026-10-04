@@ -24,8 +24,8 @@ async function bootstrap(): Promise<void> {
     origin: (origin, callback) => callback(null, !origin || origins.includes(origin)),
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Request-ID'],
-    exposedHeaders: ['X-Request-ID'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Request-ID', 'X-Factory-Id'],
+    exposedHeaders: ['X-Request-ID', 'Content-Disposition'],
   });
   app.useWebSocketAdapter(new CorsIoAdapter(app, origins));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

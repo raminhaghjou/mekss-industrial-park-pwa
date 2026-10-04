@@ -95,11 +95,16 @@ const ReportsPage = () => {
     }
   };
 
-  const handlePdf = () => {
+  const handlePdf = async () => {
     if (!report) return;
     try {
-      exportReportPdf(report);
-      showNotification('پیش‌نمایش PDF باز شد — از پنجره چاپ ذخیره کنید', 'success');
+      const opened = await exportReportPdf(report);
+      showNotification(
+        opened
+          ? 'پنجرهٔ چاپ باز شد — برای ذخیرهٔ PDF گزینهٔ «Save as PDF» را انتخاب کنید'
+          : 'چاپ مستقیم در این مرورگر ممکن نشد؛ فایل گزارش دانلود شد و با مرورگر قابل چاپ است',
+        opened ? 'success' : 'warning',
+      );
     } catch (error) {
       showNotification(getErrorMessage(error, 'ساخت PDF ناموفق بود'), 'error');
     }

@@ -16,6 +16,7 @@ const preservedRoutePaths = [
   '/directory/:id',
   '/shops',
   '/sms-request',
+  '/select-factory',
   '/',
   'dashboard',
   'profile',
@@ -59,6 +60,7 @@ const preservedRoutePaths = [
   'superadmin/advertisements',
   'superadmin/ad-categories',
   'superadmin/sms-config',
+  'superadmin/banners',
   '*',
 ];
 

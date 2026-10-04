@@ -55,9 +55,9 @@
       { "method": "POST", "path": "advertisements", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER"] },
       { "method": "POST", "path": "advertisements/:id/approve", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
       { "method": "GET", "path": "emergency", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL", "EMPLOYEE"] },
-      { "method": "POST", "path": "emergency", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD"] },
+      { "method": "POST", "path": "emergency", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "EMPLOYEE"] },
       { "method": "POST", "path": "emergency/:id/acknowledge", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "SECURITY_GUARD"] },
-      { "method": "POST", "path": "emergency/:id/resolve", "roles": ["SUPER_ADMIN", "PARK_MANAGER"] },
+      { "method": "POST", "path": "emergency/:id/resolve", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "EMPLOYEE"] },
       { "method": "GET", "path": "analytics/dashboard", "roles": ["SUPER_ADMIN", "PARK_MANAGER", "FACTORY_OWNER", "SECURITY_GUARD", "GOVERNMENT_OFFICIAL"] }
     ],
     "scopePolicyTokens": [

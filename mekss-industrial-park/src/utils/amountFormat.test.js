@@ -13,6 +13,13 @@ describe('amountFormat', () => {
     expect(amountInputToNumber('1/500/000')).toBe(1500000);
   });
 
+  it('drops a pasted fraction in integer fields instead of multiplying the amount', () => {
+    expect(amountInputToNumber('1,500,000.50')).toBe(1500000);
+    expect(amountInputToNumber('1500000.')).toBe(1500000);
+    expect(amountInputToNumber('1.500.000')).toBe(1500000);
+    expect(amountInputToNumber('2.500')).toBe(2500);
+  });
+
   it('supports decimals when enabled', () => {
     expect(formatAmountInput('1234.56', { allowDecimal: true })).toBe('1/234.56');
     expect(amountInputToNumber('1/234.5', { allowDecimal: true })).toBe(1234.5);

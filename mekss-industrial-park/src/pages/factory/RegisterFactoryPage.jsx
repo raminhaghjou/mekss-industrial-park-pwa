@@ -17,7 +17,7 @@ import {
   ListBoxItem,
   Spinner,
 } from '@heroui/react';
-import { Building2, ArrowRight } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { publicApi } from '../../services/api/public.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -122,10 +122,6 @@ export const RegisterFactoryPage = () => {
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
-      <Button variant="ghost" className="mb-4 gap-2" onPress={() => navigate('/dashboard')}>
-        <ArrowRight className="h-4 w-4" />
-        بازگشت
-      </Button>
 
       <Card className="rounded-3xl border border-default-200 shadow-sm">
         <CardContent className="gap-6 p-5 sm:p-7">

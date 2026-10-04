@@ -1,9 +1,9 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider, useAuth } from './providers/AuthProvider';
-import { ActiveFactoryProvider } from './providers/ActiveFactoryProvider';
+import { ActiveFactoryProvider, useActiveFactory } from './providers/ActiveFactoryProvider';
 import { NotificationProvider } from './providers/NotificationProvider';
 import { EmergencyAlarmProvider } from './providers/EmergencyAlarmProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
@@ -61,6 +61,8 @@ const ManageUsersPage = lazy(() => import('./pages/superadmin/ManageUsersPage'))
 const SuperAdminAdsPage = lazy(() => import('./pages/superadmin/SuperAdminAdsPage'));
 const ManageAdCategoriesPage = lazy(() => import('./pages/superadmin/ManageAdCategoriesPage'));
 const SmsConfigPage = lazy(() => import('./pages/superadmin/SmsConfigPage'));
+const ManageBannersPage = lazy(() => import('./pages/superadmin/ManageBannersPage'));
+const SelectFactoryPage = lazy(() => import('./pages/factory/SelectFactoryPage'));
 
 const queryClient = new QueryClient({ 
   defaultOptions: { 
@@ -84,6 +86,19 @@ const AdminHostRoute = ({ children }) => {
   return !isAdminHost || user?.role === 'SUPER_ADMIN' ? children : <Navigate to="/dashboard" replace />;
 };
 
+const FACTORY_SELECTION_EXEMPT_PATHS = ['/factory/register', '/profile', '/settings'];
+
+/** Multi-factory owners must pick a unit before scoped data loads (requests carry X-Factory-Id). */
+const FactorySelectionGate = ({ children }) => {
+  const { isLoading, needsSelection } = useActiveFactory();
+  const location = useLocation();
+  if (isLoading) return <LoadingScreen />;
+  if (needsSelection && !FACTORY_SELECTION_EXEMPT_PATHS.includes(location.pathname)) {
+    return <Navigate to="/select-factory" replace state={{ from: `${location.pathname}${location.search}` }} />;
+  }
+  return children;
+};
+
 function AppRoutes() {
   return (
     <Routes>
@@ -96,14 +111,27 @@ function AppRoutes() {
       <Route path="/directory/:id" element={<FactoryPublicDetailPage />} />
       <Route path="/shops" element={<ShopsPage />} />
       <Route path="/sms-request" element={<SmsRequestDemoPage />} />
+      <Route path="/select-factory" element={
+        <ProtectedRoute>
+          <AdminHostRoute>
+            <RoleRoute roles={['FACTORY_OWNER']}>
+              <ActiveFactoryProvider>
+                <SelectFactoryPage />
+              </ActiveFactoryProvider>
+            </RoleRoute>
+          </AdminHostRoute>
+        </ProtectedRoute>
+      } />
       
       <Route path="/" element={
         <ProtectedRoute>
           <AdminHostRoute>
             <ActiveFactoryProvider>
-              <EmergencyAlarmProvider>
-                <DashboardLayout />
-              </EmergencyAlarmProvider>
+              <FactorySelectionGate>
+                <EmergencyAlarmProvider>
+                  <DashboardLayout />
+                </EmergencyAlarmProvider>
+              </FactorySelectionGate>
             </ActiveFactoryProvider>
           </AdminHostRoute>
         </ProtectedRoute>
@@ -288,6 +316,11 @@ function AppRoutes() {
         <Route path="superadmin/sms-config" element={
           <RoleRoute roles={['SUPER_ADMIN']}>
             <SmsConfigPage />
+          </RoleRoute>
+        } />
+        <Route path="superadmin/banners" element={
+          <RoleRoute roles={['SUPER_ADMIN']}>
+            <ManageBannersPage />
           </RoleRoute>
         } />
         

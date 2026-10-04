@@ -71,7 +71,8 @@ export const EmergencyPage = () => {
   const [isFireAlert, setIsFireAlert] = useState(false);
   const [geoLocation, setGeoLocation] = useState(null);
 
-  const canCreate = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD'].includes(user?.role);
+  const canCreate = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'EMPLOYEE'].includes(user?.role);
+  const [resolveTarget, setResolveTarget] = useState(null);
 
   useEffect(() => {
     if (location.state?.quickFire && canCreate) {
@@ -79,7 +80,6 @@ export const EmergencyPage = () => {
       setIsFireAlert(true);
     }
   }, [location.state?.quickFire, canCreate]);
-  const canResolve = ['SUPER_ADMIN', 'PARK_MANAGER'].includes(user?.role);
   const canAcknowledge = ['SUPER_ADMIN', 'PARK_MANAGER', 'SECURITY_GUARD'].includes(user?.role);
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
@@ -126,9 +126,10 @@ export const EmergencyPage = () => {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: (id) => emergencyApi.resolveEmergency(id),
+    mutationFn: (/** @type {{ id: string, note?: string }} */ input) => emergencyApi.resolveEmergency(input.id, input.note),
     onSuccess: () => {
-      showNotification('وضعیت اضطراری رفع شد و به همه اطلاع داده شد', 'success');
+      showNotification('اعلام اضطراری برای همه قطع شد', 'success');
+      setResolveTarget(null);
       invalidate();
     },
     onError: (err) => showNotification(getErrorMessage(err, 'رفع هشدار ناموفق بود'), 'error'),
@@ -372,17 +373,21 @@ export const EmergencyPage = () => {
                         دریافت شد
                       </Button>
                     )}
-                    {canResolve && (
+                    {alert.canResolve ? (
                       <Button
                         variant="primary"
                         size="sm"
                         className="flex items-center gap-2 rounded-xl"
-                        onPress={() => resolveMutation.mutate(alert.id)}
+                        onPress={() => setResolveTarget(alert)}
                         isDisabled={resolveMutation.isPending}
                       >
                         {resolveMutation.isPending ? <Spinner size="sm" /> : <CheckCircle className="h-4 w-4" />}
-                        رفع وضعیت
+                        قطع اعلام برای همه
                       </Button>
+                    ) : (
+                      <span className="max-w-[14rem] text-[11px] leading-5 text-foreground-500">
+                        فقط اعلام‌کننده یا مدیر شهرک می‌تواند آلارم را قطع کند
+                      </span>
                     )}
                   </div>
                 </div>
@@ -411,6 +416,18 @@ export const EmergencyPage = () => {
         loading={createMutation.isPending}
         onConfirm={submitEmergency}
         onClose={() => setFireSecondConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={Boolean(resolveTarget)}
+        title="قطع اعلام اضطراری برای همه"
+        description={resolveTarget ? `آژیر «${resolveTarget.title}» روی همهٔ دستگاه‌های شهرک قطع می‌شود. فقط وقتی تأیید کنید که وضعیت واقعاً برطرف شده است. توضیح کوتاه شما در سابقهٔ هشدار ثبت می‌شود.` : ''}
+        requireReason
+        reasonLabel="توضیح رفع وضعیت"
+        confirmLabel="بله، برای همه قطع شود"
+        confirmColor="danger"
+        loading={resolveMutation.isPending}
+        onConfirm={(note) => { if (resolveTarget) resolveMutation.mutate({ id: resolveTarget.id, note }); }}
+        onClose={() => { if (!resolveMutation.isPending) setResolveTarget(null); }}
       />
     </div>
   );

@@ -22,15 +22,19 @@ import {
   Bell,
   LayoutDashboard,
   Landmark,
+  Ban,
 } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { analyticsApi } from '../../services/api/analytics.api';
 import { announcementApi } from '../../services/api/announcement.api';
 import { getErrorMessage } from '../../utils/apiError';
 import { HomeFeedSlider } from '../../components/dashboard/HomeFeedSlider';
+import { BannerCarousel } from '../../components/dashboard/BannerCarousel';
 import { GatePassWalletSettingCard } from '../../components/settings/GatePassWalletSettingCard';
 import { JALALI_MONTHS, JALALI_WEEKDAYS, toFaDigits } from '../../utils/jalali';
 import { publicApi } from '../../services/api/public.api';
+import { invoiceDueInfo } from '../../utils/invoiceDue';
+import { useGatePassWallet } from '../../hooks/useGatePassWallet';
 
 const roleTitles = {
   SUPER_ADMIN: 'داشبورد ادمین کل',
@@ -58,7 +62,8 @@ const colorMap = {
   secondary: 'bg-gradient-to-br from-slate-500 to-slate-600',
 };
 
-const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge = null, index }) => {
+const StatCard = ({ icon, label, value, color = 'primary', onClick, badge = null, index }) => {
+  const Icon = icon;
   const displayValue = typeof value === 'number'
     ? value.toLocaleString('fa-IR')
     : (value ?? '—');
@@ -90,7 +95,8 @@ const StatCard = ({ icon: Icon, label, value, color = 'primary', onClick, badge 
   );
 };
 
-const QuickAction = ({ icon: Icon, title, description, onClick, tone = 'primary' }) => {
+const QuickAction = ({ icon, title, description, onClick, tone = 'primary' }) => {
+  const Icon = icon;
   const toneClass = {
     primary: 'bg-[var(--color-brand-soft)] text-[var(--color-brand)]',
     success: 'bg-success-50 text-success-700',
@@ -427,10 +433,12 @@ export const DashboardPage = () => {
       .slice(0, 3);
   }, [announcements]);
 
-  const workspace = useMemo(
-    () => buildRoleWorkspace(user?.role, data, navigate),
-    [user?.role, data, navigate],
-  );
+  const { showWalletUi } = useGatePassWallet(user?.role);
+  const workspace = useMemo(() => {
+    const built = buildRoleWorkspace(user?.role, data, navigate);
+    if (showWalletUi) return built;
+    return { ...built, actions: built.actions.filter((action) => action.title !== 'کیف پول خروج') };
+  }, [user?.role, data, navigate, showWalletUi]);
 
   if (isLoading) {
     return (
@@ -473,11 +481,17 @@ export const DashboardPage = () => {
   const unitsWithDebt = Number(data?.unitsWithDebtCount || 0);
   // Personal debt only — factory owners (unit bills) and park managers (park bills from admin).
   const showPersonalDebt = unpaidTotal > 0 && ['FACTORY_OWNER', 'PARK_MANAGER'].includes(user?.role);
+  const unpaidPayable = Number(data?.unpaidPayableTotal ?? unpaidTotal) || unpaidTotal;
+  const unpaidInvoices = Array.isArray(data?.unpaidInvoices) ? data.unpaidInvoices : [];
+  const nearestDue = unpaidInvoices.length ? invoiceDueInfo(unpaidInvoices[0]) : null;
+  const suspendedFactories = Array.isArray(data?.suspendedFactories) ? data.suspendedFactories : [];
   const showAds = feedItems.length > 0;
   const activePark = data?.activePark;
 
   return (
     <div className="flex flex-col gap-6">
+      <BannerCarousel />
+
       {(activePark || jalaliToday) && (
         <div className="flex flex-col gap-3 rounded-2xl border border-default-200 bg-content1 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -521,23 +535,71 @@ export const DashboardPage = () => {
         )}
       </div>
 
+      {suspendedFactories.length > 0 && (
+        <div
+          role="alert"
+          data-testid="suspended-factory-banner"
+          className="flex w-full items-start gap-3 rounded-2xl border border-danger-300 bg-danger-50 px-4 py-3.5 text-start animate-slide-up"
+        >
+          <Ban className="mt-0.5 h-5 w-5 shrink-0 text-danger-600" />
+          <div className="min-w-0">
+            <p className="font-semibold text-danger-800">
+              {suspendedFactories.length === 1 ? 'واحد صنعتی شما مسدود شده است' : 'برخی واحدهای صنعتی شما مسدود شده‌اند'}
+            </p>
+            <ul className="mt-1 flex flex-col gap-1 text-sm text-danger-700">
+              {suspendedFactories.map((factory) => (
+                <li key={factory.id}>
+                  «{factory.name}»{factory.suspendedReason ? ` — دلیل: ${factory.suspendedReason}` : ''}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-danger-700">
+              تا رفع مسدودی، ثبت برگ خروج و درخواست جدید برای این واحد امکان‌پذیر نیست. برای پیگیری با مدیریت شهرک تماس بگیرید.
+            </p>
+          </div>
+        </div>
+      )}
+
       {showPersonalDebt && (
         <button
           type="button"
           onClick={() => navigate('/invoices')}
+          data-testid="debt-banner"
           className="flex w-full items-start gap-3 rounded-2xl border border-danger-200 bg-danger-50 px-4 py-3.5 text-start transition hover:bg-danger-100/80 animate-slide-up"
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger-600" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-danger-800">
               {user?.role === 'PARK_MANAGER' ? 'بدهی معوق شهرک' : 'بدهی معوق دارید'}
             </p>
             <p className="mt-1 text-sm text-danger-700">
-              {unpaidCount.toLocaleString('fa-IR')} قبض پرداخت‌نشده به مجموع{' '}
-              {unpaidTotal.toLocaleString('fa-IR')} ریال
-              {user?.role === 'PARK_MANAGER' ? ' (صادر شده توسط ادمین برای این شهرک). ' : '. '}
-              برای پرداخت اینجا کلیک کنید.
+              {unpaidCount.toLocaleString('fa-IR')} قبض پرداخت‌نشده به مبلغ قابل پرداخت{' '}
+              {unpaidPayable.toLocaleString('fa-IR')} ریال
+              {unpaidPayable > unpaidTotal ? ' (شامل جریمهٔ تأخیر)' : ''}
+              {user?.role === 'PARK_MANAGER' ? ' — صادر شده توسط ادمین برای این شهرک.' : '.'}
             </p>
+            {nearestDue && (
+              <p className="mt-1 text-sm font-semibold text-danger-800" data-testid="debt-banner-due">
+                مهلت پرداخت: {nearestDue.dateFa}
+                {nearestDue.text ? ` — ${nearestDue.text}` : ''}
+              </p>
+            )}
+            {unpaidInvoices.length > 1 && (
+              <ul className="mt-2 flex flex-col gap-1 text-xs text-danger-700">
+                {unpaidInvoices.slice(0, 3).map((invoice) => {
+                  const due = invoiceDueInfo(invoice);
+                  return (
+                    <li key={invoice.id} className="flex flex-wrap gap-x-2">
+                      <span className="font-mono" dir="ltr">{invoice.invoiceNumber}</span>
+                      {invoice.factoryName && <span>{invoice.factoryName}</span>}
+                      <span>{Number(invoice.payableAmount || 0).toLocaleString('fa-IR')} ریال</span>
+                      <span>مهلت {due.dateFa}{due.text ? ` (${due.text})` : ''}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <p className="mt-1 text-xs text-danger-700">برای مشاهده و پرداخت اینجا کلیک کنید.</p>
           </div>
         </button>
       )}

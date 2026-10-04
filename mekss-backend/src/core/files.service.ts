@@ -22,6 +22,7 @@ export const MEDIA_DOMAINS = [
   'request',
   'message',
   'announcement',
+  'banner',
 ] as const;
 
 export type MediaDomain = (typeof MEDIA_DOMAINS)[number];
@@ -84,7 +85,16 @@ const DOMAIN_RULES: Record<
     mimeTypes: [...FILE_UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES, ...FILE_UPLOAD_CONFIG.ALLOWED_DOCUMENT_TYPES],
     personalOk: false,
   },
+  banner: {
+    bucket: 'media',
+    maxBytes: 3 * 1024 * 1024,
+    mimeTypes: FILE_UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES,
+    personalOk: false,
+  },
 };
+
+/** Domains any signed-in user may read regardless of upload scope. */
+const PUBLIC_READ_DOMAINS: readonly string[] = ['avatar', 'banner'];
 
 const SAFE_NAME = /[^a-zA-Z0-9._\u0600-\u06FF-]+/g;
 
@@ -174,7 +184,7 @@ export class FilesService {
   private async canRead(actor: AuthenticatedUser, asset: { uploadedById: string; parkId: string | null; factoryId: string | null; domain: string }) {
     if (actor.role === Role.SUPER_ADMIN) return true;
     if (asset.uploadedById === actor.id) return true;
-    if (asset.domain === 'avatar') return true; // profile photos readable by authenticated users
+    if (PUBLIC_READ_DOMAINS.includes(asset.domain)) return true;
     try {
       await this.assertScopeAccess(actor, asset.parkId, asset.factoryId);
       return true;
@@ -193,6 +203,9 @@ export class FilesService {
     }
     const domain = input.domain;
     const rules = DOMAIN_RULES[domain];
+    if (domain === 'banner' && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('فقط مدیر سامانه می‌تواند تصویر بنر بارگذاری کند');
+    }
     this.assertFile(domain, file);
 
     if (!rules.personalOk && !input.factoryId && !input.parkId && actor.role !== Role.SUPER_ADMIN) {
@@ -266,8 +279,12 @@ export class FilesService {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('فایل یافت نشد');
     const owner = asset.uploadedById === actor.id;
-    const admin = actor.role === Role.SUPER_ADMIN || actor.role === Role.PARK_MANAGER;
-    if (!owner && !admin) throw new ForbiddenException('حذف این فایل مجاز نیست');
+    let allowed = owner || actor.role === Role.SUPER_ADMIN;
+    // Park managers may clean up files of their own parks/units only — never banner images or personal files.
+    if (!allowed && actor.role === Role.PARK_MANAGER && asset.domain !== 'banner' && (asset.parkId || asset.factoryId)) {
+      allowed = await this.assertScopeAccess(actor, asset.parkId, asset.factoryId).then(() => true, () => false);
+    }
+    if (!allowed) throw new ForbiddenException('حذف این فایل مجاز نیست');
 
     try {
       await this.storage.removeObject(asset.bucket, asset.objectKey);

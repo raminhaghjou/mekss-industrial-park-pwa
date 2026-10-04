@@ -48,4 +48,19 @@ describe('factory API contract', () => {
     ]);
     expect(mocks.put).toHaveBeenCalledWith('/factories/factory-1', updatePayload);
   });
+
+  it('fetches the owner switcher list without the active-factory narrowing', () => {
+    factoryApi.getOwnedFactories();
+    expect(mocks.get).toHaveBeenCalledWith('/factories', { skipActiveFactory: true });
+  });
+
+  it('uses dedicated suspend/unsuspend routes with the reason in the suspend body only', () => {
+    factoryApi.suspendFactory('factory-1', 'بدهی معوق');
+    factoryApi.unsuspendFactory('factory-1');
+
+    expect(mocks.post.mock.calls).toEqual([
+      ['/factories/factory-1/suspend', { reason: 'بدهی معوق' }],
+      ['/factories/factory-1/unsuspend'],
+    ]);
+  });
 });

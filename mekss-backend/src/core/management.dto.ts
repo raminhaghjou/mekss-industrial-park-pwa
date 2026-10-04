@@ -22,7 +22,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { AdvertisementStatus, CargoType, EmergencySeverity, FactoryStatus, MarketRateKey, ParkStatus, PlateType, RequestPriority, RequestType, Role, VehicleType } from '@prisma/client';
+import { AdvertisementStatus, CargoType, EmergencySeverity, FactoryStatus, InvoiceItemType, MarketRateKey, ParkStatus, PlateType, RequestPriority, RequestType, Role, VehicleType } from '@prisma/client';
 import { canonicalPlateOrRaw, IRAN_LICENSE_PLATE_PATTERN } from '../anpr/plate-grammar';
 
 const iranianPhone = /^09\d{9}$/;
@@ -290,6 +290,19 @@ export class PublicSmsRequestDto {
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) text?: string | null;
 }
 
+/** Vehicle types accepted for new gate passes; TRUCK stays in the enum only for historical records. */
+export const ACTIVE_VEHICLE_TYPES: readonly VehicleType[] = [
+  VehicleType.KHAVAR,
+  VehicleType.TAK,
+  VehicleType.TEN_WHEELER,
+  VehicleType.TRAILER,
+  VehicleType.VAN,
+  VehicleType.CAR,
+  VehicleType.MOTORCYCLE,
+  VehicleType.OTHER,
+];
+const vehicleTypeMessage = { message: 'نوع خودرو معتبر نیست' };
+
 export class CreateGatePassDto {
   @IsString() @Matches(opaqueId) factoryId!: string;
   @IsEnum(CargoType) cargoType!: CargoType;
@@ -297,7 +310,7 @@ export class CreateGatePassDto {
   @Transform(trimString) @IsString() @Length(2, 120) driverName!: string;
   @Transform(normalizeNationalId) @Matches(nationalIdPattern, { message: 'کد ملی باید ۱۰ رقم باشد' }) driverNationalId!: string;
   @Transform(normalizeIranianPhone) @Matches(iranianPhone, { message: 'شماره موبایل باید به صورت 09XXXXXXXXX باشد' }) driverPhone!: string;
-  @IsEnum(VehicleType) vehicleType!: VehicleType;
+  @IsIn(ACTIVE_VEHICLE_TYPES, vehicleTypeMessage) vehicleType!: VehicleType;
   @Transform(normalizeLicensePlate) @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate!: string;
   @IsOptional() @IsEnum(PlateType) plateType?: PlateType;
   @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
@@ -311,12 +324,20 @@ export class UpdateGatePassDto {
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) driverName?: string;
   @Transform(normalizeNationalId) @IsOptional() @Matches(nationalIdPattern, { message: 'کد ملی باید ۱۰ رقم باشد' }) driverNationalId?: string;
   @Transform(normalizeIranianPhone) @IsOptional() @Matches(iranianPhone, { message: 'شماره موبایل باید به صورت 09XXXXXXXXX باشد' }) driverPhone?: string;
-  @IsOptional() @IsEnum(VehicleType) vehicleType?: VehicleType;
+  @IsOptional() @IsIn(ACTIVE_VEHICLE_TYPES, vehicleTypeMessage) vehicleType?: VehicleType;
   @Transform(normalizeLicensePlate) @IsOptional() @Matches(iranLicensePlatePattern, { message: 'شماره پلاک معتبر نیست' }) licensePlate?: string;
   @IsOptional() @IsEnum(PlateType) plateType?: PlateType;
   @IsOptional() @IsString() @MaxLength(1000) licensePlatePhoto?: string;
   @IsOptional() @IsDateString({}, { message: 'تاریخ خروج نامعتبر است' }) exitDate?: string;
 }
+
+export class InvoiceItemDto {
+  @IsEnum(InvoiceItemType) type!: InvoiceItemType;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(200) title?: string | null;
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
+}
+
+const hasItems = (o: { items?: unknown[] }) => Array.isArray(o.items) && o.items.length > 0;
 
 export class CreateInvoiceDto {
   /** Bill an industrial unit (default). Required unless targetType=PARK. */
@@ -326,18 +347,22 @@ export class CreateInvoiceDto {
   @ValidateIf((o: CreateInvoiceDto) => o.targetType === 'PARK')
   @IsString() @Matches(opaqueId) parkId?: string;
   @IsOptional() @IsIn(['FACTORY', 'PARK']) targetType?: 'FACTORY' | 'PARK';
-  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
+  /** Line items; when present the base amount is their sum. */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => InvoiceItemDto) items?: InvoiceItemDto[];
+  @ValidateIf((o: CreateInvoiceDto) => !hasItems(o))
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount?: number;
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) taxAmount?: number;
   /** Daily late fee in Rials, accrued each calendar day after dueDate until payment. */
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) latePenaltyPerDay?: number;
-  @IsString() @Length(2, 2000) description!: string;
+  @ValidateIf((o: CreateInvoiceDto) => !hasItems(o) || (o.description !== undefined && o.description !== null && o.description !== ''))
+  @IsString() @Length(2, 2000) description?: string;
   @IsDateString() dueDate!: string;
 }
 
 export class ListInvoicesQueryDto {
   /** payable = debts I owe; managed = factory AR I collect (park manager / SA). */
   @IsOptional() @IsIn(['payable', 'managed']) scope?: 'payable' | 'managed';
-  @IsOptional() @IsIn(['PENDING', 'OVERDUE', 'PAID', 'CANCELLED', 'AWAITING_CONFIRMATION']) status?: string;
+  @IsOptional() @IsIn(['PENDING', 'OVERDUE', 'PAID', 'CANCELLED', 'AWAITING_CONFIRMATION', 'INSTALLMENTS']) status?: string;
   @IsOptional() @IsDateString() fromDate?: string;
   @IsOptional() @IsDateString() toDate?: string;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) minAmount?: number;
@@ -351,6 +376,97 @@ export class UpdateInvoiceDto {
   @IsOptional() @IsString() @Length(2, 2000) description?: string;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsIn(['PENDING', 'OVERDUE', 'CANCELLED']) status?: 'PENDING' | 'OVERDUE' | 'CANCELLED';
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => InvoiceItemDto) items?: InvoiceItemDto[];
+}
+
+const optionalNote = () => (target: object, propertyKey: string) => {
+  Transform(trimNullableString)(target, propertyKey);
+  IsOptional()(target, propertyKey);
+  IsString()(target, propertyKey);
+  MaxLength(1000)(target, propertyKey);
+};
+
+export class InvoiceDiscountDto {
+  /** Total discount on the base amount (amount + tax); the late penalty is never discounted. */
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(9_999_999_999_999.99) discountAmount!: number;
+  @optionalNote() note?: string | null;
+}
+
+export class InstallmentPlanItemDto {
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
+  @IsDateString() dueDate!: string;
+}
+
+export class InvoiceInstallmentsDto {
+  /** Equal split into `count` installments starting at firstDueDate, every intervalDays (default 30). */
+  @ValidateIf((o: InvoiceInstallmentsDto) => !Array.isArray(o.installments) || !o.installments.length)
+  @Type(() => Number) @IsInt() @Min(2) @Max(36) count?: number;
+  @ValidateIf((o: InvoiceInstallmentsDto) => !Array.isArray(o.installments) || !o.installments.length)
+  @IsDateString() firstDueDate?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(365) intervalDays?: number;
+  /** Custom schedule; amounts must add up exactly to the net base amount. */
+  @IsOptional() @IsArray() @ArrayMaxSize(36) @ValidateNested({ each: true }) @Type(() => InstallmentPlanItemDto) installments?: InstallmentPlanItemDto[];
+  @optionalNote() note?: string | null;
+}
+
+export const MANUAL_SETTLEMENT_METHODS = ['CASH', 'CHECK', 'POS', 'TRANSFER'] as const;
+
+export class InvoiceSettleDto {
+  @IsIn(MANUAL_SETTLEMENT_METHODS) method!: (typeof MANUAL_SETTLEMENT_METHODS)[number];
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(120) reference?: string | null;
+  @IsOptional() @IsDateString() paidAt?: string;
+  @optionalNote() note?: string | null;
+}
+
+export class InvoiceExtendDueDto {
+  @IsDateString() dueDate!: string;
+  @optionalNote() note?: string | null;
+}
+
+export class InvoiceImportQueryDto {
+  @IsOptional() @IsIn(['true', 'false', '1', '0']) dryRun?: string;
+  @IsOptional() @IsIn(['FACTORY', 'PARK']) target?: 'FACTORY' | 'PARK';
+}
+
+export class InvoiceTemplateQueryDto {
+  @IsOptional() @IsIn(['CHARGE', 'PLATFORM']) category?: 'CHARGE' | 'PLATFORM';
+  @IsOptional() @IsIn(['FACTORY', 'PARK']) target?: 'FACTORY' | 'PARK';
+}
+
+export class ResolveEmergencyDto {
+  @optionalNote() note?: string | null;
+}
+
+// Backslashes are rejected: browsers treat `/\host` like `//host` (off-site).
+const bannerLink = /^(https:\/\/[^\s<>"'\\]+|\/(?![/\\])[^\s<>"'\\]*)$/;
+
+export class CreateBannerDto {
+  @Transform(trimString) @IsString() @Length(2, 120) title!: string;
+  @IsString() @Matches(opaqueId) desktopImageId!: string;
+  @IsString() @Matches(opaqueId) mobileImageId!: string;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(500)
+  @Matches(bannerLink, { message: 'لینک باید با https:// یا / شروع شود' }) linkUrl?: string | null;
+  @IsOptional() @IsBoolean() openInNewTab?: boolean;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(10_000) sortOrder?: number;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() startsAt?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() endsAt?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @Matches(opaqueId) parkId?: string | null;
+}
+
+export class UpdateBannerDto {
+  // Non-nullable columns: `null` must fail validation (IsOptional would let it through).
+  @Transform(trimString) @ValidateIf((_, v) => v !== undefined) @IsString() @Length(2, 120) title?: string;
+  @ValidateIf((_, v) => v !== undefined) @IsString() @Matches(opaqueId) desktopImageId?: string;
+  @ValidateIf((_, v) => v !== undefined) @IsString() @Matches(opaqueId) mobileImageId?: string;
+  @Transform(trimNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(500)
+  @Matches(bannerLink, { message: 'لینک باید با https:// یا / شروع شود' }) linkUrl?: string | null;
+  @ValidateIf((_, v) => v !== undefined) @IsBoolean() openInNewTab?: boolean;
+  @ValidateIf((_, v) => v !== undefined) @IsBoolean() isActive?: boolean;
+  @ValidateIf((_, v) => v !== undefined) @Type(() => Number) @IsInt() @Min(0) @Max(10_000) sortOrder?: number;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() startsAt?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() endsAt?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @Matches(opaqueId) parkId?: string | null;
 }
 
 export class CreateRequestDto {

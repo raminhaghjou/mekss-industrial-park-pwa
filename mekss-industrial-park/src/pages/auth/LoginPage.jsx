@@ -75,7 +75,7 @@ export const LoginPage = () => {
 
     if (result.success) {
       showNotification('ورود با موفقیت انجام شد', 'success');
-      navigate(result.data?.mustChangePassword ? '/profile?changePassword=1' : '/dashboard');
+      navigate(result.data?.mustChangePassword ? '/profile?changePassword=1' : '/dashboard', { replace: true });
     } else {
       setFormError(result.error || 'کد تایید اشتباه است');
       showNotification(result.error || 'کد تایید اشتباه است', 'error');
@@ -96,7 +96,7 @@ export const LoginPage = () => {
 
     if (result.success) {
       showNotification('ورود با موفقیت انجام شد', 'success');
-      navigate(result.mustChangePassword ? '/profile?changePassword=1' : '/dashboard');
+      navigate(result.mustChangePassword ? '/profile?changePassword=1' : '/dashboard', { replace: true });
     } else {
       setFormError(result.error || 'ورود ناموفق بود');
       showNotification(result.error || 'ورود ناموفق بود', 'error');

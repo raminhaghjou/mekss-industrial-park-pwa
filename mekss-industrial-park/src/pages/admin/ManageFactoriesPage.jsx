@@ -43,6 +43,8 @@ import {
   Search,
   X,
   Wallet,
+  Ban,
+  LockOpen,
 } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -50,6 +52,8 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
+import { useAuth } from '../../providers/AuthProvider';
+import { useGatePassWallet } from '../../hooks/useGatePassWallet';
 
 const PAGE_SIZE = 12;
 const statusMeta = {
@@ -66,7 +70,7 @@ const requiredProfileFields = ['name', 'licenseNumber', 'nationalId', 'activityT
 const optionalTextFields = ['phoneNumber2', 'landline', 'fax', 'email', 'website', 'description'];
 const profileFields = [...requiredProfileFields, ...optionalTextFields, 'employees'];
 const createFields = [...profileFields, 'parkId', 'managerId'];
-/** @typedef {{ type: 'create' | 'update' | 'approve' | 'reject', id?: string, payload?: Record<string, any>, reason?: string }} FactoryOperation */
+/** @typedef {{ type: 'create' | 'update' | 'approve' | 'reject' | 'approvePending' | 'rejectPending' | 'suspend' | 'unsuspend', id?: string, payload?: Record<string, any>, reason?: string }} FactoryOperation */
 const emptyForm = {
   name: '',
   licenseNumber: '',
@@ -282,12 +286,16 @@ const ManageFactoriesPage = () => {
   const [form, setForm] = React.useState(emptyForm);
   const [approveTarget, setApproveTarget] = React.useState(null);
   const [rejectTarget, setRejectTarget] = React.useState(null);
+  const [suspendTarget, setSuspendTarget] = React.useState(null);
+  const [unsuspendTarget, setUnsuspendTarget] = React.useState(null);
   const [mutationLocked, setMutationLocked] = React.useState(false);
   const mutationLockRef = React.useRef(false);
   const detail404Ref = React.useRef(null);
   const online = useOnlineStatus();
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { showWalletUi } = useGatePassWallet(user?.role);
 
   const params = React.useMemo(() => ({
     page,
@@ -350,6 +358,8 @@ const ManageFactoriesPage = () => {
       if (operation.type === 'approve') return factoryApi.approveFactory(operation.id);
       if (operation.type === 'approvePending') return factoryApi.approvePendingChanges(operation.id);
       if (operation.type === 'rejectPending') return factoryApi.rejectPendingChanges(operation.id);
+      if (operation.type === 'suspend') return factoryApi.suspendFactory(operation.id, operation.reason);
+      if (operation.type === 'unsuspend') return factoryApi.unsuspendFactory(operation.id);
       return factoryApi.rejectFactory(operation.id, operation.reason);
     },
     onSuccess: async (response, /** @type {FactoryOperation} */ operation) => {
@@ -362,6 +372,8 @@ const ManageFactoriesPage = () => {
       }
       if (operation.type === 'approve') setApproveTarget(null);
       if (operation.type === 'reject') setRejectTarget(null);
+      if (operation.type === 'suspend') setSuspendTarget(null);
+      if (operation.type === 'unsuspend') setUnsuspendTarget(null);
       const messages = {
         create: 'واحد صنعتی ثبت و داده‌های مدیریتی به‌روزرسانی شد.',
         update: 'اطلاعات واحد صنعتی ذخیره و دوباره دریافت شد.',
@@ -369,6 +381,8 @@ const ManageFactoriesPage = () => {
         reject: 'رد واحد صنعتی ثبت و فهرست به‌روزرسانی شد.',
         approvePending: 'تغییرات حساس واحد صنعتی تایید شد.',
         rejectPending: 'تغییرات حساس واحد صنعتی رد شد.',
+        suspend: 'واحد صنعتی مسدود شد و به مالک اطلاع داده شد.',
+        unsuspend: 'مسدودی واحد صنعتی برداشته شد.',
       };
       showNotification(messages[operation.type], 'success');
     },
@@ -381,6 +395,8 @@ const ManageFactoriesPage = () => {
         reject: 'رد واحد صنعتی ناموفق بود.',
         approvePending: 'تایید تغییرات حساس ناموفق بود.',
         rejectPending: 'رد تغییرات حساس ناموفق بود.',
+        suspend: 'مسدودسازی واحد صنعتی ناموفق بود.',
+        unsuspend: 'رفع مسدودی واحد صنعتی ناموفق بود.',
       };
       showNotification(factoryError(error, fallbacks[operation.type]), 'error');
     },
@@ -587,13 +603,15 @@ const ManageFactoriesPage = () => {
                           <Eye className="h-4 w-4" />
                           جزئیات
                         </Button>
-                        <a
-                          href={`/factory/wallet?factoryId=${factory.id}`}
-                          className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-sm font-medium text-foreground-700 hover:bg-default-100"
-                        >
-                          <Wallet className="h-4 w-4" />
-                          کیف پول
-                        </a>
+                        {showWalletUi && (
+                          <a
+                            href={`/factory/wallet?factoryId=${factory.id}`}
+                            className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-sm font-medium text-foreground-700 hover:bg-default-100"
+                          >
+                            <Wallet className="h-4 w-4" />
+                            کیف پول
+                          </a>
+                        )}
                         <Button
                           size="sm"
                           variant="tertiary"
@@ -628,7 +646,36 @@ const ManageFactoriesPage = () => {
                             </Button>
                           </>
                         )}
+                        {factory.status === 'ACTIVE' && (
+                          <Button
+                            size="sm"
+                            variant="danger-soft"
+                            onPress={() => setSuspendTarget(factory)}
+                            isDisabled={!online || mutationPending}
+                            className="rounded-xl font-medium flex items-center gap-1"
+                          >
+                            <Ban className="h-4 w-4" />
+                            مسدودسازی
+                          </Button>
+                        )}
+                        {factory.status === 'SUSPENDED' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onPress={() => setUnsuspendTarget(factory)}
+                            isDisabled={!online || mutationPending}
+                            className="rounded-xl font-medium flex items-center gap-1"
+                          >
+                            <LockOpen className="h-4 w-4" />
+                            رفع مسدودی
+                          </Button>
+                        )}
                       </div>
+                      {factory.status === 'SUSPENDED' && factory.suspendedReason && (
+                        <p className="mt-1 text-center text-xs text-danger" title={factory.suspendedReason}>
+                          دلیل مسدودی: {factory.suspendedReason.length > 60 ? `${factory.suspendedReason.slice(0, 60)}…` : factory.suspendedReason}
+                        </p>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -842,6 +889,29 @@ const ManageFactoriesPage = () => {
         disabled={!online}
         onConfirm={(reason) => { if (rejectTarget) runMutation({ type: 'reject', id: rejectTarget.id, reason }); }}
         onClose={() => { if (!mutationPending) setRejectTarget(null); }}
+      />
+      <ConfirmDialog
+        open={Boolean(suspendTarget)}
+        title="مسدودسازی واحد صنعتی"
+        description={suspendTarget ? `با مسدودسازی «${suspendTarget.name}»، ثبت برگ خروج، درخواست جدید و مدیریت کارکنان برای این واحد متوقف می‌شود و دلیل برای مالک ارسال خواهد شد.` : ''}
+        requireReason
+        reasonLabel="دلیل مسدودسازی"
+        confirmLabel="مسدود شود"
+        confirmColor="danger"
+        loading={mutationPending}
+        disabled={!online}
+        onConfirm={(reason) => { if (suspendTarget) runMutation({ type: 'suspend', id: suspendTarget.id, reason }); }}
+        onClose={() => { if (!mutationPending) setSuspendTarget(null); }}
+      />
+      <ConfirmDialog
+        open={Boolean(unsuspendTarget)}
+        title="رفع مسدودی واحد صنعتی"
+        description={unsuspendTarget ? `مسدودی «${unsuspendTarget.name}» برداشته شود؟ واحد دوباره به وضعیت فعال برمی‌گردد.` : ''}
+        confirmLabel="رفع مسدودی"
+        loading={mutationPending}
+        disabled={!online}
+        onConfirm={() => { if (unsuspendTarget) runMutation({ type: 'unsuspend', id: unsuspendTarget.id }); }}
+        onClose={() => { if (!mutationPending) setUnsuspendTarget(null); }}
       />
     </div>
   );

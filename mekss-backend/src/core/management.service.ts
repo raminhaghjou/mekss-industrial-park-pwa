@@ -1,11 +1,27 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AdvertisementStatus, CargoType, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceStatus, InvoiceTarget, MarketRateKey, MessageStatus, ParkStatus, PaymentStatus, PlateType, Prisma, RequestStatus, RequestType, Role } from '@prisma/client';
+import { AdvertisementStatus, CargoType, EmergencyStatus, FactoryStatus, GatePassStatus, InvoiceAdjustmentType, InvoiceCategory, InvoiceItemType, InvoiceStatus, InvoiceTarget, MarketRateKey, MessageStatus, ParkStatus, PaymentStatus, PlateType, Prisma, RequestStatus, RequestType, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementCategoryDto, CreateAdvertisementDto, CreateFeedbackDto, PublicAdvertisementQueryDto, UpdateAdvertisementCategoryDto, UpdateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementCategoryDto, CreateAdvertisementDto, CreateBannerDto, CreateFeedbackDto, PublicAdvertisementQueryDto, UpdateAdvertisementCategoryDto, UpdateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, InvoiceDiscountDto, InvoiceExtendDueDto, InvoiceInstallmentsDto, InvoiceItemDto, InvoiceSettleDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateBannerDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
+import {
+  addDays,
+  calendarDaysLate,
+  categoryForRole,
+  defaultInvoiceDescription,
+  formatJalaliDate,
+  formatRial,
+  INVOICE_ITEM_LABELS_FA,
+  itemsSummaryFa,
+  MAX_INVOICE_AMOUNT,
+  normalizeInvoiceItems,
+  NormalizedInvoiceItem,
+  splitEvenly,
+  sumItems,
+} from './invoice-billing';
+import { buildImportTemplate, ImportTarget, parseImportWorkbook } from './invoice-import';
 import { PrismaService } from './prisma.service';
 import { currentCorrelationId } from './request-context';
 import { SmsGateway } from './sms.gateway';
@@ -126,6 +142,8 @@ const FACTORY_MANAGEMENT_SELECT = Prisma.validator<Prisma.FactorySelect>()({
   establishedDate: true,
   employees: true,
   status: true,
+  suspendedReason: true,
+  suspendedAt: true,
   isApproved: true,
   rejectionReason: true,
   reviewedAt: true,
@@ -1185,7 +1203,9 @@ export class ManagementService {
     if (user.role === Role.FACTORY_OWNER || user.role === Role.EMPLOYEE) {
       const factory = user.role === Role.FACTORY_OWNER
         ? await tx.factory.findFirst({
-          where: { managerId: user.id, status: FactoryStatus.ACTIVE, isApproved: true },
+          where: user.activeFactoryId
+            ? { managerId: user.id, id: user.activeFactoryId }
+            : { managerId: user.id, status: FactoryStatus.ACTIVE, isApproved: true },
           select: { park: { select: { id: true, name: true, logo: true } } },
           orderBy: { name: 'asc' },
         })
@@ -1226,11 +1246,14 @@ export class ManagementService {
         parkId: true,
         phoneNumber: true,
         phoneNumber2: true,
+        status: true,
+        suspendedReason: true,
         manager: { select: { phoneNumber: true, name: true } },
         park: { select: { id: true, name: true, guardPhone: true } },
       },
     });
     if (!factory) throw new NotFoundException('Factory not found');
+    this.assertFactoryNotSuspended(factory);
 
     const pass = await this.prisma.$transaction(async (tx) => {
       if (shouldCharge) {
@@ -1329,9 +1352,13 @@ export class ManagementService {
     licensePlatePhoto?: string;
     exitDate?: string;
   }) {
-    const existing = await this.prisma.gatePass.findUnique({ where: { id } });
+    const existing = await this.prisma.gatePass.findUnique({
+      where: { id },
+      include: { factory: { select: { status: true, suspendedReason: true } } },
+    });
     if (!existing) throw new NotFoundException('Gate pass not found');
     await this.assertFactoryAccess(actor, existing.factoryId);
+    this.assertFactoryNotSuspended(existing.factory);
     if (existing.status !== GatePassStatus.PENDING && existing.status !== GatePassStatus.REJECTED) {
       throw new ConflictException('Only pending or rejected gate passes can be edited');
     }
@@ -1480,12 +1507,28 @@ export class ManagementService {
     const invoices = await this.prisma.invoice.findMany({
       where,
       include: {
-        factory: { select: { id: true, name: true, managerId: true } },
+        factory: { select: { id: true, name: true, managerId: true, nationalId: true, status: true } },
         park: { select: { id: true, name: true, code: true } },
         payments: true,
+        items: { orderBy: { sortOrder: 'asc' } },
+        createdBy: { select: { id: true, name: true, role: true } },
       },
       orderBy: { issueDate: 'desc' },
     });
+    const operablePark = user.role === Role.PARK_MANAGER && resolvedScope === 'managed'
+      ? new Set(await this.managedParkIds(user))
+      : new Set<string>();
+    const openStatuses: InvoiceStatus[] = [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE];
+    const permissions = (invoice: { createdById: string; status: InvoiceStatus; targetType: InvoiceTarget; category: InvoiceCategory; parkId: string | null }) => {
+      const open = openStatuses.includes(invoice.status);
+      const isIssuer = invoice.createdById === user.id;
+      const canOperate = open && (
+        isIssuer
+        || (user.role === Role.PARK_MANAGER && invoice.targetType === InvoiceTarget.FACTORY && invoice.category === InvoiceCategory.CHARGE && Boolean(invoice.parkId && operablePark.has(invoice.parkId)))
+        || (user.role === Role.SUPER_ADMIN && invoice.category === InvoiceCategory.PLATFORM)
+      );
+      return { canEdit: open && isIssuer, canOperate };
+    };
     const overdueIds = invoices
       .filter((invoice) => invoice.status === InvoiceStatus.PENDING && this.calendarDaysLate(invoice.dueDate) > 0)
       .map((invoice) => invoice.id);
@@ -1495,10 +1538,13 @@ export class ManagementService {
         data: { status: InvoiceStatus.OVERDUE },
       });
     }
-    return invoices.map((invoice) => this.presentInvoice({
-      ...invoice,
-      status: overdueIds.includes(invoice.id) ? InvoiceStatus.OVERDUE : invoice.status,
-    }));
+    return invoices.map((invoice) => {
+      const status = overdueIds.includes(invoice.id) ? InvoiceStatus.OVERDUE : invoice.status;
+      return {
+        ...this.presentInvoice({ ...invoice, status }),
+        ...permissions({ ...invoice, status }),
+      };
+    });
   }
 
   async invoicePdfPayload(actor: AuthenticatedUser, invoiceId: string) {
@@ -1508,6 +1554,7 @@ export class ManagementService {
         factory: { select: { id: true, name: true, address: true, nationalId: true, phoneNumber: true } },
         park: { select: { id: true, name: true, code: true, address: true, phoneNumber: true } },
         createdBy: { select: { id: true, name: true } },
+        items: { orderBy: { sortOrder: 'asc' } },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -1519,24 +1566,34 @@ export class ManagementService {
     factoryId?: string;
     parkId?: string;
     targetType?: 'FACTORY' | 'PARK';
-    amount: number;
+    items?: Array<Pick<InvoiceItemDto, 'type' | 'title' | 'amount'>>;
+    amount?: number;
     taxAmount?: number;
     latePenaltyPerDay?: number;
-    description: string;
+    description?: string;
     dueDate: string;
   }) {
     const targetType = input.targetType === 'PARK' ? InvoiceTarget.PARK : InvoiceTarget.FACTORY;
-    const amount = Number(input.amount);
+    const category = categoryForRole(actor.role);
+    const items = input.items?.length ? normalizeInvoiceItems(input.items, category) : null;
+    const amount = items ? sumItems(items) : Number(input.amount);
     const taxAmount = Number(input.taxAmount || 0);
     const latePenaltyPerDay = Number(input.latePenaltyPerDay || 0);
     if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(taxAmount) || taxAmount < 0) {
       throw new BadRequestException('Invalid invoice amount');
     }
+    if (amount + taxAmount > MAX_INVOICE_AMOUNT) throw new BadRequestException('Invoice total is too large');
     if (!Number.isFinite(latePenaltyPerDay) || latePenaltyPerDay < 0) {
       throw new BadRequestException('Invalid late penalty per day');
     }
-    this.text(input.description, 'description');
+    const description = input.description?.trim() || (items ? defaultInvoiceDescription(category, items) : '');
+    this.text(description, 'description');
     this.text(input.dueDate, 'dueDate');
+    const dueDate = new Date(input.dueDate);
+    if (Number.isNaN(dueDate.getTime())) throw new BadRequestException('Invalid due date');
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('Only park managers and super admins can issue invoices');
+    }
 
     if (targetType === InvoiceTarget.PARK) {
       if (actor.role !== Role.SUPER_ADMIN) {
@@ -1554,42 +1611,25 @@ export class ManagementService {
       if (!park) throw new NotFoundException('Park not found');
 
       const invoice = await this.prisma.invoice.create({
-        data: {
+        data: this.invoiceCreateData({
           targetType: InvoiceTarget.PARK,
           parkId: park.id,
           factoryId: null,
+          category,
+          items,
           amount,
           taxAmount,
-          totalAmount: amount + taxAmount,
           latePenaltyPerDay,
-          latePenaltyAmount: 0,
-          description: input.description,
-          dueDate: new Date(input.dueDate),
-          invoiceNumber: `PINV-${Date.now()}-${randomBytes(3).toString('hex')}`,
+          description,
+          dueDate,
           createdById: actor.id,
-        },
-        include: { park: { select: { id: true, name: true, code: true } } },
+        }),
+        include: { park: { select: { id: true, name: true, code: true } }, items: { orderBy: { sortOrder: 'asc' } } },
       });
       await this.audit.record({ userId: actor.id, action: 'PARK_INVOICE_CREATED', entity: 'Invoice', entityId: invoice.id });
-      const penaltyNote = latePenaltyPerDay > 0
-        ? ` در صورت تأخیر، جریمه روزانه ${latePenaltyPerDay} ریال اعمال می‌شود.`
-        : '';
-      await Promise.all(park.managers
+      await this.notifyInvoiceIssued(invoice, items, `شهرک «${park.name}»`, park.managers
         .filter((manager) => manager.isActive && manager.isApproved)
-        .map(async (manager) => {
-          if (manager.phoneNumber) {
-            await this.safeSendSms(
-              manager.phoneNumber,
-              `MEKSS: صورتحساب جدید برای شهرک «${park.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.${penaltyNote}`,
-            );
-          }
-          await this.notifyUser(
-            manager.id,
-            'صورتحساب شهرک',
-            `صورتحساب «${invoice.invoiceNumber}» برای شهرک ${park.name} به مبلغ ${Number(invoice.totalAmount)} ریال صادر شد.${penaltyNote}`,
-            'WARNING',
-          );
-        }));
+        .map((manager) => ({ userId: manager.id, phoneNumber: manager.phoneNumber })));
       return this.presentInvoice(invoice);
     }
 
@@ -1602,41 +1642,268 @@ export class ManagementService {
     if (!factory) throw new NotFoundException('Factory not found');
 
     const invoice = await this.prisma.invoice.create({
-      data: {
+      data: this.invoiceCreateData({
         targetType: InvoiceTarget.FACTORY,
         factoryId: factory.id,
         parkId: factory.parkId,
+        category,
+        items,
         amount,
         taxAmount,
-        totalAmount: amount + taxAmount,
         latePenaltyPerDay,
-        latePenaltyAmount: 0,
-        description: input.description,
-        dueDate: new Date(input.dueDate),
-        invoiceNumber: `INV-${Date.now()}-${randomBytes(3).toString('hex')}`,
+        description,
+        dueDate,
         createdById: actor.id,
-      },
-      include: { factory: { select: { id: true, name: true, managerId: true } } },
+      }),
+      include: { factory: { select: { id: true, name: true, managerId: true } }, items: { orderBy: { sortOrder: 'asc' } } },
     });
     await this.audit.record({ userId: actor.id, action: 'INVOICE_CREATED', entity: 'Invoice', entityId: invoice.id });
-    const penaltyNote = latePenaltyPerDay > 0
-      ? ` در صورت تأخیر، جریمه روزانه ${latePenaltyPerDay} ریال اعمال می‌شود.`
-      : '';
-    if (factory.manager?.phoneNumber) {
-      await this.safeSendSms(
-        factory.manager.phoneNumber,
-        `MEKSS: صورتحساب جدید برای «${factory.name}» به مبلغ ${Number(invoice.totalAmount)} ثبت شد.${penaltyNote}`,
-      );
+    await this.notifyInvoiceIssued(invoice, items, `«${factory.name}»`, factory.managerId
+      ? [{ userId: factory.managerId, phoneNumber: factory.manager?.phoneNumber || null }]
+      : []);
+    return this.presentInvoice(invoice);
+  }
+
+  private invoiceCreateData(input: {
+    targetType: InvoiceTarget;
+    factoryId: string | null;
+    parkId: string | null;
+    category: InvoiceCategory;
+    items: NormalizedInvoiceItem[] | null;
+    amount: number;
+    taxAmount: number;
+    latePenaltyPerDay: number;
+    description: string;
+    dueDate: Date;
+    createdById: string;
+    importBatchId?: string;
+    parentInvoiceId?: string;
+    installmentNo?: number;
+  }): Prisma.InvoiceUncheckedCreateInput {
+    const prefix = input.targetType === InvoiceTarget.PARK ? 'PINV' : 'INV';
+    return {
+      targetType: input.targetType,
+      factoryId: input.factoryId,
+      parkId: input.parkId,
+      category: input.category,
+      amount: input.amount,
+      taxAmount: input.taxAmount,
+      totalAmount: this.money(input.amount + input.taxAmount),
+      latePenaltyPerDay: input.latePenaltyPerDay,
+      latePenaltyAmount: 0,
+      description: input.description,
+      dueDate: input.dueDate,
+      invoiceNumber: `${prefix}-${Date.now()}-${randomBytes(3).toString('hex')}`,
+      createdById: input.createdById,
+      ...(input.importBatchId ? { importBatchId: input.importBatchId } : {}),
+      ...(input.parentInvoiceId ? { parentInvoiceId: input.parentInvoiceId, installmentNo: input.installmentNo ?? null } : {}),
+      ...(input.items?.length
+        ? { items: { create: input.items.map((item) => ({ type: item.type, title: item.title, amount: item.amount, sortOrder: item.sortOrder })) } }
+        : {}),
+    };
+  }
+
+  private importTarget(actor: AuthenticatedUser, requested?: string): ImportTarget {
+    if (actor.role === Role.PARK_MANAGER) {
+      if (requested === 'PARK') throw new ForbiddenException('Only super admins can bill industrial parks');
+      return 'FACTORY';
     }
-    if (factory.managerId) {
+    if (actor.role === Role.SUPER_ADMIN) return requested === 'PARK' ? 'PARK' : 'FACTORY';
+    throw new ForbiddenException('Only park managers and super admins can import invoices');
+  }
+
+  async invoiceImportTemplate(actor: AuthenticatedUser, query: { category?: string; target?: string }) {
+    const category = categoryForRole(actor.role);
+    if (query.category && query.category !== category) {
+      throw new ForbiddenException('This bill category is not available for your role');
+    }
+    const target = this.importTarget(actor, query.target);
+    const buffer = await buildImportTemplate(category, target);
+    const fileName = `mekss-${category === InvoiceCategory.PLATFORM ? 'platform' : 'charge'}-${target.toLowerCase()}-template.xlsx`;
+    return { buffer, fileName };
+  }
+
+  async importInvoices(
+    actor: AuthenticatedUser,
+    file: { buffer?: Buffer; originalname?: string } | undefined,
+    options: { dryRun: boolean; target?: string },
+  ) {
+    if (!file?.buffer?.length) throw new BadRequestException('فایل ارسال نشده است');
+    const category = categoryForRole(actor.role);
+    const target = this.importTarget(actor, options.target);
+    const fileName = Buffer.from(String(file.originalname || 'invoices.xlsx'), 'latin1').toString('utf8').slice(0, 200);
+    const fileHash = createHash('sha256').update(file.buffer).digest('hex');
+    const rows = await parseImportWorkbook(file.buffer, category, target);
+
+    type ResolvedTarget = {
+      id: string;
+      name: string;
+      parkId: string | null;
+      recipients: Array<{ userId: string; phoneNumber: string | null }>;
+    };
+    const resolved = new Map<string, ResolvedTarget>();
+    const ambiguous = new Set<string>();
+    if (target === 'FACTORY') {
+      const nationalIds = Array.from(new Set(rows.map((row) => row.key).filter(Boolean)));
+      const factories = nationalIds.length
+        ? await this.prisma.factory.findMany({
+          where: { nationalId: { in: nationalIds }, ...(await this.factoryFilter(actor)) },
+          select: { id: true, name: true, nationalId: true, parkId: true, managerId: true, manager: { select: { phoneNumber: true } } },
+        })
+        : [];
+      for (const factory of factories) {
+        resolved.set(factory.nationalId, {
+          id: factory.id,
+          name: factory.name,
+          parkId: factory.parkId,
+          recipients: factory.managerId ? [{ userId: factory.managerId, phoneNumber: factory.manager?.phoneNumber || null }] : [],
+        });
+      }
+    } else {
+      const normalizeName = (value: string) => value.trim().replace(/\s+/g, ' ').replace(/ي/g, 'ی').replace(/ك/g, 'ک').toLowerCase();
+      const parks = await this.prisma.industrialPark.findMany({
+        select: { id: true, name: true, managers: { select: { id: true, phoneNumber: true, isActive: true, isApproved: true } } },
+      });
+      for (const park of parks) {
+        const key = normalizeName(park.name);
+        if (resolved.has(key)) ambiguous.add(key);
+        resolved.set(key, {
+          id: park.id,
+          name: park.name,
+          parkId: park.id,
+          recipients: park.managers
+            .filter((manager) => manager.isActive && manager.isApproved)
+            .map((manager) => ({ userId: manager.id, phoneNumber: manager.phoneNumber })),
+        });
+      }
+      for (const row of rows) row.key = row.key ? normalizeName(row.key) : row.key;
+    }
+
+    const preview = rows.map((row) => {
+      const errors = [...row.errors];
+      const match = row.key ? resolved.get(row.key) : undefined;
+      if (row.key && !errors.some((error) => error.startsWith('شناسه ملی واحد باید'))) {
+        if (ambiguous.has(row.key)) errors.push('چند شهرک با این نام وجود دارد؛ نام را دقیق‌تر کنید');
+        else if (!match) {
+          errors.push(target === 'FACTORY'
+            ? 'واحدی با این شناسه ملی پیدا نشد یا در محدودهٔ شما نیست'
+            : 'شهرکی با این نام پیدا نشد');
+        }
+      }
+      return {
+        rowNumber: row.rowNumber,
+        key: row.key,
+        targetId: match?.id || null,
+        targetName: match?.name || null,
+        items: row.items.map((item) => ({ ...item, label: INVOICE_ITEM_LABELS_FA[item.type] })),
+        total: row.total,
+        dueDate: row.dueDate,
+        dueDateJalali: row.dueDateJalali,
+        latePenaltyPerDay: row.latePenaltyPerDay,
+        description: row.description,
+        errors,
+      };
+    });
+    const valid = preview.filter((row) => !row.errors.length);
+    const summary = {
+      rowCount: preview.length,
+      validCount: valid.length,
+      errorCount: preview.length - valid.length,
+      totalAmount: this.money(valid.reduce((sum, row) => sum + row.total, 0)),
+    };
+    const previous = await this.prisma.invoiceImportBatch.findUnique({
+      where: { createdById_fileHash: { createdById: actor.id, fileHash } },
+      select: { id: true, createdAt: true, rowCount: true },
+    });
+
+    if (options.dryRun) {
+      return { dryRun: true, category, target, fileName, alreadyImported: Boolean(previous), previousImportAt: previous?.createdAt ?? null, summary, rows: preview };
+    }
+    if (previous) throw new ConflictException('این فایل قبلاً ثبت شده است و دوباره وارد نمی‌شود');
+    if (summary.errorCount > 0) {
+      throw new BadRequestException(`${summary.errorCount} ردیف خطا دارد؛ هیچ قبضی ثبت نشد. پیش‌نمایش را بررسی و فایل را اصلاح کنید.`);
+    }
+
+    const targetType = target === 'PARK' ? InvoiceTarget.PARK : InvoiceTarget.FACTORY;
+    let result: { batchId: string; invoices: Array<{ id: string; invoiceNumber: string; totalAmount: Prisma.Decimal; dueDate: Date; latePenaltyPerDay: Prisma.Decimal; key: string; items: NormalizedInvoiceItem[] }> };
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        const batch = await tx.invoiceImportBatch.create({
+          data: { createdById: actor.id, fileName, fileHash, category, rowCount: preview.length },
+        });
+        const invoices = [];
+        for (const row of preview) {
+          const match = resolved.get(row.key) as ResolvedTarget;
+          const items: NormalizedInvoiceItem[] = row.items.map((item, index) => ({ type: item.type, title: item.title, amount: item.amount, sortOrder: index }));
+          const invoice = await tx.invoice.create({
+            data: this.invoiceCreateData({
+              targetType,
+              factoryId: targetType === InvoiceTarget.FACTORY ? match.id : null,
+              parkId: match.parkId,
+              category,
+              items,
+              amount: row.total,
+              taxAmount: 0,
+              latePenaltyPerDay: row.latePenaltyPerDay,
+              description: row.description || defaultInvoiceDescription(category, items),
+              dueDate: new Date(String(row.dueDate)),
+              createdById: actor.id,
+              importBatchId: batch.id,
+            }),
+            select: { id: true, invoiceNumber: true, totalAmount: true, dueDate: true, latePenaltyPerDay: true },
+          });
+          invoices.push({ ...invoice, key: row.key, items });
+        }
+        return { batchId: batch.id, invoices };
+      }, { timeout: 180_000, maxWait: 10_000 });
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2002') throw new ConflictException('این فایل قبلاً ثبت شده است و دوباره وارد نمی‌شود');
+      throw error;
+    }
+
+    await this.audit.record({
+      userId: actor.id,
+      action: 'INVOICES_IMPORTED',
+      entity: 'InvoiceImportBatch',
+      entityId: result.batchId,
+      changes: { fileName, category, target, count: result.invoices.length, totalAmount: summary.totalAmount },
+    });
+    void (async () => {
+      for (const invoice of result.invoices) {
+        const match = resolved.get(invoice.key) as ResolvedTarget;
+        await this.notifyInvoiceIssued(invoice, invoice.items, target === 'PARK' ? `شهرک «${match.name}»` : `«${match.name}»`, match.recipients);
+      }
+    })().catch((error) => this.logger.warn(`Import notifications failed: ${error instanceof Error ? error.message : 'unknown error'}`));
+
+    return { dryRun: false, category, target, fileName, batchId: result.batchId, created: result.invoices.length, totalAmount: summary.totalAmount };
+  }
+
+  /** SMS + in-app notice with line items, due date and the daily penalty. */
+  private async notifyInvoiceIssued(
+    invoice: { invoiceNumber: string; totalAmount: Prisma.Decimal | number; dueDate: Date; latePenaltyPerDay: Prisma.Decimal | number },
+    items: Array<{ type: InvoiceItemType; title?: string | null; amount: number }> | null,
+    subject: string,
+    recipients: Array<{ userId: string; phoneNumber: string | null }>,
+  ) {
+    const total = formatRial(Number(invoice.totalAmount));
+    const perDay = Number(invoice.latePenaltyPerDay || 0);
+    const dueNote = ` مهلت پرداخت: ${formatJalaliDate(invoice.dueDate)}.`;
+    const penaltyNote = perDay > 0 ? ` در صورت تأخیر، جریمه روزانه ${formatRial(perDay)} ریال اعمال می‌شود.` : '';
+    const itemsNote = items?.length ? ` (${itemsSummaryFa(items)})` : '';
+    await Promise.all(recipients.map(async (recipient) => {
+      if (recipient.phoneNumber) {
+        await this.safeSendSms(
+          recipient.phoneNumber,
+          `MEKSS: صورتحساب جدید برای ${subject} به مبلغ ${total} ریال ثبت شد.${dueNote}${penaltyNote}`,
+        );
+      }
       await this.notifyUser(
-        factory.managerId,
+        recipient.userId,
         'صورتحساب جدید',
-        `صورتحساب «${invoice.invoiceNumber}» برای ${factory.name} به مبلغ ${Number(invoice.totalAmount)} ریال صادر شد.${penaltyNote}`,
+        `صورتحساب «${invoice.invoiceNumber}» برای ${subject} به مبلغ ${total} ریال${itemsNote} صادر شد.${dueNote}${penaltyNote}`,
         'WARNING',
       );
-    }
-    return this.presentInvoice(invoice);
+    }));
   }
 
   async updateInvoice(actor: AuthenticatedUser, id: string, input: {
@@ -1646,14 +1913,34 @@ export class ManagementService {
     description?: string;
     dueDate?: string;
     status?: 'PENDING' | 'OVERDUE' | 'CANCELLED';
+    items?: Array<Pick<InvoiceItemDto, 'type' | 'title' | 'amount'>>;
   }) {
-    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    const existing = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    });
     if (!existing) throw new NotFoundException('Invoice not found');
-    await this.assertInvoiceAccess(actor, existing, 'manage');
+    await this.assertInvoiceOperator(actor, existing, 'edit');
     if (existing.status === InvoiceStatus.PAID) throw new ConflictException('Paid invoices cannot be edited');
+    this.assertInvoiceMutable(existing.status);
     if (!Object.keys(input || {}).length) throw new BadRequestException('At least one invoice field is required');
+    await this.assertNoPaymentInFlight(id);
 
-    const amount = input.amount !== undefined ? Number(input.amount) : Number(existing.amount);
+    const existingItems = existing.items || [];
+    const carriedItems = existingItems.filter((item) => item.type === InvoiceItemType.CARRIED_PENALTY);
+    let items: NormalizedInvoiceItem[] | null = null;
+    if (input.items !== undefined) {
+      const editable = (input.items || []).filter((item) => item.type !== InvoiceItemType.CARRIED_PENALTY);
+      items = [
+        ...normalizeInvoiceItems(editable, existing.category),
+        // Carried late penalty of a split invoice is preserved untouched.
+        ...carriedItems.map((item) => ({ type: item.type, title: item.title, amount: Number(item.amount), sortOrder: 0 })),
+      ].map((item, index) => ({ ...item, sortOrder: index }));
+    } else if (input.amount !== undefined && existingItems.length) {
+      throw new BadRequestException('This invoice has line items; edit the items instead of the amount');
+    }
+
+    const amount = items ? sumItems(items) : (input.amount !== undefined ? Number(input.amount) : Number(existing.amount));
     const taxAmount = input.taxAmount !== undefined ? Number(input.taxAmount) : Number(existing.taxAmount);
     const latePenaltyPerDay = input.latePenaltyPerDay !== undefined
       ? Number(input.latePenaltyPerDay)
@@ -1661,11 +1948,27 @@ export class ManagementService {
     if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(taxAmount) || taxAmount < 0) {
       throw new BadRequestException('Invalid invoice amount');
     }
+    if (amount + taxAmount > MAX_INVOICE_AMOUNT) throw new BadRequestException('Invoice total is too large');
     if (!Number.isFinite(latePenaltyPerDay) || latePenaltyPerDay < 0) {
       throw new BadRequestException('Invalid late penalty per day');
     }
+    const discountAmount = Number(existing.discountAmount || 0);
+    if (discountAmount > this.money(amount + taxAmount - this.carriedPenaltyTotal(items ?? existingItems))) {
+      throw new BadRequestException('The existing discount is larger than the new base amount');
+    }
+    // Status-independent on purpose: cancel → edit → reopen must not erase an accrued penalty.
+    const penaltyStarted = this.calendarDaysLate(existing.penaltyStartsAt ?? existing.dueDate) > 0;
+    if (penaltyStarted && latePenaltyPerDay < Number(existing.latePenaltyPerDay)) {
+      throw new BadRequestException('The daily late penalty cannot be reduced after the penalty has started');
+    }
 
-    const dueDate = input.dueDate !== undefined ? new Date(input.dueDate) : existing.dueDate;
+    let dueDate = existing.dueDate;
+    let penaltyStartsAt = existing.penaltyStartsAt;
+    if (input.dueDate !== undefined) {
+      dueDate = new Date(input.dueDate);
+      if (Number.isNaN(dueDate.getTime())) throw new BadRequestException('Invalid due date');
+      penaltyStartsAt = this.preservedPenaltyStart(existing, dueDate);
+    }
     let nextStatus = input.status !== undefined ? (input.status as InvoiceStatus) : existing.status;
     if (nextStatus === InvoiceStatus.PENDING && this.calendarDaysLate(dueDate) > 0) {
       nextStatus = InvoiceStatus.OVERDUE;
@@ -1674,21 +1977,429 @@ export class ManagementService {
       nextStatus = InvoiceStatus.PENDING;
     }
 
-    const updated = await this.prisma.invoice.update({
-      where: { id },
-      data: {
-        amount,
-        taxAmount,
-        totalAmount: amount + taxAmount,
-        latePenaltyPerDay,
-        ...(input.description !== undefined ? { description: input.description } : {}),
-        ...(input.dueDate !== undefined ? { dueDate } : {}),
-        status: nextStatus,
-      },
-      include: { factory: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (items) {
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+        await tx.invoiceItem.createMany({
+          data: items.map((item) => ({ invoiceId: id, type: item.type, title: item.title, amount: item.amount, sortOrder: item.sortOrder })),
+        });
+      }
+      const row = await tx.invoice.update({
+        where: { id },
+        data: {
+          amount,
+          taxAmount,
+          totalAmount: this.money(amount + taxAmount - discountAmount),
+          latePenaltyPerDay,
+          ...(input.description !== undefined ? { description: input.description } : {}),
+          ...(input.dueDate !== undefined ? { dueDate, penaltyStartsAt } : {}),
+          status: nextStatus,
+        },
+        include: { factory: true, items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      await tx.invoiceAdjustment.create({
+        data: {
+          invoiceId: id,
+          actorId: actor.id,
+          type: InvoiceAdjustmentType.EDIT,
+          amount: this.money(amount + taxAmount),
+          fromDueDate: input.dueDate !== undefined ? existing.dueDate : null,
+          toDueDate: input.dueDate !== undefined ? dueDate : null,
+          details: {
+            previous: {
+              amount: Number(existing.amount),
+              taxAmount: Number(existing.taxAmount),
+              latePenaltyPerDay: Number(existing.latePenaltyPerDay),
+              description: existing.description,
+              status: existing.status,
+            },
+          } as Prisma.InputJsonObject,
+        },
+      });
+      return row;
     });
     await this.audit.record({ userId: actor.id, action: 'INVOICE_UPDATED', entity: 'Invoice', entityId: id, changes: input as any });
     return this.presentInvoice(updated);
+  }
+
+  async invoiceAdjustments(actor: AuthenticatedUser, id: string) {
+    const invoice = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    await this.assertInvoiceAccess(actor, invoice, 'view');
+    const [adjustments, installments] = await Promise.all([
+      this.prisma.invoiceAdjustment.findMany({
+        where: { invoiceId: id },
+        include: { actor: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.invoice.findMany({
+        where: { parentInvoiceId: id },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+        orderBy: { installmentNo: 'asc' },
+      }),
+    ]);
+    return {
+      adjustments: adjustments.map((row) => ({ ...row, amount: row.amount === null ? null : Number(row.amount) })),
+      installments: installments.map((row) => this.presentInvoice(row)),
+    };
+  }
+
+  async discountInvoice(actor: AuthenticatedUser, id: string, input: InvoiceDiscountDto) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id }, include: { items: true } });
+    if (!existing) throw new NotFoundException('Invoice not found');
+    await this.assertInvoiceOperator(actor, existing, 'finance');
+    this.assertInvoiceOpen(existing.status);
+    await this.assertNoPaymentInFlight(id);
+    const discountAmount = this.money(Number(input.discountAmount));
+    const base = this.money(Number(existing.amount) + Number(existing.taxAmount));
+    const discountable = this.money(base - this.carriedPenaltyTotal(existing.items));
+    if (!Number.isFinite(discountAmount) || discountAmount < 0) throw new BadRequestException('Invalid discount amount');
+    if (discountAmount > discountable) {
+      throw new BadRequestException('Discount cannot exceed the base amount (amount + tax); the late penalty is never discounted');
+    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.invoice.update({
+        where: { id },
+        data: { discountAmount, totalAmount: this.money(base - discountAmount) },
+        include: { factory: true, items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      await tx.invoiceAdjustment.create({
+        data: {
+          invoiceId: id,
+          actorId: actor.id,
+          type: InvoiceAdjustmentType.DISCOUNT,
+          amount: discountAmount,
+          note: input.note || null,
+          details: { previousDiscount: Number(existing.discountAmount || 0), base } as Prisma.InputJsonObject,
+        },
+      });
+      return row;
+    });
+    await this.audit.record({ userId: actor.id, action: 'INVOICE_DISCOUNTED', entity: 'Invoice', entityId: id, changes: { discountAmount } });
+    await this.notifyInvoicePayers(existing, 'تخفیف قبض', `برای قبض «${existing.invoiceNumber}» تخفیف ${formatRial(discountAmount)} ریال اعمال شد.`, 'INFO');
+    return this.presentInvoice(updated);
+  }
+
+  async extendInvoiceDueDate(actor: AuthenticatedUser, id: string, input: InvoiceExtendDueDto) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Invoice not found');
+    await this.assertInvoiceOperator(actor, existing, 'finance');
+    this.assertInvoiceOpen(existing.status);
+    await this.assertNoPaymentInFlight(id);
+    const dueDate = new Date(input.dueDate);
+    if (Number.isNaN(dueDate.getTime())) throw new BadRequestException('Invalid due date');
+    if (calendarDaysLate(dueDate) > 0) throw new BadRequestException('The new due date cannot be in the past');
+    if (dueDate.getTime() <= existing.dueDate.getTime()) {
+      throw new BadRequestException('The new due date must be after the current due date');
+    }
+    const before = this.computeInvoiceSettlement(existing);
+    const penaltyStartsAt = this.preservedPenaltyStart(existing, dueDate);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.invoice.update({
+        where: { id },
+        data: { dueDate, penaltyStartsAt, status: InvoiceStatus.PENDING },
+        include: { factory: true, items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      await tx.invoiceAdjustment.create({
+        data: {
+          invoiceId: id,
+          actorId: actor.id,
+          type: InvoiceAdjustmentType.EXTENSION,
+          fromDueDate: existing.dueDate,
+          toDueDate: dueDate,
+          note: input.note || null,
+          details: {
+            penaltyStartsAt: penaltyStartsAt ? penaltyStartsAt.toISOString() : null,
+            accruedLateDays: before.lateDays,
+            accruedLatePenalty: before.latePenaltyAmount,
+          } as Prisma.InputJsonObject,
+        },
+      });
+      return row;
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'INVOICE_DUE_EXTENDED',
+      entity: 'Invoice',
+      entityId: id,
+      changes: { from: existing.dueDate.toISOString(), to: dueDate.toISOString(), penaltyContinues: Boolean(penaltyStartsAt) },
+    });
+    const penaltyNote = penaltyStartsAt
+      ? ` جریمهٔ تأخیر از ${formatJalaliDate(penaltyStartsAt)} همچنان محاسبه می‌شود.`
+      : '';
+    await this.notifyInvoicePayers(
+      existing,
+      'تمدید مهلت پرداخت',
+      `مهلت پرداخت قبض «${existing.invoiceNumber}» تا ${formatJalaliDate(dueDate)} تمدید شد.${penaltyNote}`,
+      'INFO',
+    );
+    return this.presentInvoice(updated);
+  }
+
+  async splitInvoiceIntoInstallments(actor: AuthenticatedUser, id: string, input: InvoiceInstallmentsDto) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Invoice not found');
+    await this.assertInvoiceOperator(actor, existing, 'finance');
+    this.assertInvoiceOpen(existing.status);
+    if (existing.parentInvoiceId) throw new BadRequestException('An installment cannot be split again');
+    await this.assertNoPaymentInFlight(id);
+
+    const settlement = this.computeInvoiceSettlement(existing);
+    const base = settlement.baseTotal;
+    const carriedPenalty = settlement.latePenaltyAmount;
+    if (base <= 0) throw new BadRequestException('Nothing left to split');
+
+    let schedule: Array<{ amount: number; dueDate: Date }>;
+    if (input.installments?.length) {
+      if (input.installments.length < 2) throw new BadRequestException('At least two installments are required');
+      schedule = input.installments.map((row) => ({ amount: this.money(Number(row.amount)), dueDate: new Date(row.dueDate) }));
+      const total = this.money(schedule.reduce((sum, row) => sum + row.amount, 0));
+      if (total !== base) {
+        throw new BadRequestException(`Installments must add up exactly to ${base} (got ${total})`);
+      }
+    } else {
+      const count = Number(input.count);
+      if (!Number.isInteger(count) || count < 2 || count > 36) throw new BadRequestException('count must be between 2 and 36');
+      const first = new Date(String(input.firstDueDate || ''));
+      const interval = Number(input.intervalDays || 30);
+      schedule = splitEvenly(base, count).map((amount, index) => ({ amount, dueDate: addDays(first, index * interval) }));
+    }
+    schedule.forEach((row, index) => {
+      if (Number.isNaN(row.dueDate.getTime())) throw new BadRequestException(`Invalid due date for installment ${index + 1}`);
+      if (!(row.amount > 0)) throw new BadRequestException(`Invalid amount for installment ${index + 1}`);
+      if (calendarDaysLate(row.dueDate) > 0) throw new BadRequestException(`Installment ${index + 1} due date cannot be in the past`);
+      if (index > 0 && row.dueDate.getTime() < schedule[index - 1].dueDate.getTime()) {
+        throw new BadRequestException('Installment due dates must be in chronological order');
+      }
+    });
+
+    const shareType = existing.category === InvoiceCategory.PLATFORM ? InvoiceItemType.PLATFORM_OTHER : InvoiceItemType.CHARGE_OTHER;
+    const count = schedule.length;
+    const children = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.invoice.updateMany({
+        where: { id, status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] } },
+        data: { status: InvoiceStatus.INSTALLMENTS, lateDays: settlement.lateDays, latePenaltyAmount: carriedPenalty },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Invoice status changed; reload and try again');
+      const created = [];
+      for (const [index, row] of schedule.entries()) {
+        const items: NormalizedInvoiceItem[] = [
+          { type: shareType, title: `قسط ${index + 1} از ${count} قبض ${existing.invoiceNumber}`, amount: row.amount, sortOrder: 0 },
+        ];
+        if (index === 0 && carriedPenalty > 0) {
+          items.push({ type: InvoiceItemType.CARRIED_PENALTY, title: INVOICE_ITEM_LABELS_FA.CARRIED_PENALTY, amount: carriedPenalty, sortOrder: 1 });
+        }
+        created.push(await tx.invoice.create({
+          data: this.invoiceCreateData({
+            targetType: existing.targetType,
+            factoryId: existing.factoryId,
+            parkId: existing.parkId,
+            category: existing.category,
+            items,
+            amount: sumItems(items),
+            taxAmount: 0,
+            // Proportional share, so all installments together never accrue more than the original rate.
+            latePenaltyPerDay: this.money(Number(existing.latePenaltyPerDay || 0) * row.amount / base),
+            description: `قسط ${index + 1} از ${count} — ${existing.description}`.slice(0, 2000),
+            dueDate: row.dueDate,
+            createdById: existing.createdById,
+            parentInvoiceId: existing.id,
+            installmentNo: index + 1,
+          }),
+          include: { items: { orderBy: { sortOrder: 'asc' } } },
+        }));
+      }
+      await tx.invoiceAdjustment.create({
+        data: {
+          invoiceId: id,
+          actorId: actor.id,
+          type: InvoiceAdjustmentType.INSTALLMENT,
+          amount: base,
+          note: input.note || null,
+          details: {
+            count,
+            carriedPenalty,
+            lateDays: settlement.lateDays,
+            installments: created.map((child) => ({ id: child.id, invoiceNumber: child.invoiceNumber, amount: Number(child.totalAmount), dueDate: child.dueDate.toISOString() })),
+          } as Prisma.InputJsonObject,
+        },
+      });
+      return created;
+    }, { timeout: 30_000 });
+    await this.audit.record({ userId: actor.id, action: 'INVOICE_SPLIT_INSTALLMENTS', entity: 'Invoice', entityId: id, changes: { count, carriedPenalty } });
+    await this.notifyInvoicePayers(
+      existing,
+      'تقسیط قبض',
+      `قبض «${existing.invoiceNumber}» به ${count} قسط تقسیم شد. اولین قسط: ${formatRial(Number(children[0].totalAmount))} ریال تا ${formatJalaliDate(children[0].dueDate)}.`,
+      'INFO',
+    );
+    return { parentId: id, installments: children.map((child) => this.presentInvoice(child)) };
+  }
+
+  async settleInvoiceManually(actor: AuthenticatedUser, id: string, input: InvoiceSettleDto) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Invoice not found');
+    await this.assertInvoiceOperator(actor, existing, 'finance');
+    this.assertInvoiceOpen(existing.status);
+    await this.assertNoPaymentInFlight(id);
+    const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
+    if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('Invalid payment date');
+    if (paidAt.getTime() > Date.now() + 5 * 60_000) throw new BadRequestException('Payment date cannot be in the future');
+    if (existing.issueDate && calendarDaysLate(paidAt, existing.issueDate) > 0) {
+      throw new BadRequestException('Payment date cannot be before the invoice issue date');
+    }
+    const settlement = this.computeInvoiceSettlement(existing, paidAt);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.invoice.updateMany({
+        where: { id, status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] } },
+        data: {
+          status: InvoiceStatus.PAID,
+          paymentDate: paidAt,
+          paymentMethod: `MANUAL_${input.method}`,
+          lateDays: settlement.lateDays,
+          latePenaltyAmount: settlement.latePenaltyAmount,
+        },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Invoice status changed; reload and try again');
+      await tx.invoiceAdjustment.create({
+        data: {
+          invoiceId: id,
+          actorId: actor.id,
+          type: InvoiceAdjustmentType.SETTLEMENT,
+          amount: settlement.payableAmount,
+          note: input.note || null,
+          details: {
+            method: input.method,
+            reference: input.reference || null,
+            paidAt: paidAt.toISOString(),
+            baseTotal: settlement.baseTotal,
+            lateDays: settlement.lateDays,
+            latePenaltyAmount: settlement.latePenaltyAmount,
+          } as Prisma.InputJsonObject,
+        },
+      });
+      if (existing.parentInvoiceId) await this.completeInstallmentParent(tx, existing.parentInvoiceId);
+      return tx.invoice.findUniqueOrThrow({ where: { id }, include: { factory: true, items: { orderBy: { sortOrder: 'asc' } } } });
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'INVOICE_SETTLED_MANUALLY',
+      entity: 'Invoice',
+      entityId: id,
+      changes: { method: input.method, payableAmount: settlement.payableAmount, latePenaltyAmount: settlement.latePenaltyAmount },
+    });
+    await this.notifyInvoicePayers(
+      existing,
+      'تسویه قبض',
+      `قبض «${existing.invoiceNumber}» با مبلغ ${formatRial(settlement.payableAmount)} ریال تسویه شد.`,
+      'SUCCESS',
+    );
+    return this.presentInvoice(updated);
+  }
+
+  /** Marks a split parent PAID once every installment is paid. */
+  private async completeInstallmentParent(tx: Prisma.TransactionClient, parentId: string) {
+    const unpaid = await tx.invoice.count({
+      where: { parentInvoiceId: parentId, status: { not: InvoiceStatus.PAID } },
+    });
+    if (unpaid > 0) return;
+    await tx.invoice.updateMany({
+      where: { id: parentId, status: InvoiceStatus.INSTALLMENTS },
+      data: { status: InvoiceStatus.PAID, paymentDate: new Date(), paymentMethod: 'INSTALLMENTS' },
+    });
+  }
+
+  /** A split parent (open or completed) whose amount is already carried by its installments. */
+  private isSplitParent(invoice: { status: InvoiceStatus; paymentMethod?: string | null }) {
+    return invoice.status === InvoiceStatus.INSTALLMENTS
+      || (invoice.status === InvoiceStatus.PAID && invoice.paymentMethod === 'INSTALLMENTS');
+  }
+
+  private async assertNoPaymentInFlight(invoiceId: string) {
+    const inFlight = await this.prisma.paymentTransaction.count({
+      where: { invoiceId, status: PaymentStatus.INITIATED, createdAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+    });
+    if (inFlight > 0) {
+      throw new ConflictException('An online payment for this invoice is in progress; try again in a few minutes');
+    }
+  }
+
+  private assertInvoiceMutable(status: InvoiceStatus) {
+    if (status === InvoiceStatus.INSTALLMENTS) throw new ConflictException('This invoice was split into installments; manage the installments instead');
+    if (status === InvoiceStatus.AWAITING_CONFIRMATION) throw new ConflictException('This invoice has a payment awaiting confirmation');
+  }
+
+  private assertInvoiceOpen(status: InvoiceStatus) {
+    if (status === InvoiceStatus.PAID) throw new ConflictException('Paid invoices cannot be changed');
+    if (status === InvoiceStatus.CANCELLED) throw new ConflictException('Cancelled invoices cannot be changed');
+    this.assertInvoiceMutable(status);
+  }
+
+  private carriedPenaltyTotal(items: Array<{ type: InvoiceItemType; amount: Prisma.Decimal | number }> | null | undefined): number {
+    return this.money((items || [])
+      .filter((item) => item.type === InvoiceItemType.CARRIED_PENALTY)
+      .reduce((sum, item) => sum + Number(item.amount), 0));
+  }
+
+  /**
+   * Moving the due date never erases an accrued penalty: once late days exist, the
+   * penalty keeps counting from its original start (unless the new date is even earlier).
+   */
+  private preservedPenaltyStart(existing: { dueDate: Date; penaltyStartsAt: Date | null }, nextDueDate: Date): Date | null {
+    const anchor = existing.penaltyStartsAt ?? existing.dueDate;
+    if (calendarDaysLate(anchor) === 0) return null;
+    return nextDueDate.getTime() <= anchor.getTime() ? null : anchor;
+  }
+
+  /**
+   * Edit: only the issuer. Financial operations: the issuer, park managers of the
+   * unit's park for charge bills, and any super admin for platform bills.
+   */
+  private async assertInvoiceOperator(
+    actor: AuthenticatedUser,
+    invoice: { createdById: string; targetType: InvoiceTarget; category: InvoiceCategory; factoryId: string | null; parkId: string | null },
+    operation: 'edit' | 'finance',
+  ) {
+    if (invoice.createdById === actor.id) {
+      await this.assertInvoiceAccess(actor, invoice, 'manage');
+      return;
+    }
+    if (operation === 'edit') throw new ForbiddenException('Only the issuer of this invoice can edit it');
+    if (
+      actor.role === Role.PARK_MANAGER
+      && invoice.targetType === InvoiceTarget.FACTORY
+      && invoice.category === InvoiceCategory.CHARGE
+      && invoice.parkId
+    ) {
+      await this.assertParkScope(actor, invoice.parkId);
+      return;
+    }
+    if (actor.role === Role.SUPER_ADMIN && invoice.category === InvoiceCategory.PLATFORM) return;
+    throw new ForbiddenException('You cannot manage this invoice');
+  }
+
+  private async notifyInvoicePayers(
+    invoice: { targetType: InvoiceTarget; factoryId: string | null; parkId: string | null },
+    title: string,
+    body: string,
+    type: 'INFO' | 'SUCCESS' | 'WARNING',
+  ) {
+    try {
+      const userIds = invoice.targetType === InvoiceTarget.PARK
+        ? (invoice.parkId
+          ? (await this.prisma.user.findMany({
+            where: { role: Role.PARK_MANAGER, isActive: true, managedParks: { some: { id: invoice.parkId } } },
+            select: { id: true },
+          })).map((user) => user.id)
+          : [])
+        : (invoice.factoryId
+          ? [(await this.prisma.factory.findUnique({ where: { id: invoice.factoryId }, select: { managerId: true } }))?.managerId].filter((value): value is string => Boolean(value))
+          : []);
+      await Promise.all(userIds.map((userId) => this.notifyUser(userId, title, body, type)));
+    } catch (error) {
+      this.logger.warn(`Invoice notification failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   }
 
   async startPayment(actor: AuthenticatedUser, invoiceId: string, idempotencyKey?: string) {
@@ -1705,7 +2416,8 @@ export class ManagementService {
     }
 
     const settlement = this.computeInvoiceSettlement(invoice);
-    if (invoice.status === InvoiceStatus.PENDING && settlement.lateDays > 0) {
+    if (settlement.payableAmount <= 0) throw new BadRequestException('Nothing to pay online for this invoice');
+    if (invoice.status === InvoiceStatus.PENDING && settlement.status === InvoiceStatus.OVERDUE) {
       await this.prisma.invoice.update({ where: { id: invoice.id }, data: { status: InvoiceStatus.OVERDUE } });
     }
 
@@ -1815,20 +2527,36 @@ export class ManagementService {
     }
 
     const invoice = transaction.invoice;
-    const baseTotal = Number(invoice.totalAmount);
-    const paidAmount = Number(transaction.amount);
-    const latePenaltyAmount = Math.max(0, Math.round((paidAmount - baseTotal) * 100) / 100);
-    const perDay = Number(invoice.latePenaltyPerDay || 0);
     const meta = (transaction.providerStatus && typeof transaction.providerStatus === 'object' && !Array.isArray(transaction.providerStatus))
       ? (transaction.providerStatus as Record<string, unknown>)
       : {};
+    const baseFromMeta = Number(meta.baseTotal);
+    const baseTotal = Number.isFinite(baseFromMeta) && baseFromMeta > 0 ? baseFromMeta : Number(invoice.totalAmount);
+    const paidAmount = Number(transaction.amount);
+    const latePenaltyAmount = Math.max(0, Math.round((paidAmount - baseTotal) * 100) / 100);
+    const perDay = Number(invoice.latePenaltyPerDay || 0);
     const lateDaysFromMeta = Number(meta.lateDays);
     const lateDays = Number.isFinite(lateDaysFromMeta) && lateDaysFromMeta >= 0
       ? Math.floor(lateDaysFromMeta)
-      : (perDay > 0 ? Math.round(latePenaltyAmount / perDay) : this.calendarDaysLate(invoice.dueDate));
+      : (perDay > 0 ? Math.round(latePenaltyAmount / perDay) : this.calendarDaysLate(invoice.penaltyStartsAt ?? invoice.dueDate));
 
-    await this.prisma.$transaction([
-      this.prisma.paymentTransaction.update({
+    const invoiceUpdated = await this.prisma.$transaction(async (tx) => {
+      // Money already left the payer: always record the verified transaction, but only an open
+      // invoice may move to AWAITING_CONFIRMATION (never overwrite PAID / CANCELLED / INSTALLMENTS).
+      const claimed = await tx.invoice.updateMany({
+        where: { id: transaction.invoiceId, status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] } },
+        data: {
+          // Docs: money verified at gateway, but PAID only after park-manager confirmation.
+          status: InvoiceStatus.AWAITING_CONFIRMATION,
+          paymentDate: new Date(),
+          paymentMethod: transaction.provider,
+          paymentRef: referenceId,
+          paidById: transaction.initiatedById,
+          lateDays,
+          latePenaltyAmount,
+        },
+      });
+      await tx.paymentTransaction.update({
         where: { id: transaction.id },
         data: {
           status: PaymentStatus.VERIFIED,
@@ -1840,23 +2568,23 @@ export class ManagementService {
             frozenLateDays: lateDays,
             frozenLatePenaltyAmount: latePenaltyAmount,
             paidAmount,
+            ...(claimed.count === 1 ? {} : { invoiceNotOpen: true, invoiceStatusAtVerify: invoice.status }),
           },
         },
-      }),
-      this.prisma.invoice.update({
-        where: { id: transaction.invoiceId },
-        data: {
-          // Docs: money verified at gateway, but PAID only after park-manager confirmation.
-          status: InvoiceStatus.AWAITING_CONFIRMATION,
-          paymentDate: new Date(),
-          paymentMethod: transaction.provider,
-          paymentRef: referenceId,
-          paidById: transaction.initiatedById,
-          lateDays,
-          latePenaltyAmount,
-        },
-      }),
-    ]);
+      });
+      return claimed.count === 1;
+    });
+    if (!invoiceUpdated) {
+      this.logger.warn(`Payment ${transaction.id} verified but invoice ${transaction.invoiceId} was no longer open; needs manual review`);
+      await this.audit.record({
+        userId: transaction.initiatedById || undefined,
+        action: 'PAYMENT_VERIFIED_INVOICE_NOT_OPEN',
+        entity: 'Invoice',
+        entityId: transaction.invoiceId,
+        changes: { paidAmount, referenceId },
+      });
+      return { status: 'verified_needs_review', invoiceId: transaction.invoiceId, referenceId, paidAmount };
+    }
     await this.audit.record({
       userId: transaction.initiatedById || undefined,
       action: 'PAYMENT_AWAITING_CONFIRMATION',
@@ -1887,9 +2615,14 @@ export class ManagementService {
       throw new ForbiddenException('Only park managers can confirm invoice payments');
     }
 
-    const updated = await this.prisma.invoice.update({
-      where: { id: invoiceId },
-      data: { status: InvoiceStatus.PAID },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.invoice.updateMany({
+        where: { id: invoiceId, status: InvoiceStatus.AWAITING_CONFIRMATION },
+        data: { status: InvoiceStatus.PAID },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Invoice status changed; reload and try again');
+      if (invoice.parentInvoiceId) await this.completeInstallmentParent(tx, invoice.parentInvoiceId);
+      return tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
     });
     await this.audit.record({
       userId: actor.id,
@@ -1928,9 +2661,10 @@ export class ManagementService {
     await this.assertFactoryAccess(actor, input.factoryId);
     const factory = await this.prisma.factory.findUnique({
       where: { id: input.factoryId },
-      select: { id: true, name: true, parkId: true, managerId: true },
+      select: { id: true, name: true, parkId: true, managerId: true, status: true, suspendedReason: true },
     });
     if (!factory) throw new NotFoundException('Factory not found');
+    this.assertFactoryNotSuspended(factory);
     const appointmentSlot = input.type === RequestType.APPOINTMENT && input.data?.appointmentDate
       ? new Date(`${input.data.appointmentDate}${input.data.appointmentTime ? `T${input.data.appointmentTime}` : 'T09:00:00'}`)
       : undefined;
@@ -2531,19 +3265,21 @@ export class ManagementService {
 
   async emergencies(actor: AuthenticatedUser) {
     const where = await this.emergencyScopeWhere(actor);
-    return this.prisma.emergencyAlert.findMany({
+    const items = await this.prisma.emergencyAlert.findMany({
       where,
       include: {
         createdBy: { select: { id: true, name: true, phoneNumber: true, role: true } },
+        resolvedBy: { select: { id: true, name: true, role: true } },
         park: { select: { id: true, name: true, code: true } },
       },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     });
+    return this.withEmergencyPermissions(actor, items);
   }
 
   async activeEmergencies(actor: AuthenticatedUser) {
     const scope = await this.emergencyScopeWhere(actor);
-    return this.prisma.emergencyAlert.findMany({
+    const items = await this.prisma.emergencyAlert.findMany({
       where: {
         AND: [
           scope,
@@ -2556,6 +3292,22 @@ export class ManagementService {
       },
       orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
     });
+    return this.withEmergencyPermissions(actor, items);
+  }
+
+  private async withEmergencyPermissions<T extends { createdById: string; parkId: string | null; status: EmergencyStatus }>(actor: AuthenticatedUser, items: T[]) {
+    const managedParks = actor.role === Role.PARK_MANAGER && items.length ? await this.managedParkIds(actor) : [];
+    return items.map((item) => ({
+      ...item,
+      canResolve: item.status !== EmergencyStatus.RESOLVED && this.canResolveEmergency(actor, item, managedParks),
+    }));
+  }
+
+  /** Only the reporter, a manager of the alert's park, or a super admin may stop an alarm for everyone. */
+  private canResolveEmergency(actor: AuthenticatedUser, alert: { createdById: string; parkId: string | null }, managedParkIds: string[]): boolean {
+    if (actor.role === Role.SUPER_ADMIN) return true;
+    if (alert.createdById === actor.id) return true;
+    return actor.role === Role.PARK_MANAGER && Boolean(alert.parkId && managedParkIds.includes(alert.parkId));
   }
 
   async createEmergency(actor: AuthenticatedUser, input: CreateEmergencyDto) {
@@ -2623,20 +3375,31 @@ export class ManagementService {
     return item;
   }
 
-  async emergencyAction(actor: AuthenticatedUser, id: string, action: 'acknowledge' | 'resolve') {
+  async emergencyAction(actor: AuthenticatedUser, id: string, action: 'acknowledge' | 'resolve', note?: string | null) {
     const existing = await this.prisma.emergencyAlert.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Emergency alert not found');
     await this.assertEmergencyAccess(actor, existing);
 
-    if (action === 'resolve' && actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
-      throw new ForbiddenException('Only park managers can resolve emergency alerts');
+    if (action === 'resolve') {
+      const managedParks = actor.role === Role.PARK_MANAGER ? await this.managedParkIds(actor) : [];
+      if (!this.canResolveEmergency(actor, existing, managedParks)) {
+        throw new ForbiddenException('Only the reporter or the manager of this park can stop the alarm');
+      }
+    } else if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER && actor.role !== Role.SECURITY_GUARD) {
+      throw new ForbiddenException('You cannot acknowledge emergency alerts');
     }
+    if (existing.status === EmergencyStatus.RESOLVED) throw new ConflictException('Emergency alert is already resolved');
 
-    const item = await this.prisma.emergencyAlert.update({
-      where: { id },
+    // Guarded on status so a late acknowledge can never re-open (and re-sound) a resolved alarm.
+    const changed = await this.prisma.emergencyAlert.updateMany({
+      where: { id, status: { not: EmergencyStatus.RESOLVED } },
       data: action === 'resolve'
-        ? { status: EmergencyStatus.RESOLVED, resolvedAt: new Date() }
+        ? { status: EmergencyStatus.RESOLVED, resolvedAt: new Date(), resolvedById: actor.id, resolutionNote: note?.trim() || null }
         : { status: EmergencyStatus.ACKNOWLEDGED },
+    });
+    if (changed.count !== 1) throw new ConflictException('Emergency alert is already resolved');
+    const item = await this.prisma.emergencyAlert.findUniqueOrThrow({
+      where: { id },
       include: {
         park: { select: { id: true, name: true, code: true } },
         createdBy: { select: { id: true, name: true, role: true } },
@@ -2677,7 +3440,7 @@ export class ManagementService {
       const factoryScope: Prisma.FactoryWhereInput = isParkManager
         ? { park: { is: { managers: { some: { id: user.id } } } } }
         : user.role === Role.FACTORY_OWNER
-          ? { managerId: user.id }
+          ? (user.activeFactoryId ? { managerId: user.id, id: user.activeFactoryId } : { managerId: user.id })
           : user.role === Role.SECURITY_GUARD
             ? { park: { is: { securityGuards: { some: { userId: user.id, isActive: true } } } } }
             : {};
@@ -2842,6 +3605,59 @@ export class ManagementService {
 
       const activePark = await this.resolveDashboardActivePark(user, tx);
 
+      const personalUnpaidRows = unpaidInvoiceCount > 0 && (isParkManager || user.role === Role.FACTORY_OWNER)
+        ? await tx.invoice.findMany({
+          where: personalUnpaidWhere,
+          select: {
+            id: true,
+            invoiceNumber: true,
+            description: true,
+            amount: true,
+            taxAmount: true,
+            totalAmount: true,
+            discountAmount: true,
+            latePenaltyPerDay: true,
+            lateDays: true,
+            latePenaltyAmount: true,
+            dueDate: true,
+            penaltyStartsAt: true,
+            status: true,
+            installmentNo: true,
+            factory: { select: { id: true, name: true } },
+            park: { select: { id: true, name: true } },
+          },
+          orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+          take: 500,
+        })
+        : [];
+      const today = new Date();
+      const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+      const unpaidInvoices = personalUnpaidRows.map((invoice) => {
+        const settlement = this.computeInvoiceSettlement(invoice);
+        const due = invoice.dueDate;
+        const daysLeft = Math.round((Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()) - todayUtc) / 86_400_000);
+        return {
+          id: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          description: invoice.description,
+          installmentNo: invoice.installmentNo,
+          factoryName: invoice.factory?.name || null,
+          parkName: invoice.park?.name || null,
+          dueDate: due.toISOString(),
+          daysLeft,
+          lateDays: settlement.lateDays,
+          latePenaltyAmount: settlement.latePenaltyAmount,
+          payableAmount: settlement.payableAmount,
+          status: settlement.status,
+        };
+      });
+      const suspendedFactories = user.role === Role.FACTORY_OWNER
+        ? await tx.factory.findMany({
+          where: { ...factoryScope, status: FactoryStatus.SUSPENDED },
+          select: { id: true, name: true, suspendedReason: true, suspendedAt: true },
+        })
+        : [];
+
       return {
         activePark,
         factories,
@@ -2852,6 +3668,11 @@ export class ManagementService {
         // Personal debt (park bills for park managers; unit bills for factory owners).
         unpaidInvoiceCount,
         unpaidInvoiceTotal: Number(unpaidInvoiceAggregate._sum.totalAmount ?? 0),
+        unpaidPayableTotal: unpaidInvoices.length
+          ? this.money(unpaidInvoices.reduce((sum, invoice) => sum + invoice.payableAmount, 0))
+          : Number(unpaidInvoiceAggregate._sum.totalAmount ?? 0),
+        unpaidInvoices: unpaidInvoices.slice(0, 5),
+        suspendedFactories,
         // Aggregate receivables from industrial units (park manager / SA collection view).
         unitsUnpaidInvoiceCount: Number(unitsUnpaidInvoiceCount || 0),
         unitsUnpaidInvoiceTotal: Number(unitsUnpaidInvoiceAggregate._sum.totalAmount ?? 0),
@@ -2872,7 +3693,7 @@ export class ManagementService {
     } else if (actor.role === Role.PARK_MANAGER) {
       where = { status: ParkStatus.ACTIVE, managers: { some: { id: actor.id } } };
     } else if (actor.role === Role.FACTORY_OWNER) {
-      where = { status: ParkStatus.ACTIVE, factories: { some: { managerId: actor.id } } };
+      where = { status: ParkStatus.ACTIVE, factories: { some: { managerId: actor.id, status: { not: FactoryStatus.SUSPENDED } } } };
     } else {
       throw new ForbiddenException('You do not have access to advertisement creation');
     }
@@ -2905,6 +3726,141 @@ export class ManagementService {
     }
     if (parks.length !== 1) throw new BadRequestException('parkId is required when multiple advertisement scopes are available');
     return parks[0].id;
+  }
+
+  private presentBanner<T extends { desktopImageId: string; mobileImageId: string }>(banner: T) {
+    return {
+      ...banner,
+      desktopImageUrl: `/api/v1/files/${banner.desktopImageId}/content`,
+      mobileImageUrl: `/api/v1/files/${banner.mobileImageId}/content`,
+    };
+  }
+
+  private async visibleBannerWhere(actor: AuthenticatedUser): Promise<Prisma.DashboardBannerWhereInput> {
+    const now = new Date();
+    const parkIds = actor.role === Role.SUPER_ADMIN || actor.role === Role.GOVERNMENT_OFFICIAL
+      ? null
+      : await this.actorParkIds(actor);
+    return {
+      isActive: true,
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ...(parkIds === null ? [] : [{ OR: [{ parkId: null }, { parkId: { in: parkIds } }] }]),
+      ],
+    };
+  }
+
+  async activeBanners(actor: AuthenticatedUser) {
+    const items = await this.prisma.dashboardBanner.findMany({
+      where: await this.visibleBannerWhere(actor),
+      select: { id: true, title: true, desktopImageId: true, mobileImageId: true, linkUrl: true, openInNewTab: true, sortOrder: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      take: 20,
+    });
+    return items.map((item) => this.presentBanner(item));
+  }
+
+  async managedBanners() {
+    const items = await this.prisma.dashboardBanner.findMany({
+      include: {
+        park: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
+    return items.map((item) => this.presentBanner(item));
+  }
+
+  private async validateBannerInput(input: {
+    desktopImageId?: string;
+    mobileImageId?: string;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    parkId?: string | null;
+  }, current?: { startsAt: Date | null; endsAt: Date | null }) {
+    const imageIds = [input.desktopImageId, input.mobileImageId].filter((value): value is string => Boolean(value));
+    if (imageIds.length) {
+      const assets = await this.prisma.mediaAsset.findMany({
+        where: { id: { in: imageIds }, domain: 'banner' },
+        select: { id: true },
+      });
+      const found = new Set(assets.map((asset) => asset.id));
+      if (imageIds.some((id) => !found.has(id))) throw new BadRequestException('تصویر بنر معتبر نیست؛ تصویر را دوباره بارگذاری کنید');
+    }
+    if (input.parkId) {
+      const park = await this.prisma.industrialPark.findUnique({ where: { id: input.parkId }, select: { id: true } });
+      if (!park) throw new NotFoundException('Park not found');
+    }
+    const startsAt = input.startsAt !== undefined ? (input.startsAt ? new Date(input.startsAt) : null) : current?.startsAt ?? null;
+    const endsAt = input.endsAt !== undefined ? (input.endsAt ? new Date(input.endsAt) : null) : current?.endsAt ?? null;
+    if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
+      throw new BadRequestException('تاریخ پایان نمایش باید بعد از تاریخ شروع باشد');
+    }
+    return { startsAt, endsAt };
+  }
+
+  async createBanner(actor: AuthenticatedUser, input: CreateBannerDto) {
+    const { startsAt, endsAt } = await this.validateBannerInput(input);
+    const created = await this.prisma.dashboardBanner.create({
+      data: {
+        title: input.title.trim(),
+        desktopImageId: input.desktopImageId,
+        mobileImageId: input.mobileImageId,
+        linkUrl: input.linkUrl || null,
+        openInNewTab: input.openInNewTab ?? true,
+        isActive: input.isActive ?? true,
+        sortOrder: input.sortOrder ?? 0,
+        startsAt,
+        endsAt,
+        parkId: input.parkId || null,
+        createdById: actor.id,
+      },
+      include: { park: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } },
+    });
+    await this.audit.record({ userId: actor.id, action: 'BANNER_CREATED', entity: 'DashboardBanner', entityId: created.id });
+    return this.presentBanner(created);
+  }
+
+  async updateBanner(actor: AuthenticatedUser, id: string, input: UpdateBannerDto) {
+    const existing = await this.prisma.dashboardBanner.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Banner not found');
+    if (!Object.keys(input || {}).length) throw new BadRequestException('At least one banner field is required');
+    const { startsAt, endsAt } = await this.validateBannerInput(input, existing);
+    const updated = await this.prisma.dashboardBanner.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+        ...(input.desktopImageId !== undefined ? { desktopImageId: input.desktopImageId } : {}),
+        ...(input.mobileImageId !== undefined ? { mobileImageId: input.mobileImageId } : {}),
+        ...(input.linkUrl !== undefined ? { linkUrl: input.linkUrl || null } : {}),
+        ...(input.openInNewTab !== undefined ? { openInNewTab: input.openInNewTab } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        ...(input.parkId !== undefined ? { parkId: input.parkId || null } : {}),
+        startsAt,
+        endsAt,
+      },
+      include: { park: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } },
+    });
+    await this.audit.record({ userId: actor.id, action: 'BANNER_UPDATED', entity: 'DashboardBanner', entityId: id, changes: input as Prisma.InputJsonObject });
+    return this.presentBanner(updated);
+  }
+
+  async deleteBanner(actor: AuthenticatedUser, id: string) {
+    const existing = await this.prisma.dashboardBanner.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('Banner not found');
+    await this.prisma.dashboardBanner.delete({ where: { id } });
+    await this.audit.record({ userId: actor.id, action: 'BANNER_DELETED', entity: 'DashboardBanner', entityId: id });
+    return { message: 'بنر حذف شد' };
+  }
+
+  async recordBannerClick(actor: AuthenticatedUser, id: string) {
+    await this.prisma.dashboardBanner.updateMany({
+      where: { id, ...(await this.visibleBannerWhere(actor)) },
+      data: { clickCount: { increment: 1 } },
+    });
+    return { ok: true };
   }
 
   private safeAdvertisementContact(value: Prisma.JsonValue): Prisma.InputJsonObject {
@@ -3381,6 +4337,7 @@ export class ManagementService {
 
   async createFactoryStaff(actor: AuthenticatedUser, factoryId: string, input: CreateFactoryStaffDto) {
     await this.assertOwnedFactory(actor, factoryId);
+    this.assertFactoryNotSuspended(await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { status: true, suspendedReason: true } }));
     const password = await bcrypt.hash(input.password, 12);
     try {
       const created = await this.prisma.user.create({
@@ -3806,6 +4763,7 @@ export class ManagementService {
       ? user.managedFactories[0]?.id
       : user.employeeOfFactoryId;
     if (!factoryId) throw new BadRequestException('No factory is linked to this phone number');
+    this.assertFactoryNotSuspended(await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { status: true, suspendedReason: true } }));
     const title = `درخواست پیامکی ${type}`;
     const description = input.text?.trim() || `ثبت خودکار درخواست از طریق پیامک با کد ${input.code}`;
     const request = await this.prisma.request.create({
@@ -3844,6 +4802,8 @@ export class ManagementService {
         take: 2000,
       });
       const totals = invoices.reduce((acc, invoice) => {
+        // A split parent is represented by its installments; counting both would double the debt.
+        if (this.isSplitParent(invoice)) return acc;
         const settlement = this.computeInvoiceSettlement(invoice);
         acc.total += settlement.payableAmount;
         if (invoice.status === InvoiceStatus.PAID) acc.paid += settlement.payableAmount;
@@ -4146,13 +5106,18 @@ export class ManagementService {
   }
   private async factoryFilter(user: AuthenticatedUser, db: FactoryScopeDatabase = this.prisma): Promise<Prisma.FactoryWhereInput> {
     if (user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) return {};
-    if (user.role === Role.FACTORY_OWNER) return { managerId: user.id };
+    if (user.role === Role.FACTORY_OWNER) {
+      // The guard only sets activeFactoryId after verifying ownership (X-Factory-Id header).
+      // Callers spread this after their own `id`, so the id restriction must live inside AND.
+      if (user.activeFactoryId) return { managerId: user.id, AND: [{ id: user.activeFactoryId }] };
+      return { managerId: user.id };
+    }
     if (user.role === Role.EMPLOYEE) {
       const employee = await db.user.findUnique({
         where: { id: user.id },
         select: { employeeOfFactoryId: true },
       });
-      return employee?.employeeOfFactoryId ? { id: employee.employeeOfFactoryId } : { id: '__none__' };
+      return { AND: [{ id: employee?.employeeOfFactoryId || '__none__' }] };
     }
     const parks = await db.industrialPark.findMany({
       where: user.role === Role.PARK_MANAGER
@@ -4195,6 +5160,50 @@ export class ManagementService {
   private async assertFactoryAccess(user: AuthenticatedUser, factoryId: string) {
     const allowed = await this.prisma.factory.count({ where: { id: factoryId, ...await this.factoryFilter(user) } });
     if (!allowed) throw new ForbiddenException('You do not have access to this factory');
+  }
+
+  /** Suspended units keep read access and may still pay their invoices, but cannot create new work. */
+  private assertFactoryNotSuspended(factory: { status?: FactoryStatus | null; suspendedReason?: string | null } | null | undefined) {
+    if (factory?.status === FactoryStatus.SUSPENDED) {
+      const reason = factory.suspendedReason ? ` دلیل: ${factory.suspendedReason}` : '';
+      throw new ForbiddenException(`این واحد صنعتی توسط مدیریت شهرک مسدود شده است.${reason}`);
+    }
+  }
+
+  async setFactorySuspended(actor: AuthenticatedUser, id: string, suspended: boolean, reason?: string) {
+    const factory = await this.prisma.factory.findFirst({
+      where: { id, ...(await this.factoryFilter(actor)) },
+      select: { id: true, name: true, status: true, isApproved: true, managerId: true, manager: { select: { phoneNumber: true } } },
+    });
+    if (!factory) throw new ForbiddenException('You do not have access to this factory');
+    if (suspended && factory.status === FactoryStatus.SUSPENDED) throw new ConflictException('Factory is already suspended');
+    if (suspended && factory.status !== FactoryStatus.ACTIVE && factory.status !== FactoryStatus.PENDING) {
+      throw new ConflictException('Only active or pending factories can be suspended');
+    }
+    if (!suspended && factory.status !== FactoryStatus.SUSPENDED) throw new ConflictException('Factory is not suspended');
+    const cleanReason = (reason || '').trim().slice(0, 2000);
+    if (suspended && !cleanReason) throw new BadRequestException('A suspension reason is required');
+
+    const updated = await this.prisma.factory.update({
+      where: { id },
+      data: suspended
+        ? { status: FactoryStatus.SUSPENDED, suspendedReason: cleanReason, suspendedAt: new Date() }
+        : { status: factory.isApproved ? FactoryStatus.ACTIVE : FactoryStatus.PENDING, suspendedReason: null, suspendedAt: null },
+      select: { id: true, name: true, status: true, suspendedReason: true, suspendedAt: true, isApproved: true },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: suspended ? 'FACTORY_SUSPENDED' : 'FACTORY_UNSUSPENDED',
+      entity: 'Factory',
+      entityId: id,
+      changes: suspended ? { reason: cleanReason } : undefined,
+    });
+    const message = suspended
+      ? `حساب واحد «${factory.name}» مسدود شد. دلیل: ${cleanReason}. پرداخت قبوض همچنان امکان‌پذیر است.`
+      : `مسدودی حساب واحد «${factory.name}» برداشته شد.`;
+    if (factory.managerId) await this.notifyUser(factory.managerId, suspended ? 'مسدودسازی واحد' : 'رفع مسدودی واحد', message, suspended ? 'WARNING' : 'SUCCESS');
+    if (factory.manager?.phoneNumber) await this.safeSendSms(factory.manager.phoneNumber, `MEKSS: ${message}`);
+    return updated;
   }
 
   private async assertOwnedFactory(actor: AuthenticatedUser, factoryId: string) {
@@ -4290,7 +5299,7 @@ export class ManagementService {
   private async actorParkIds(actor: AuthenticatedUser): Promise<string[]> {
     if (actor.role === Role.FACTORY_OWNER) {
       const factories = await this.prisma.factory.findMany({
-        where: { managerId: actor.id },
+        where: actor.activeFactoryId ? { managerId: actor.id, id: actor.activeFactoryId } : { managerId: actor.id },
         select: { parkId: true },
       });
       return [...new Set(factories.map((factory) => factory.parkId))];
@@ -4898,10 +5907,7 @@ export class ManagementService {
 
   /** Calendar days past dueDate (UTC date-only). Due day itself is not late. */
   private calendarDaysLate(dueDate: Date, asOf: Date = new Date()): number {
-    const due = Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
-    const now = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
-    const diff = Math.floor((now - due) / 86_400_000);
-    return diff > 0 ? diff : 0;
+    return calendarDaysLate(dueDate, asOf);
   }
 
   private money(value: number): number {
@@ -4916,14 +5922,16 @@ export class ManagementService {
     lateDays?: number | null;
     latePenaltyAmount?: Prisma.Decimal | number | null;
     dueDate: Date;
+    penaltyStartsAt?: Date | null;
+    discountAmount?: Prisma.Decimal | number | null;
     status: InvoiceStatus;
     paymentDate?: Date | null;
-  }) {
+  }, asOf: Date = new Date()) {
     const baseTotal = this.money(Number(invoice.totalAmount));
     const latePenaltyPerDay = this.money(Number(invoice.latePenaltyPerDay || 0));
     const isPaid = invoice.status === InvoiceStatus.PAID;
     const isAwaitingConfirm = invoice.status === InvoiceStatus.AWAITING_CONFIRMATION;
-    const lateFrozen = isPaid || isAwaitingConfirm;
+    const lateFrozen = isPaid || isAwaitingConfirm || invoice.status === InvoiceStatus.INSTALLMENTS;
 
     let lateDays: number;
     let latePenaltyAmount: number;
@@ -4934,18 +5942,20 @@ export class ManagementService {
       lateDays = 0;
       latePenaltyAmount = 0;
     } else {
-      lateDays = this.calendarDaysLate(invoice.dueDate);
+      // An extended due date keeps the original penalty start (penaltyStartsAt).
+      lateDays = this.calendarDaysLate(invoice.penaltyStartsAt ?? invoice.dueDate, asOf);
       latePenaltyAmount = this.money(lateDays * latePenaltyPerDay);
     }
 
     let status = invoice.status;
-    if (!isPaid && !isAwaitingConfirm && status !== InvoiceStatus.CANCELLED && lateDays > 0 && status === InvoiceStatus.PENDING) {
+    if (status === InvoiceStatus.PENDING && this.calendarDaysLate(invoice.dueDate, asOf) > 0) {
       status = InvoiceStatus.OVERDUE;
     }
 
     return {
       baseAmount: this.money(Number(invoice.amount)),
       taxAmount: this.money(Number(invoice.taxAmount)),
+      discountAmount: this.money(Number(invoice.discountAmount || 0)),
       baseTotal,
       latePenaltyPerDay,
       lateDays,
@@ -4987,10 +5997,12 @@ export class ManagementService {
       };
     }
     if (user.role === Role.PARK_MANAGER || user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) {
-      const factoryIds = await this.factoryIds(user);
-      if (user.role === Role.SUPER_ADMIN || user.role === Role.GOVERNMENT_OFFICIAL) {
+      // Super admin also issues/collects platform invoices addressed to parks.
+      if (user.role === Role.SUPER_ADMIN) return {};
+      if (user.role === Role.GOVERNMENT_OFFICIAL) {
         return { targetType: InvoiceTarget.FACTORY };
       }
+      const factoryIds = await this.factoryIds(user);
       return {
         targetType: InvoiceTarget.FACTORY,
         factoryId: { in: factoryIds.length ? factoryIds : ['__none__'] },
@@ -5110,6 +6122,14 @@ export class ManagementService {
       return { ok: true, kind: 'gate_pass_query', pending, approved };
     }
 
+    const factoryState = await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { status: true, suspendedReason: true } });
+    try {
+      this.assertFactoryNotSuspended(factoryState);
+    } catch (error) {
+      await this.safeSendSms(input.phoneNumber, 'MEKSS: این واحد صنعتی مسدود است و امکان ثبت درخواست برگ خروج وجود ندارد.');
+      throw error;
+    }
+
     const title = 'درخواست صدور برگ خروج (پیامک)';
     const description = input.text?.trim() || 'درخواست خودکار صدور برگ خروج از طریق پیامک (کد 91)';
     const request = await this.prisma.request.create({
@@ -5181,6 +6201,7 @@ export class ManagementService {
       ...invoice,
       amount: settlement.baseAmount,
       taxAmount: settlement.taxAmount,
+      discountAmount: settlement.discountAmount,
       totalAmount: settlement.baseTotal,
       latePenaltyPerDay: settlement.latePenaltyPerDay,
       lateDays: settlement.lateDays,

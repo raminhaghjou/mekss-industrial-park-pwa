@@ -13,6 +13,8 @@ import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { useAuth } from '../../providers/AuthProvider';
 import { invoiceStatusLabels } from '../../constants/persianLabels';
 import { useNotification } from '../../providers/NotificationProvider';
+import { invoiceDueInfo } from '../../utils/invoiceDue';
+import { InvoiceItemsList } from '../../components/invoices/InvoiceItemsList';
 
 const statusColors = {
   PENDING: 'warning',
@@ -20,6 +22,12 @@ const statusColors = {
   PAID: 'success',
   OVERDUE: 'danger',
   CANCELLED: 'default',
+  INSTALLMENTS: 'accent',
+};
+const dueToneClass = {
+  success: 'text-success-700',
+  warning: 'text-warning-700',
+  danger: 'text-danger',
 };
 const canPayRoles = new Set(['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER']);
 
@@ -130,6 +138,7 @@ export const InvoicesPage = () => {
               <TableHeader>
                 <TableColumn isRowHeader>شماره قبض</TableColumn>
                 <TableColumn>شرح</TableColumn>
+                <TableColumn>مهلت پرداخت</TableColumn>
                 <TableColumn>مبلغ پایه</TableColumn>
                 <TableColumn>جریمه تأخیر</TableColumn>
                 <TableColumn>قابل پرداخت</TableColumn>
@@ -139,11 +148,26 @@ export const InvoicesPage = () => {
               <TableBody>
                 {invoices.map((invoice) => {
                   const unpaid = invoice.status === 'PENDING' || invoice.status === 'OVERDUE';
+                  const due = invoiceDueInfo(invoice);
                   return (
                     <TableRow key={invoice.id} id={invoice.id}>
                       <TableCell dir="ltr">{invoice.invoiceNumber}</TableCell>
-                      <TableCell>{invoice.description}</TableCell>
-                      <TableCell dir="ltr">{Number(invoice.totalAmount).toLocaleString('fa-IR')}</TableCell>
+                      <TableCell>
+                        <span>{invoice.description}</span>
+                        <InvoiceItemsList items={invoice.items} compact />
+                      </TableCell>
+                      <TableCell>
+                        <span className="whitespace-nowrap font-medium">{due.dateFa}</span>
+                        {due.text && (
+                          <span className={`block text-[11px] ${dueToneClass[due.tone] || 'text-foreground-500'}`}>{due.text}</span>
+                        )}
+                      </TableCell>
+                      <TableCell dir="ltr">
+                        {Number(invoice.totalAmount).toLocaleString('fa-IR')}
+                        {Number(invoice.discountAmount || 0) > 0 && (
+                          <span className="block text-[11px] text-success-700">تخفیف {Number(invoice.discountAmount).toLocaleString('fa-IR')}</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {Number(invoice.latePenaltyAmount) > 0 ? (
                           <div className="text-xs" dir="ltr">

@@ -1,6 +1,6 @@
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Building2, ExternalLink, Globe, MapPin, Phone, Mail } from 'lucide-react';
+import { Building2, ExternalLink, Globe, MapPin, Phone, Mail } from 'lucide-react';
 import { Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
 import { PublicShell } from '../../components/public/PublicShell';
 import { publicApi } from '../../services/api/public.api';
@@ -17,14 +17,6 @@ export const FactoryPublicDetailPage = () => {
   return (
     <PublicShell>
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
-        <Link
-          to="/directory"
-          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--color-brand)] transition hover:text-[var(--color-brand-hover)]"
-        >
-          <ArrowRight className="h-4 w-4" />
-          بازگشت به دایرکتوری
-        </Link>
-
         {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-10 w-64 rounded-[var(--radius-sm)]" />

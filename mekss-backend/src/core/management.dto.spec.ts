@@ -4,6 +4,8 @@ import {
   AdvertisementAdminQueryDto,
   AdvertisementModerationDto,
   CreateAdvertisementDto,
+  CreateBannerDto,
+  UpdateGatePassDto,
   CreateAnnouncementDto,
   CreateFactoryDto,
   CreateGatePassDto,
@@ -28,7 +30,7 @@ describe('management DTO validation', () => {
     driverName: 'Test Driver',
     driverNationalId: '1234567890',
     driverPhone: '09120000000',
-    vehicleType: 'TRUCK',
+    vehicleType: 'KHAVAR',
     licensePlate: '12ب34567',
     exitDate: '2026-08-30T10:00:00.000Z',
   };
@@ -40,6 +42,34 @@ describe('management DTO validation', () => {
     });
     await expect(validate(CreateGatePassDto, { ...validGatePass, createdById: 'attacker' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(validate(CreateGatePassDto, { ...validGatePass, cargoType: 'raw_materials' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts the new heavy vehicle types and no longer accepts the retired TRUCK for new or edited passes', async () => {
+    for (const vehicleType of ['KHAVAR', 'TAK', 'TEN_WHEELER', 'TRAILER', 'VAN', 'CAR', 'MOTORCYCLE', 'OTHER']) {
+      await expect(validate(CreateGatePassDto, { ...validGatePass, vehicleType })).resolves.toMatchObject({ vehicleType });
+    }
+    await expect(validate(CreateGatePassDto, { ...validGatePass, vehicleType: 'TRUCK' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(validate(UpdateGatePassDto, { vehicleType: 'TRUCK' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(validate(UpdateGatePassDto, { vehicleType: 'TRAILER' })).resolves.toMatchObject({ vehicleType: 'TRAILER' });
+  });
+
+  it('validates multi-line invoices: items replace amount/description, and unknown item types are rejected', async () => {
+    const base = { factoryId: 'factory-1', dueDate: '2027-01-01T00:00:00.000Z' };
+    await expect(validate(CreateInvoiceDto, { ...base, items: [{ type: 'WATER', amount: 1000 }, { type: 'CHARGE_OTHER', title: 'نگهبانی', amount: 500 }] }))
+      .resolves.toMatchObject({ items: [{ type: 'WATER', amount: 1000 }, { type: 'CHARGE_OTHER', title: 'نگهبانی', amount: 500 }] });
+    await expect(validate(CreateInvoiceDto, { ...base, items: [{ type: 'GAS', amount: 1000 }] })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(validate(CreateInvoiceDto, { ...base, items: [{ type: 'WATER', amount: 0 }] })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(validate(CreateInvoiceDto, { ...base, description: 'Legacy' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts only https or internal banner links', async () => {
+    const base = { title: 'بنر', desktopImageId: 'img-desktop', mobileImageId: 'img-mobile' };
+    await expect(validate(CreateBannerDto, { ...base, linkUrl: 'https://example.com/page' })).resolves.toMatchObject({ linkUrl: 'https://example.com/page' });
+    await expect(validate(CreateBannerDto, { ...base, linkUrl: '/advertisements' })).resolves.toMatchObject({ linkUrl: '/advertisements' });
+    await expect(validate(CreateBannerDto, { ...base, linkUrl: '' })).resolves.toMatchObject({ linkUrl: null });
+    for (const linkUrl of ['javascript:alert(1)', 'http://example.com', '//evil.example', 'data:text/html,x']) {
+      await expect(validate(CreateBannerDto, { ...base, linkUrl })).rejects.toBeInstanceOf(BadRequestException);
+    }
   });
 
   it('normalizes Persian digits and +98 phone for gate-pass creation', async () => {

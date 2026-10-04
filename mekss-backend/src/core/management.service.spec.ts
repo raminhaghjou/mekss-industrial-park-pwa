@@ -589,7 +589,7 @@ describe('ManagementService advertisement moderation contract', () => {
   it.each([
     [Role.SUPER_ADMIN, { status: 'ACTIVE' }],
     [Role.PARK_MANAGER, { status: 'ACTIVE', managers: { some: { id: 'actor-1' } } }],
-    [Role.FACTORY_OWNER, { status: 'ACTIVE', factories: { some: { managerId: 'actor-1' } } }],
+    [Role.FACTORY_OWNER, { status: 'ACTIVE', factories: { some: { managerId: 'actor-1', status: { not: 'SUSPENDED' } } } }],
   ] as const)('derives active creation scope from the canonical %s relationship', async (role, expectedWhere) => {
     const prisma = { industrialPark: { findMany: jest.fn().mockResolvedValue(parks) } } as any;
     const service = new ManagementService(prisma, { record: jest.fn() } as any, config);
@@ -911,7 +911,7 @@ describe('ManagementService gate-pass state machine contract', () => {
 
     await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
       factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
-      driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+      driverPhone: '09120000000', vehicleType: 'KHAVAR', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
     })).resolves.toEqual({ id: 'pass-1' });
     expect(factory.updateMany).toHaveBeenCalled();
     expect(industrialPark.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -940,7 +940,7 @@ describe('ManagementService gate-pass state machine contract', () => {
 
     await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
       factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
-      driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+      driverPhone: '09120000000', vehicleType: 'KHAVAR', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
     })).resolves.toEqual({ id: 'pass-2' });
     expect(factory.updateMany).not.toHaveBeenCalled();
   });
@@ -965,7 +965,7 @@ describe('ManagementService gate-pass state machine contract', () => {
 
     await expect(service.createGatePass(actor(Role.FACTORY_OWNER), {
       factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
-      driverPhone: '09120000000', vehicleType: 'TRUCK', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+      driverPhone: '09120000000', vehicleType: 'KHAVAR', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(gatePass.create).not.toHaveBeenCalled();
   });

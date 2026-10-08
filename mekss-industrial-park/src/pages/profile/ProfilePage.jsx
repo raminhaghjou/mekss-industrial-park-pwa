@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../utils/apiError';
 import { Card, CardContent, CardHeader, Input, Button, Avatar, Separator, Label, Spinner } from '@heroui/react';
 import { User, Phone, Mail, Save, Camera, Lock, AtSign } from 'lucide-react';
 import { FileUploader } from '../../components/common/FileUploader';
+import { PasswordInput } from '../../components/common/PasswordInput';
 import { AuthenticatedImage } from '../../components/common/AuthenticatedImage';
 
 export const ProfilePage = () => {
@@ -248,8 +249,7 @@ export const ProfilePage = () => {
           <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-medium text-foreground-600">رمز عبور فعلی</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 required
                 value={passwordForm.currentPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
@@ -261,8 +261,7 @@ export const ProfilePage = () => {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-medium text-foreground-600">رمز عبور جدید</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 required
                 minLength={6}
                 value={passwordForm.newPassword}
@@ -274,8 +273,7 @@ export const ProfilePage = () => {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-medium text-foreground-600">تکرار رمز عبور جدید</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 required
                 minLength={6}
                 value={passwordForm.confirmPassword}

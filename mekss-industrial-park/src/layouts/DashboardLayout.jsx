@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Avatar,
@@ -146,16 +146,42 @@ export const DashboardLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { showNotification } = useNotification();
+  const queryClient = useQueryClient();
   const { factories, activeFactory, setActiveFactoryId } = useActiveFactory();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: unreadData } = useQuery({
     queryKey: ['messages', 'unread-count'],
     queryFn: () => messageApi.getUnreadCount().then((res) => res.data),
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     enabled: Boolean(user),
   });
   const unreadCount = Number(unreadData?.count || 0);
+  const unreadNotifications = unreadData ? Number(unreadData.notifications || 0) : null;
+  const seenNotificationCountRef = useRef(null);
+
+  useEffect(() => {
+    if (unreadNotifications === null) return;
+    const previous = seenNotificationCountRef.current;
+    seenNotificationCountRef.current = unreadNotifications;
+    if (previous === null) {
+      if (unreadNotifications > 0) {
+        showNotification(`${unreadNotifications.toLocaleString('fa-IR')} اعلان خوانده‌نشده دارید`, 'warning');
+      }
+      return;
+    }
+    if (unreadNotifications <= previous) return;
+    messageApi.getNotifications()
+      .then((res) => {
+        const latest = (res.data || []).find((item) => !item.isRead);
+        if (!latest) return;
+        const severity = latest.type === 'WARNING' || latest.type === 'EMERGENCY' ? 'warning'
+          : latest.type === 'SUCCESS' ? 'success' : 'info';
+        showNotification(`${latest.title}: ${latest.body}`, severity);
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      })
+      .catch(() => {});
+  }, [unreadNotifications, showNotification, queryClient]);
 
   const { showWalletUi } = useGatePassWallet(user?.role);
 

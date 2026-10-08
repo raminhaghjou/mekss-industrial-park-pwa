@@ -44,7 +44,7 @@ describe('printHtml', () => {
   it('keeps the printed frame until the next print and then replaces it', () => {
     printHtml({ title: 'اول', bodyHtml: '<p>1</p>' });
     printHtml({ title: 'دوم', bodyHtml: '<p>2</p>' });
-    const frames = document.querySelectorAll('iframe[data-mekss-print]');
+    const frames = /** @type {NodeListOf<HTMLIFrameElement>} */ (document.querySelectorAll('iframe[data-mekss-print]'));
     expect(frames).toHaveLength(1);
     expect(frames[0].srcdoc).toContain('<p>2</p>');
   });

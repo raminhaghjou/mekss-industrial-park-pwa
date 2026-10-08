@@ -199,7 +199,59 @@ export class AuthService {
       }
     }
 
+    await this.notifyRegistrationReviewers({
+      role,
+      parkId: requestedParkId,
+      factoryId: employeeOfFactoryId,
+      applicantName: input.name,
+      applicantPhone: input.phoneNumber,
+      factoryName: input.factoryName,
+    });
+
     return { message: 'Registration submitted for approval', user: this.publicUser(user) };
+  }
+
+  /**
+   * In-app alert for everyone who can approve the new account: super admins and the park's managers
+   * (plus the unit owner for employee sign-ups). Never blocks registration.
+   */
+  private async notifyRegistrationReviewers(input: {
+    role: Role;
+    parkId: string | null;
+    factoryId: string | null;
+    applicantName: string;
+    applicantPhone: string;
+    factoryName?: string;
+  }) {
+    try {
+      const reviewers = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          isApproved: true,
+          OR: [
+            { role: Role.SUPER_ADMIN },
+            ...(input.parkId ? [{ role: Role.PARK_MANAGER, managedParks: { some: { id: input.parkId } } }] : []),
+            ...(input.factoryId ? [{ role: Role.FACTORY_OWNER, managedFactories: { some: { id: input.factoryId } } }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (!reviewers.length) return;
+      const [park, factory] = await Promise.all([
+        input.parkId ? this.prisma.industrialPark.findUnique({ where: { id: input.parkId }, select: { name: true } }) : null,
+        input.factoryId ? this.prisma.factory.findUnique({ where: { id: input.factoryId }, select: { name: true } }) : null,
+      ]);
+      const isOwner = input.role === Role.FACTORY_OWNER;
+      const title = isOwner ? 'ثبت‌نام واحد صنعتی جدید' : 'ثبت‌نام کارمند جدید';
+      const body = isOwner
+        ? `واحد صنعتی «${input.factoryName || input.applicantName}» با مدیر ${input.applicantName} (${input.applicantPhone})${park?.name ? ` در شهرک ${park.name}` : ''} ثبت‌نام کرده و منتظر بررسی و تایید است.`
+        : `${input.applicantName} (${input.applicantPhone}) به‌عنوان کارمند${factory?.name ? ` واحد «${factory.name}»` : ''} ثبت‌نام کرده و منتظر بررسی و تایید است.`;
+      await this.prisma.notification.createMany({
+        data: reviewers.map((reviewer) => ({ userId: reviewer.id, title, body, type: 'WARNING' as const })),
+      });
+    } catch {
+      /* non-blocking */
+    }
   }
 
   async login(

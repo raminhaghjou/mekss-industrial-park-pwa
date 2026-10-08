@@ -36,6 +36,7 @@ vi.mock('@tanstack/react-query', async () => {
   return {
     ...actual,
     useQuery: () => ({ data: { count: 0 } }),
+    useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   };
 });
 

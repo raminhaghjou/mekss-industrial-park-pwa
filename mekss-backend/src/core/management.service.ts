@@ -792,7 +792,7 @@ export class ManagementService {
       select: { id: true },
     });
     if (!park) throw new BadRequestException('Factory park must exist and be active');
-    return this.auditedTransaction(
+    const registered = await this.auditedTransaction(
       actor,
       {
         action: 'FACTORY_REGISTERED',
@@ -835,6 +835,44 @@ export class ManagementService {
         return item;
       },
     );
+    await this.notifyParkStaff(
+      input.parkId,
+      { superAdmins: true },
+      'ثبت‌نام واحد صنعتی جدید',
+      `واحد صنعتی «${input.name}» توسط مدیر واحد (${actor.phoneNumber}) ثبت شد و منتظر بررسی و تایید است.`,
+      'WARNING',
+    );
+    return registered;
+  }
+
+  /** In-app notification for the park's active managers (and optionally every super admin). */
+  private async notifyParkStaff(
+    parkId: string | null | undefined,
+    options: { superAdmins?: boolean; extraUserIds?: Array<string | null | undefined> },
+    title: string,
+    body: string,
+    type: 'INFO' | 'SUCCESS' | 'WARNING' = 'INFO',
+  ) {
+    try {
+      const recipients = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          isApproved: true,
+          OR: [
+            ...(parkId ? [{ role: Role.PARK_MANAGER, managedParks: { some: { id: parkId } } }] : []),
+            ...(options.superAdmins ? [{ role: Role.SUPER_ADMIN }] : []),
+            { id: { in: (options.extraUserIds || []).filter((id): id is string => Boolean(id)) } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!recipients.length) return;
+      await this.prisma.notification.createMany({
+        data: recipients.map((recipient) => ({ userId: recipient.id, title, body, type })),
+      });
+    } catch (error) {
+      this.logger.warn(`Park staff notification failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   }
 
   async updateFactory(actor: AuthenticatedUser, id: string, input: UpdateFactoryDto) {
@@ -1248,6 +1286,7 @@ export class ManagementService {
         phoneNumber2: true,
         status: true,
         suspendedReason: true,
+        managerId: true,
         manager: { select: { phoneNumber: true, name: true } },
         park: { select: { id: true, name: true, guardPhone: true } },
       },
@@ -1323,6 +1362,15 @@ export class ManagementService {
     if (factory.manager?.phoneNumber) phones.add(factory.manager.phoneNumber);
     if (factory.park?.guardPhone) phones.add(factory.park.guardPhone);
     await Promise.all([...phones].map((phone) => this.safeSendSms(phone, smsText)));
+
+    // In-app alert for both the unit owner and the park managers, whoever issued the pass.
+    await this.notifyParkStaff(
+      factory.parkId,
+      { extraUserIds: [factory.managerId] },
+      'ثبت برگ خروج جدید',
+      `برگ خروج برای واحد «${factory.name}» ثبت شد: راننده ${input.driverName}، پلاک ${input.licensePlate}، توسط ${pass.createdBy?.name || 'کاربر واحد'}.`,
+      'INFO',
+    );
 
     await this.audit.record({
       userId: actor.id,

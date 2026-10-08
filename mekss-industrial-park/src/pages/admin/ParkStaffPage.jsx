@@ -34,6 +34,7 @@ import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
+import { PasswordInput } from '../../components/common/PasswordInput';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { queryKeys } from '../../services/queryKeys';
@@ -203,8 +204,7 @@ export const ParkStaffPage = () => {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs">{editing ? 'رمز عبور جدید (اختیاری)' : 'رمز عبور اولیه'}</Label>
-              <Input
-                type="password"
+              <PasswordInput
                 value={form.password}
                 onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
                 className="rounded-xl"

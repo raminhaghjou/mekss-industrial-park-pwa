@@ -55,6 +55,7 @@ export const RegisterPage = () => {
   const [parks, setParks] = useState([]);
   const [factories, setFactories] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
@@ -291,13 +292,14 @@ export const RegisterPage = () => {
                   required
                   value={formData.password}
                   onChange={(e) => update('password', e.target.value)}
-                  className={authFieldClass}
+                  className={`${authFieldClass} pl-11`}
                   dir="ltr"
                 />
                 <button
                   type="button"
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
                   onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'پنهان کردن رمز' : 'نمایش رمز'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -306,14 +308,24 @@ export const RegisterPage = () => {
 
             <label className="flex flex-col gap-1.5">
               <span className={authLabelClass}>تکرار رمز عبور</span>
-              <input
-                type="password"
-                required
-                value={formData.confirmPassword}
-                onChange={(e) => update('confirmPassword', e.target.value)}
-                className={authFieldClass}
-                dir="ltr"
-              />
+              <span className="relative block">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  value={formData.confirmPassword}
+                  onChange={(e) => update('confirmPassword', e.target.value)}
+                  className={`${authFieldClass} pl-11`}
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  aria-label={showConfirmPassword ? 'پنهان کردن رمز' : 'نمایش رمز'}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </span>
             </label>
 
             {formData.role === 'FACTORY_OWNER' ? (

@@ -44,6 +44,7 @@ import {
 import { userApi } from '../../services/api/user.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { PasswordInput } from '../../components/common/PasswordInput';
 import { getErrorMessage } from '../../utils/apiError';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 
@@ -304,8 +305,7 @@ const ManageUsersPage = () => {
                   {!editing && (
                     <div className="flex flex-col gap-1 mt-2">
                       <label className="text-xs font-medium text-foreground-600">رمز عبور</label>
-                      <Input
-                        type="password"
+                      <PasswordInput
                         required
                         placeholder="رمز عبور کاربر"
                         value={form.password}

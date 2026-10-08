@@ -28,6 +28,7 @@ import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestTypeLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
+import { PasswordInput } from '../../components/common/PasswordInput';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { StaffAccessLevelPicker } from '../../components/staff/StaffAccessLevelPicker';
 
@@ -113,7 +114,7 @@ export const FactoryStaffPage = () => {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs">رمز عبور اولیه</Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="rounded-xl" />
+              <PasswordInput value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="rounded-xl" />
             </div>
           </div>
 

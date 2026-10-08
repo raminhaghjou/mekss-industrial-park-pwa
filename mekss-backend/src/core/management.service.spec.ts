@@ -920,6 +920,53 @@ describe('ManagementService gate-pass state machine contract', () => {
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'GATE_PASS_CREATED', entityId: 'pass-1' }));
   });
 
+  it('notifies the factory owner and the park managers in-app when a gate pass is created', async () => {
+    const factory = {
+      findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
+      count: jest.fn().mockResolvedValue(1),
+      findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', name: 'F1', parkId: 'park-1', managerId: 'owner-1', status: 'ACTIVE' }),
+      updateMany: jest.fn(),
+    };
+    const gatePass = { create: jest.fn().mockResolvedValue({ id: 'pass-3', createdBy: { id: 'staff-1', name: 'Staff' } }) };
+    const appSetting = { findUnique: jest.fn().mockResolvedValue({ value: { requireWalletBalance: false } }) };
+    const user = {
+      findUnique: jest.fn().mockResolvedValue({ employeeOfFactoryId: 'factory-1' }),
+      findMany: jest.fn().mockResolvedValue([{ id: 'owner-1' }, { id: 'pm-1' }]),
+    };
+    const notification = { createMany: jest.fn().mockResolvedValue({ count: 2 }) };
+    const prisma = {
+      factory,
+      gatePass,
+      appSetting,
+      user,
+      notification,
+      $transaction: jest.fn(async (callback) => callback({ factory, gatePass, appSetting })),
+    } as any;
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, config);
+
+    await service.createGatePass(actor(Role.EMPLOYEE), {
+      factoryId: 'factory-1', cargoType: 'RAW_MATERIALS', driverName: 'Driver', driverNationalId: '1234567890',
+      driverPhone: '09120000000', vehicleType: 'KHAVAR', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
+    });
+
+    expect(user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        isActive: true,
+        isApproved: true,
+        OR: expect.arrayContaining([
+          { role: Role.PARK_MANAGER, managedParks: { some: { id: 'park-1' } } },
+          { id: { in: ['owner-1'] } },
+        ]),
+      }),
+    }));
+    expect(notification.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ userId: 'owner-1', title: 'ثبت برگ خروج جدید' }),
+        expect.objectContaining({ userId: 'pm-1', title: 'ثبت برگ خروج جدید' }),
+      ],
+    });
+  });
+
   it('skips wallet deduction when admin disables the wallet requirement', async () => {
     const factory = {
       findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),

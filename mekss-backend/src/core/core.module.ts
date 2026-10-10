@@ -31,7 +31,7 @@ import { GatePassEvents } from './gate-pass-events';
       },
     }),
   ],
-  controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController, WalletPaymentCallbackController, FilesController],
+  controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController, FilesController],
   providers: [
     PrismaService,
     AuditService,

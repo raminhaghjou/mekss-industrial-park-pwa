@@ -29,6 +29,8 @@ import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestTypeLabels } from '../../constants/persianLabels';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
+import { TimeSelect } from '../../components/common/TimeSelect';
 
 const requestTypeMap = {
   repair: 'OTHER',
@@ -287,13 +289,13 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
             <Input value={dataFields.destination || ''} onChange={(e) => setData('destination', e.target.value)} className="rounded-xl" />
           </Field>
           <Field label="تاریخ ماموریت">
-            <Input type="date" dir="ltr" value={dataFields.missionDate || dataFields.startDate || ''} onChange={(e) => setData('missionDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.missionDate || dataFields.startDate || ''} onChange={(value) => setData('missionDate', value)} />
           </Field>
           <Field label="ساعت از">
-            <Input type="time" dir="ltr" value={dataFields.fromTime || ''} onChange={(e) => setData('fromTime', e.target.value)} className="rounded-xl" />
+            <TimeSelect compact value={dataFields.fromTime || ''} onChange={(value) => setData('fromTime', value)} />
           </Field>
           <Field label="ساعت تا">
-            <Input type="time" dir="ltr" value={dataFields.toTime || ''} onChange={(e) => setData('toTime', e.target.value)} className="rounded-xl" />
+            <TimeSelect compact value={dataFields.toTime || ''} onChange={(value) => setData('toTime', value)} />
           </Field>
           <Field label="دلیل ماموریت">
             <Input value={dataFields.reason || ''} onChange={(e) => setData('reason', e.target.value)} className="rounded-xl" />
@@ -310,10 +312,10 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
             <Input value={dataFields.transferPersonName || ''} onChange={(e) => setData('transferPersonName', e.target.value)} className="rounded-xl" />
           </Field>
           <Field label="از تاریخ">
-            <Input type="date" dir="ltr" value={dataFields.startDate || ''} onChange={(e) => setData('startDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.startDate || ''} onChange={(value) => setData('startDate', value)} />
           </Field>
           <Field label="تا تاریخ">
-            <Input type="date" dir="ltr" value={dataFields.endDate || ''} onChange={(e) => setData('endDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.endDate || ''} onChange={(value) => setData('endDate', value)} />
           </Field>
           <Field label="مدت (روز)">
             <Input type="number" dir="ltr" value={dataFields.durationDays || ''} onChange={(e) => setData('durationDays', e.target.value)} className="rounded-xl" />
@@ -333,10 +335,10 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
             </select>
           </Field>
           <Field label="از تاریخ">
-            <Input type="date" dir="ltr" value={dataFields.startDate || ''} onChange={(e) => setData('startDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.startDate || ''} onChange={(value) => setData('startDate', value)} />
           </Field>
           <Field label="تا تاریخ">
-            <Input type="date" dir="ltr" value={dataFields.endDate || ''} onChange={(e) => setData('endDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.endDate || ''} onChange={(value) => setData('endDate', value)} />
           </Field>
         </div>
       );
@@ -344,13 +346,13 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
       return (
         <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-3">
           <Field label="تاریخ">
-            <Input type="date" dir="ltr" value={dataFields.date || ''} onChange={(e) => setData('date', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.date || ''} onChange={(value) => setData('date', value)} />
           </Field>
           <Field label="از ساعت">
-            <Input type="time" dir="ltr" value={dataFields.fromTime || ''} onChange={(e) => setData('fromTime', e.target.value)} className="rounded-xl" />
+            <TimeSelect compact value={dataFields.fromTime || ''} onChange={(value) => setData('fromTime', value)} />
           </Field>
           <Field label="تا ساعت">
-            <Input type="time" dir="ltr" value={dataFields.toTime || ''} onChange={(e) => setData('toTime', e.target.value)} className="rounded-xl" />
+            <TimeSelect compact value={dataFields.toTime || ''} onChange={(value) => setData('toTime', value)} />
           </Field>
         </div>
       );
@@ -378,7 +380,7 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
             <Input value={dataFields.plotBlock || ''} onChange={(e) => setData('plotBlock', e.target.value)} className="rounded-xl" />
           </Field>
           <Field label="تاریخ">
-            <Input type="date" dir="ltr" value={dataFields.settlementDate || ''} onChange={(e) => setData('settlementDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.settlementDate || ''} onChange={(value) => setData('settlementDate', value)} />
           </Field>
         </div>
       );
@@ -389,7 +391,7 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
             <Input value={dataFields.permitArea || ''} onChange={(e) => setData('permitArea', e.target.value)} className="rounded-xl" />
           </Field>
           <Field label="تاریخ شروع">
-            <Input type="date" dir="ltr" value={dataFields.startDate || ''} onChange={(e) => setData('startDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.startDate || ''} onChange={(value) => setData('startDate', value)} />
           </Field>
         </div>
       );
@@ -397,7 +399,7 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
       return (
         <div className="rounded-2xl bg-default-50 p-4">
           <Field label="تاریخ بازرسی پیشنهادی">
-            <Input type="date" dir="ltr" value={dataFields.inspectionDate || ''} onChange={(e) => setData('inspectionDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.inspectionDate || ''} onChange={(value) => setData('inspectionDate', value)} />
           </Field>
         </div>
       );
@@ -405,10 +407,10 @@ const TypeSpecificFields = ({ type, dataFields, setData }) => {
       return (
         <div className="grid gap-3 rounded-2xl bg-default-50 p-4 sm:grid-cols-2">
           <Field label="تاریخ ملاقات">
-            <Input type="date" dir="ltr" value={dataFields.appointmentDate || ''} onChange={(e) => setData('appointmentDate', e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={dataFields.appointmentDate || ''} onChange={(value) => setData('appointmentDate', value)} />
           </Field>
           <Field label="ساعت">
-            <Input type="time" dir="ltr" value={dataFields.appointmentTime || ''} onChange={(e) => setData('appointmentTime', e.target.value)} className="rounded-xl" />
+            <TimeSelect compact value={dataFields.appointmentTime || ''} onChange={(value) => setData('appointmentTime', value)} />
           </Field>
         </div>
       );

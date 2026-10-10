@@ -12,7 +12,7 @@ import { AppModule } from '../app.module';
 import { AuthController } from './auth.controller';
 import { CoreModule } from './core.module';
 import { HealthController } from './health.controller';
-import { ManagementController, PaymentCallbackController } from './management.controller';
+import { ManagementController, PaymentCallbackController, WalletPaymentCallbackController } from './management.controller';
 import { FilesController } from './files.controller';
 
 type ControllerType = {
@@ -91,6 +91,7 @@ describe('active backend route contract', () => {
       HealthController,
       ManagementController,
       PaymentCallbackController,
+      WalletPaymentCallbackController,
       FilesController,
     ]);
   });
@@ -215,6 +216,8 @@ describe('active backend route contract', () => {
         'POST /api/v1/factories/:id/reject',
         'POST /api/v1/factories/:id/staff',
         'POST /api/v1/factories/:id/wallet/top-up',
+        'POST /api/v1/factories/:id/wallet/pay',
+        'GET /api/v1/wallet/payment/callback',
         'POST /api/v1/factories/register',
         'POST /api/v1/files/upload',
         'POST /api/v1/gate-passes',

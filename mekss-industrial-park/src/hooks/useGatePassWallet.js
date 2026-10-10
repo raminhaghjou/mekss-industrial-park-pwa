@@ -4,11 +4,12 @@ import { settingsApi } from '../services/api/settings.api';
 const SETTING_READER_ROLES = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'];
 
 /**
- * Wallet UI (menu, quick action, fee notices) is shown to park managers and owners only while the
- * global `require_gate_pass_wallet` setting is on. The super admin always keeps wallet access.
+ * Wallet UI (menu, quick action) is shown to park managers only while the global
+ * `require_gate_pass_wallet` setting is on. The super admin and unit owners (who top up their own
+ * wallet online) always keep wallet access.
  */
 export const walletUiVisible = (role, setting) => {
-  if (role === 'SUPER_ADMIN') return true;
+  if (role === 'SUPER_ADMIN' || role === 'FACTORY_OWNER') return true;
   if (!SETTING_READER_ROLES.includes(role)) return false;
   return setting?.requireWalletBalance === true;
 };

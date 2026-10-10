@@ -102,7 +102,7 @@ export const MarketRatesPage = () => {
     const byDay = new Map();
     for (const row of history) {
       if (!chartKeys.includes(row.key)) continue;
-      const day = new Date(row.recordedAt).toLocaleDateString('fa-IR');
+      const day = new Date(row.recordedAt).toLocaleDateString('fa-IR-u-ca-persian');
       if (!byDay.has(day)) byDay.set(day, { day });
       byDay.get(day)[row.key] = Number(row.value);
     }

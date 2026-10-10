@@ -98,11 +98,17 @@ export const invoiceItemLabel = (item) => {
 };
 
 export const gatePassStatusLabels = {
-  PENDING: 'در انتظار',
-  APPROVED: 'آماده تایید نگهبان',
+  PENDING: 'در انتظار تایید مدیر شهرک',
+  APPROVED: 'تایید مدیر شهرک · در انتظار نگهبانی',
   REJECTED: 'رد شده',
-  COMPLETED: 'تایید خروج',
+  COMPLETED: 'خروج تایید شد',
   EXPIRED: 'منقضی شده',
+};
+
+/** Who rejected a REJECTED gate pass: the guard sets verifiedById, the park manager only approvedById. */
+export const gatePassRejectionStage = (pass) => {
+  if (pass?.status !== 'REJECTED') return null;
+  return pass.verifiedById || pass.verifiedBy ? 'guard' : 'park';
 };
 
 export const cargoTypeLabels = {

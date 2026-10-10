@@ -155,10 +155,10 @@ export const formatFaMoney = (value) => FA_NUMBER.format(Math.round(Number(value
 export const formatFaDate = (value) => {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('fa-IR');
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('fa-IR-u-ca-persian');
 };
 export const formatFaDateTime = (value) => {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('fa-IR-u-ca-persian', { dateStyle: 'short', timeStyle: 'short' });
 };

@@ -33,7 +33,7 @@ const TYPE_FA = {
 const formatFaDate = (value) => {
   if (!value) return '—';
   try {
-    return new Date(value).toLocaleDateString('fa-IR');
+    return new Date(value).toLocaleDateString('fa-IR-u-ca-persian');
   } catch {
     return String(value);
   }

@@ -47,6 +47,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { PasswordInput } from '../../components/common/PasswordInput';
 import { getErrorMessage } from '../../utils/apiError';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
+import { STAFF_PASSWORD_HINT, normalizeStaffPhone, validateStaffForm } from '../../utils/staffForm';
 
 const roleLabels = {
   SUPER_ADMIN: 'ادمین کل',
@@ -79,7 +80,7 @@ const ManageUsersPage = () => {
 
   const createMutation = useMutation({
     mutationFn: (/** @type {typeof emptyForm} */ payload) => userApi.createUser(payload),
-    onSuccess: () => { showNotification('کاربر با موفقیت ایجاد شد.', 'success'); closeForm(); invalidate(); },
+    onSuccess: () => { showNotification('کاربر ایجاد شد و نام کاربری و رمز عبور برایش پیامک شد.', 'success'); closeForm(); invalidate(); },
     onError: (err) => showNotification(getErrorMessage(err, 'ایجاد کاربر ناموفق بود.'), 'error'),
   });
 
@@ -118,8 +119,10 @@ const ManageUsersPage = () => {
       delete payload.password;
       updateMutation.mutate({ id: editing.id, payload });
     } else {
-      if (!form.phoneNumber || !form.name || !form.password) { showNotification('لطفا فیلدهای الزامی را پر کنید.', 'error'); return; }
-      createMutation.mutate(form);
+      const payload = { ...form, phoneNumber: normalizeStaffPhone(form.phoneNumber), name: form.name.trim() };
+      const errors = validateStaffForm(payload);
+      if (Object.keys(errors).length) { showNotification(Object.values(errors)[0], 'error'); return; }
+      createMutation.mutate(payload);
     }
   };
 
@@ -314,6 +317,7 @@ const ManageUsersPage = () => {
                         dir="ltr"
                         className="rounded-xl"
                       />
+                      <p className="text-[11px] text-foreground-500">{STAFF_PASSWORD_HINT}</p>
                     </div>
                   )}
                 </ModalBody>

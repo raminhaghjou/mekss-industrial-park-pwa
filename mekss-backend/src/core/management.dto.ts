@@ -264,6 +264,11 @@ export class WalletTopUpDto {
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0.01) @Max(9_999_999_999_999.99) amount!: number;
 }
 
+/** Online wallet top-up through the payment gateway: whole Rials, 10,000 to 2,000,000,000. */
+export class StartWalletTopUpDto {
+  @Type(() => Number) @IsInt() @Min(10_000) @Max(2_000_000_000) amount!: number;
+}
+
 export class UpdateMarketRateDto {
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) @Max(9_999_999_999_999.9999) value!: number;
   @Transform(trimString) @IsOptional() @IsString() @Length(1, 80) label?: string;

@@ -101,6 +101,14 @@ export function formatJalaliDate(date: Date): string {
   return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
 }
 
+/** Jalali yyyy/mm/dd HH:mm in Asia/Tehran, independent of the server timezone. */
+export function formatJalaliDateTime(date: Date): string {
+  const tehran = new Date(date.getTime() + 3.5 * 3_600_000);
+  const hh = String(tehran.getUTCHours()).padStart(2, '0');
+  const mm = String(tehran.getUTCMinutes()).padStart(2, '0');
+  return `${formatJalaliDate(date)} ساعت ${hh}:${mm}`;
+}
+
 /** UTC calendar days from `anchor` to `asOf`; the anchor day itself is not late. */
 export function calendarDaysLate(anchor: Date, asOf: Date = new Date()): number {
   const due = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate());

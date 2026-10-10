@@ -83,7 +83,7 @@ export default function GatePassQuickVerifyCard({ pass, scannedPlate, onDecided,
           <Field label="کد ملی راننده" mono>{pass.driverNationalId}</Field>
           <Field label="نوع خودرو">{labelFor(vehicleTypeLabels, pass.vehicleType)}</Field>
           <Field label="نوع بار">{labelFor(cargoTypeLabels, pass.cargoType)}</Field>
-          <Field label="تاریخ خروج">{pass.exitDate ? new Date(pass.exitDate).toLocaleDateString('fa-IR') : ''}</Field>
+          <Field label="تاریخ خروج">{pass.exitDate ? new Date(pass.exitDate).toLocaleDateString('fa-IR-u-ca-persian') : ''}</Field>
           <Field label="تلفن راننده" mono>{pass.driverPhone}</Field>
           {pass.cargoDescription ? <Field label="توضیحات بار" wide>{pass.cargoDescription}</Field> : null}
         </div>
@@ -113,7 +113,9 @@ export default function GatePassQuickVerifyCard({ pass, scannedPlate, onDecided,
         ) : (
           <Alert status="warning">
             <AlertContent>
-              <AlertTitle>این برگ خروج قبلاً رسیدگی شده</AlertTitle>
+              <AlertTitle>
+                {pass.status === 'PENDING' ? 'این برگ خروج هنوز توسط مدیر شهرک تایید نشده' : 'این برگ خروج قبلاً رسیدگی شده'}
+              </AlertTitle>
               <AlertDescription>وضعیت: {labelFor(gatePassStatusLabels, pass.status)}</AlertDescription>
             </AlertContent>
           </Alert>

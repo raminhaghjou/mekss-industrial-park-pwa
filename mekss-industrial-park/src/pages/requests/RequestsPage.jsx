@@ -150,7 +150,7 @@ export const RequestsPage = () => {
                         <TableCell className="text-sm text-foreground-500">
                           {req.isToParkManager ? 'مدیر شهرک' : 'داخلی واحد'}
                         </TableCell>
-                        <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
+                        <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR-u-ca-persian')}</TableCell>
                         <TableCell className="text-sm text-foreground-600">
                           {req.approver?.name || '—'}
                         </TableCell>

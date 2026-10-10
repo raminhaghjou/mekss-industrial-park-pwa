@@ -234,7 +234,7 @@ const buildRoleWorkspace = (role, data, navigate) => {
           label: 'برگ‌های خروج',
           value: data?.gatePasses ?? 0,
           color: 'success',
-          badge: pendingPasses ? `${pendingPasses.toLocaleString('fa-IR')} در انتظار نگهبان` : undefined,
+          badge: pendingPasses ? `${pendingPasses.toLocaleString('fa-IR')} در انتظار تایید شما` : undefined,
           onClick: () => navigate('/admin/gate-passes'),
         },
         {
@@ -249,6 +249,7 @@ const buildRoleWorkspace = (role, data, navigate) => {
       actions: [
         { icon: UserCheck, title: 'تایید ثبت‌نام‌ها', description: 'بررسی درخواست عضویت مالکان و پرسنل', onClick: () => navigate('/admin/registrations'), tone: 'warning' },
         { icon: Building2, title: 'مدیریت واحدها', description: 'مشاهده و تایید واحدهای صنعتی شهرک', onClick: () => navigate('/admin/factories'), tone: 'primary' },
+        { icon: Ticket, title: 'تایید برگ‌های خروج', description: 'بررسی، تایید یا رد برگ خروج واحدها', onClick: () => navigate('/admin/gate-passes'), tone: 'success' },
         { icon: FileText, title: 'درخواست‌های شهرک', description: 'رسیدگی به درخواست‌های واحدها', onClick: () => navigate('/admin/requests'), tone: 'success' },
         { icon: Receipt, title: 'حسابداری و مالی', description: 'مطالبات واحدها، قبض‌ها و پیگیری مالی', onClick: () => navigate('/admin/finance'), tone: 'secondary' },
         { icon: Bell, title: 'اطلاعیه‌ها', description: 'انتشار اطلاعیه رسمی برای واحدها', onClick: () => navigate('/admin/announcements'), tone: 'primary' },

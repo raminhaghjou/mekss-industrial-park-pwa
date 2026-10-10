@@ -101,7 +101,9 @@ page is cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin` +
   - Switching units resets the query cache.
 - **Gate pass wallet**
   - The wallet is optional and switched globally by the super admin in Settings.
-  - When it is off, the wallet menu, the dashboard shortcut and the fee notice are hidden for park managers and owners.
+  - When it is off, the wallet menu and the dashboard shortcut are hidden for park managers; unit owners always keep the wallet page.
+  - Owners top up any amount online at `/factory/wallet`. The page redirects to the gateway, and the backend callback brings them back with `?topup=success|failed`.
+  - Park managers and the super admin can also record manual top-ups. Every top-up is listed in the wallet history.
 - **Printing**
   - All printing (invoices, requests, reports, gate passes) goes through `src/utils/printHtml.js`. It uses a hidden iframe and the bundled Vazirmatn font, with no CDN and no popup, so it also works in the installed PWA.
   - If the print dialog cannot open, an HTML copy is downloaded instead.

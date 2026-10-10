@@ -34,6 +34,7 @@ import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import {
   cargoTypeLabels,
+  gatePassRejectionStage,
   gatePassStatusLabels as statusLabels,
   labelFor,
   vehicleTypeLabels,
@@ -44,6 +45,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import CreateGatePassForm from '../../components/gate-pass/CreateGatePassForm';
 import { GatePassPrintDialog } from '../../components/gate-pass/GatePassPrintDialog';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
 
 const statusColors = {
   PENDING: 'warning',
@@ -54,18 +56,21 @@ const statusColors = {
 };
 
 const exportCsv = (rows) => {
-  const header = ['نام راننده', 'پلاک', 'تاریخ خروج', 'وضعیت', 'نوع بار', 'نوع خودرو', 'واحد', 'صادرکننده', 'نگهبان', 'زمان تایید'];
+  const header = ['نام راننده', 'پلاک', 'تاریخ خروج', 'وضعیت', 'نوع بار', 'نوع خودرو', 'واحد', 'صادرکننده', 'تایید مدیر شهرک', 'زمان تایید مدیر شهرک', 'نگهبان', 'زمان تصمیم نگهبان', 'دلیل رد'];
   const lines = rows.map((pass) => csvLine([
     pass.driverName || '',
     displayIranLicensePlate(pass.licensePlate) || pass.licensePlate || '',
-    pass.exitDate ? new Date(pass.exitDate).toLocaleDateString('fa-IR') : '',
+    pass.exitDate ? new Date(pass.exitDate).toLocaleDateString('fa-IR-u-ca-persian') : '',
     statusLabels[pass.status] || pass.status || '',
     labelFor(cargoTypeLabels, pass.cargoType),
     labelFor(vehicleTypeLabels, pass.vehicleType),
     pass.factory?.name || '',
     pass.createdBy?.name || '',
+    pass.approvedBy?.name || '',
+    pass.approvedAt ? new Date(pass.approvedAt).toLocaleString('fa-IR-u-ca-persian') : '',
     pass.verifiedBy?.name || '',
-    pass.verifiedAt ? new Date(pass.verifiedAt).toLocaleString('fa-IR') : '',
+    pass.verifiedAt ? new Date(pass.verifiedAt).toLocaleString('fa-IR-u-ca-persian') : '',
+    pass.status === 'REJECTED' ? pass.notes || '' : '',
   ]));
   const csv = `\uFEFF${[header.join(','), ...lines].join('\n')}`;
   saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `gate-passes-${new Date().toISOString().slice(0, 10)}.csv`);
@@ -91,13 +96,11 @@ export const GatePassesPage = () => {
       if (status && pass.status !== status) return false;
       if (fromDate) {
         const exit = pass.exitDate ? new Date(pass.exitDate) : null;
-        if (!exit || exit < new Date(fromDate)) return false;
+        if (!exit || exit < new Date(`${fromDate}T00:00:00`)) return false;
       }
       if (toDate) {
         const exit = pass.exitDate ? new Date(pass.exitDate) : null;
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        if (!exit || exit > end) return false;
+        if (!exit || exit > new Date(`${toDate}T23:59:59.999`)) return false;
       }
       return true;
     });
@@ -168,11 +171,11 @@ export const GatePassesPage = () => {
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">از تاریخ</Label>
-            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={fromDate} onChange={(value) => setFromDate(value)} />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">تا تاریخ</Label>
-            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={toDate} onChange={(value) => setToDate(value)} />
           </div>
         </CardContent>
       </Card>
@@ -207,7 +210,7 @@ export const GatePassesPage = () => {
                     <TableColumn>شماره پلاک</TableColumn>
                     <TableColumn>تاریخ خروج</TableColumn>
                     <TableColumn>صادرکننده</TableColumn>
-                    <TableColumn>نگهبان / زمان</TableColumn>
+                    <TableColumn>مراحل تایید</TableColumn>
                     <TableColumn>وضعیت</TableColumn>
                     <TableColumn>عملیات</TableColumn>
                   </TableHeader>
@@ -218,20 +221,39 @@ export const GatePassesPage = () => {
                         <TableRow key={pass.id} id={pass.id}>
                           <TableCell>{pass.driverName}</TableCell>
                           <TableCell dir="ltr">{displayIranLicensePlate(pass.licensePlate)}</TableCell>
-                          <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</TableCell>
+                          <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR-u-ca-persian')}</TableCell>
                           <TableCell>{pass.createdBy?.name || '—'}</TableCell>
                           <TableCell>
-                            {pass.verifiedBy?.name || '—'}
+                            <span className="block text-xs">
+                              <span className="text-foreground-500">مدیر شهرک: </span>
+                              {pass.approvedBy?.name || '—'}
+                            </span>
+                            {pass.approvedAt ? (
+                              <span className="block text-[11px] text-foreground-500">
+                                {new Date(pass.approvedAt).toLocaleString('fa-IR-u-ca-persian')}
+                              </span>
+                            ) : null}
+                            <span className="mt-1 block text-xs">
+                              <span className="text-foreground-500">نگهبانی: </span>
+                              {pass.verifiedBy?.name || '—'}
+                            </span>
                             {pass.verifiedAt ? (
-                              <span className="mt-0.5 block text-[11px] text-foreground-500">
-                                {new Date(pass.verifiedAt).toLocaleString('fa-IR')}
+                              <span className="block text-[11px] text-foreground-500">
+                                {new Date(pass.verifiedAt).toLocaleString('fa-IR-u-ca-persian')}
                               </span>
                             ) : null}
                           </TableCell>
                           <TableCell>
                             <Chip color={statusColors[pass.status] || 'default'} size="sm" variant="soft">
-                              {statusLabels[pass.status] || pass.status}
+                              {pass.status === 'REJECTED'
+                                ? (gatePassRejectionStage(pass) === 'guard' ? 'رد توسط نگهبانی' : 'رد توسط مدیر شهرک')
+                                : statusLabels[pass.status] || pass.status}
                             </Chip>
+                            {pass.status === 'REJECTED' && pass.notes ? (
+                              <span className="mt-1 block max-w-[16rem] whitespace-normal text-[11px] leading-5 text-danger-600 dark:text-danger-300">
+                                دلیل: {pass.notes}
+                              </span>
+                            ) : null}
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap items-center gap-1.5">

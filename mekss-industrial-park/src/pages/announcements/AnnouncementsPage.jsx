@@ -51,7 +51,7 @@ export const AnnouncementsPage = () => {
                   {ann.isGlobal && <Chip color="default" size="sm" variant="soft">همگانی</Chip>}
                 </div>
                 <span className="text-sm text-foreground-500">
-                  {new Date(ann.createdAt).toLocaleDateString('fa-IR')}
+                  {new Date(ann.createdAt).toLocaleDateString('fa-IR-u-ca-persian')}
                 </span>
               </CardHeader>
               <Separator />

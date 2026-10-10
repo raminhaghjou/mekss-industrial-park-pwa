@@ -325,6 +325,7 @@ model User {
   invoiceImportBatches    InvoiceImportBatch[]    @relation("InvoiceImportCreator")
   dashboardBanners        DashboardBanner[]       @relation("DashboardBannerCreator")
   emergenciesResolved     EmergencyAlert[]        @relation("EmergencyResolver")
+  walletTopUps            WalletTopUp[]           @relation("WalletTopUpInitiator")
 
   @@index([role, isApproved, isActive])
   @@index([bootstrapCreatedAt])
@@ -427,6 +428,7 @@ model Factory {
   requests      Request[]
   announcements Announcement[]
   scopedFiles   ScopedFile[]      @relation("FactoryScopedFiles")
+  walletTopUps  WalletTopUp[]
 
   @@unique([id, parkId])
   @@index([managerId])
@@ -480,6 +482,8 @@ model GatePass {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   verifiedAt        DateTime?
+  /// When the park manager approved or rejected the pass (first review stage).
+  approvedAt        DateTime?
 
   factoryId    String
   factory      Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
@@ -685,6 +689,33 @@ model PaymentTransaction {
 
   @@index([invoiceId, status])
   @@index([parkId, status])
+  @@index([status, createdAt])
+}
+
+/// Gate-pass wallet credit: online gateway payments by the unit owner, or manual credit by park staff.
+model WalletTopUp {
+  id             String        @id @default(cuid())
+  amount         Decimal       @db.Decimal(15, 2)
+  status         PaymentStatus @default(INITIATED)
+  /// ONLINE (payment gateway) or MANUAL (credited by a park manager / super admin).
+  method         String        @default("ONLINE")
+  provider       String        @default("MOCK")
+  authority      String        @unique
+  referenceId    String?       @unique
+  providerStatus Json?
+  failureReason  String?
+  note           String?
+  balanceAfter   Decimal?      @db.Decimal(15, 2)
+  verifiedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  factoryId     String
+  factory       Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  initiatedById String?
+  initiatedBy   User?   @relation("WalletTopUpInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
+
+  @@index([factoryId, createdAt])
   @@index([status, createdAt])
 }
 

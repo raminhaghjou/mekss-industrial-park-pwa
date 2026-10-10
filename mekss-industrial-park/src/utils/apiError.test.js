@@ -12,6 +12,16 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(error, 'پیش‌فرض')).toBe('خطای اول، خطای دوم');
   });
 
+  it('localizes known English server messages, including each item of a validation array', () => {
+    expect(getErrorMessage({ response: { data: { message: 'Phone number is already registered' } } }, 'x'))
+      .toBe('این شماره موبایل قبلاً در سامانه ثبت شده است.');
+    expect(getErrorMessage({
+      response: { data: { message: ['password must be 10-128 characters and contain letters and numbers', 'phoneNumber must match /^09\\d{9}$/ regular expression'] } },
+    }, 'x')).toBe('رمز عبور باید حداقل ۱۰ کاراکتر و شامل حروف انگلیسی و عدد باشد.، شماره موبایل معتبر نیست (۱۱ رقم و با ۰۹ شروع شود).');
+    expect(getErrorMessage({ response: { data: { message: 'phoneNumber or username is required' } } }, 'x'))
+      .toBe('نام کاربری یا شماره تلفن را وارد کنید.');
+  });
+
   it('classifies an offline-blocked mutation as a recoverable connectivity error', () => {
     const error = { code: 'ERR_CANCELED', message: 'Offline: mutation blocked until reconnect' };
     expect(getErrorMessage(error, 'پیش‌فرض')).toContain('اتصال اینترنت برقرار نیست');

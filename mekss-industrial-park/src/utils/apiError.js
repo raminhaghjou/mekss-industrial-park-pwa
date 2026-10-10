@@ -1,7 +1,4 @@
-const normalizeServerMessage = (message) => {
-  if (Array.isArray(message)) return message.filter(Boolean).join('، ');
-  return typeof message === 'string' && message.trim() ? message : null;
-};
+const normalizeServerMessage = (message) => (typeof message === 'string' && message.trim() ? message : null);
 
 /**
  * Known English (and a few Persian) API messages mapped to clear Persian UI copy.
@@ -22,7 +19,7 @@ const SERVER_MESSAGE_FA = {
     'حساب کاربری شما غیرفعال شده است. با پشتیبانی سامانه تماس بگیرید.',
   'invalid credentials':
     'نام کاربری/شماره تلفن یا رمز عبور نادرست است.',
-  'phoneNumber or username is required':
+  'phonenumber or username is required':
     'نام کاربری یا شماره تلفن را وارد کنید.',
   'provide either phonenumber or username, not both':
     'فقط یکی از نام کاربری یا شماره تلفن را وارد کنید.',
@@ -34,16 +31,68 @@ const SERVER_MESSAGE_FA = {
     'کد یک‌بارمصرف نامعتبر است.',
   'too many requests':
     'تعداد درخواست‌ها زیاد است. کمی بعد دوباره تلاش کنید.',
+  'password must be 10-128 characters and contain letters and numbers':
+    'رمز عبور باید حداقل ۱۰ کاراکتر و شامل حروف انگلیسی و عدد باشد.',
+  'newpassword must be 10-128 characters and contain letters and numbers':
+    'رمز عبور جدید باید حداقل ۱۰ کاراکتر و شامل حروف انگلیسی و عدد باشد.',
+  'phone number is already registered':
+    'این شماره موبایل قبلاً در سامانه ثبت شده است.',
+  'phone number, username, national id or email is already registered':
+    'شماره موبایل، نام کاربری، کد ملی یا ایمیل وارد‌شده قبلاً در سامانه ثبت شده است.',
+  'parkid is required':
+    'شهرک صنعتی را انتخاب کنید.',
+  'parkid is required when multiple parks are assigned':
+    'چند شهرک به شما واگذار شده است؛ شهرک محل خدمت کارمند را انتخاب کنید.',
+  'no managed park assigned':
+    'هیچ شهرکی به حساب شما واگذار نشده است.',
+  'gate pass has not been approved by the park manager yet':
+    'این برگ خروج هنوز توسط مدیر شهرک تایید نشده است.',
+  'gate pass is not awaiting park manager review':
+    'این برگ خروج دیگر در انتظار تایید مدیر شهرک نیست؛ فهرست به‌روز شد.',
+  'gate pass was already decided by someone else':
+    'این برگ خروج هم‌زمان توسط فرد دیگری بررسی شد؛ فهرست به‌روز شد.',
+  'only the park manager can approve or reject a gate pass':
+    'فقط مدیر شهرک می‌تواند برگ خروج را تایید یا رد کند.',
+  'only security guards can confirm or deny an exit':
+    'فقط نگهبانی می‌تواند خروج را تایید یا رد کند.',
+  'gate pass status changed while editing; reload and try again':
+    'وضعیت برگ خروج هم‌زمان تغییر کرد (احتمالاً بررسی شد). صفحه را به‌روز و دوباره تلاش کنید.',
+  'only pending or rejected gate passes can be edited':
+    'فقط برگ خروج در انتظار تایید یا رد‌شده قابل ویرایش است.',
+  'a reason is required':
+    'ثبت دلیل الزامی است.',
+  'a rejection reason is required':
+    'ثبت دلیل رد الزامی است.',
 };
 
-const localizeServerMessage = (message) => {
+/** Default class-validator messages (`<field> must ...`) mapped by field. */
+const VALIDATION_PATTERNS_FA = [
+  [/^phonenumber must match/, 'شماره موبایل معتبر نیست (۱۱ رقم و با ۰۹ شروع شود).'],
+  [/^name must be (longer|shorter)/, 'نام و نام خانوادگی باید بین ۲ تا ۱۲۰ کاراکتر باشد.'],
+  [/^nationalid must match/, 'کد ملی باید ۱۰ رقم باشد.'],
+  [/^username must match/, 'نام کاربری فقط حروف کوچک انگلیسی، عدد و . _ - (۳ تا ۶۴ کاراکتر).'],
+  [/^email must be an email/, 'ایمیل معتبر نیست.'],
+  [/^amount must not be less than/, 'مبلغ کمتر از حداقل مجاز است.'],
+  [/^amount must not be greater than/, 'مبلغ بیشتر از سقف مجاز است.'],
+  [/^amount must be a number/, 'مبلغ معتبر نیست.'],
+];
+
+const localizeOne = (message) => {
   const normalized = normalizeServerMessage(message);
   if (!normalized) return null;
   const key = normalized.trim().replace(/[.!]+$/g, '').toLowerCase();
   if (SERVER_MESSAGE_FA[key]) return SERVER_MESSAGE_FA[key];
-  // Already Persian (contains Arabic/Persian letters) — keep as-is.
-  if (/[\u0600-\u06FF]/.test(normalized)) return normalized;
+  const pattern = VALIDATION_PATTERNS_FA.find(([regex]) => regex.test(key));
+  if (pattern) return pattern[1];
   return normalized;
+};
+
+const localizeServerMessage = (message) => {
+  if (Array.isArray(message)) {
+    const parts = [...new Set(message.map(localizeOne).filter(Boolean))];
+    return parts.length ? parts.join('، ') : null;
+  }
+  return localizeOne(message);
 };
 
 /**

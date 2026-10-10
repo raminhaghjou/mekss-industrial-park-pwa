@@ -358,7 +358,7 @@ export const EmergencyPage = () => {
                     <p className="text-xs text-foreground-400">
                       {alert.park?.name ? `${alert.park.name} · ` : ''}
                       {alert.createdBy?.name ? `${alert.createdBy.name} · ` : ''}
-                      {new Date(alert.createdAt).toLocaleString('fa-IR')}
+                      {new Date(alert.createdAt).toLocaleString('fa-IR-u-ca-persian')}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">

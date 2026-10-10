@@ -36,10 +36,10 @@ import { gatePassStatusLabels as statusLabels } from '../../constants/persianLab
 const TABS = [
   {
     id: 'pending',
-    label: 'در انتظار',
-    match: (status) => status === 'PENDING' || status === 'APPROVED',
-    emptyTitle: 'برگ خروجی در انتظار تایید نیست',
-    emptyDescription: 'به محض ثبت برگ خروج توسط واحد صنعتی، اینجا نمایش داده می‌شود.',
+    label: 'آماده خروج',
+    match: (status) => status === 'APPROVED',
+    emptyTitle: 'برگ خروجی در انتظار بررسی نگهبانی نیست',
+    emptyDescription: 'به محض تایید برگ خروج توسط مدیر شهرک، اینجا نمایش داده می‌شود و اعلان آن برای شما ارسال می‌گردد.',
   },
   {
     id: 'approved',
@@ -59,7 +59,7 @@ const TABS = [
 
 const displayStatus = (status) => {
   if (status === 'COMPLETED') return 'تایید خروج';
-  if (status === 'APPROVED') return 'آماده تایید نگهبان';
+  if (status === 'APPROVED') return 'تایید مدیر شهرک · آماده بررسی';
   return statusLabels[status] || status;
 };
 
@@ -147,7 +147,7 @@ const GuardGatePassesPage = () => {
         <div>
           <h1 className="text-xl font-bold text-foreground sm:text-2xl">تایید برگ‌های خروج</h1>
           <p className="mt-1 text-sm text-foreground-500">
-            صف انتظار، موارد تایید‌شده و رد‌شده را جدا ببینید.
+            برگ‌هایی که مدیر شهرک تایید کرده در صف «آماده خروج» هستند؛ مشخصات را تطبیق دهید و خروج را تایید یا رد کنید.
           </p>
         </div>
       </div>
@@ -247,7 +247,7 @@ const GuardGatePassesPage = () => {
                             </Chip>
                           </div>
                           <p className="mt-1 text-xs text-foreground-500">
-                            {decisionAt ? new Date(decisionAt).toLocaleString('fa-IR') : '—'}
+                            {decisionAt ? new Date(decisionAt).toLocaleString('fa-IR-u-ca-persian') : '—'}
                           </p>
                         </div>
                         <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tone.soft}`}>
@@ -278,7 +278,7 @@ const GuardGatePassesPage = () => {
                           <div className="min-w-0">
                             <p className="text-[11px] text-foreground-500">تاریخ خروج</p>
                             <p className="truncate text-sm font-semibold text-foreground">
-                              {pass.exitDate ? new Date(pass.exitDate).toLocaleString('fa-IR') : '—'}
+                              {pass.exitDate ? new Date(pass.exitDate).toLocaleString('fa-IR-u-ca-persian') : '—'}
                             </p>
                           </div>
                         </div>
@@ -308,8 +308,8 @@ const GuardGatePassesPage = () => {
                           <Building2 className="h-3.5 w-3.5" />
                           {pass.verifiedBy?.name
                             ? `رسیدگی‌کننده: ${pass.verifiedBy.name}`
-                            : pending
-                              ? 'هنوز رسیدگی نشده'
+                            : pass.approvedBy?.name
+                              ? `تایید مدیر شهرک: ${pass.approvedBy.name}`
                               : '—'}
                         </div>
                         <Button

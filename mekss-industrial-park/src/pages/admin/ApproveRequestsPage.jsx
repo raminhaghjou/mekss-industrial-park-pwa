@@ -105,7 +105,7 @@ export const ApproveRequestsPage = () => {
                     <TableCell>{typeLabels[req.type] || req.type}</TableCell>
                     <TableCell>{req.title}</TableCell>
                     <TableCell>{req.factory?.name || '—'}</TableCell>
-                    <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR')}</TableCell>
+                    <TableCell>{new Date(req.createdAt).toLocaleDateString('fa-IR-u-ca-persian')}</TableCell>
                     <TableCell>
                       <Chip color={statusColors[req.status] || 'default'} size="sm" variant="soft">
                         {statusLabels[req.status] || req.status}

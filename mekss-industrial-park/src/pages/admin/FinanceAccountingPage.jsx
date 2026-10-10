@@ -46,6 +46,7 @@ import { InvoiceItemsList } from '../../components/invoices/InvoiceItemsList';
 import { InvoiceImportDialog } from '../../components/invoices/InvoiceImportDialog';
 import { InvoiceOperationDialog } from '../../components/invoices/InvoiceOperationDialog';
 import { invoiceDueInfo } from '../../utils/invoiceDue';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
 
 const statusColors = {
   PENDING: 'warning',
@@ -260,11 +261,11 @@ export const FinanceAccountingPage = () => {
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">از تاریخ</Label>
-            <Input type="date" dir="ltr" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={fromDate} onChange={(value) => setFromDate(value)} />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">تا تاریخ</Label>
-            <Input type="date" dir="ltr" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl" />
+            <JalaliDatePicker compact value={toDate} onChange={(value) => setToDate(value)} />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">حداقل مبلغ</Label>
@@ -460,7 +461,7 @@ export const FinanceAccountingPage = () => {
                           {' · '}
                           مهلت {due.dateFa}
                           {due.text ? ` (${due.text})` : ''}
-                          {inv.paymentDate ? ` · پرداخت ${new Date(inv.paymentDate).toLocaleDateString('fa-IR')}` : ''}
+                          {inv.paymentDate ? ` · پرداخت ${new Date(inv.paymentDate).toLocaleDateString('fa-IR-u-ca-persian')}` : ''}
                           {inv.paymentMethod?.startsWith('MANUAL_') ? ' · تسویه دستی' : ''}
                           {inv.createdBy?.name ? ` · صادرکننده: ${inv.createdBy.name}` : ''}
                         </p>

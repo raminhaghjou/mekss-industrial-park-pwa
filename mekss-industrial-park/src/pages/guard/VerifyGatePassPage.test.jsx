@@ -27,7 +27,7 @@ import VerifyGatePassPage from './VerifyGatePassPage';
 
 const approvedPass = {
   id: 'pass-1',
-  status: 'PENDING',
+  status: 'APPROVED',
   driverName: 'راننده آزمون',
   licensePlate: '12ب34567',
   exitDate: '2027-01-01T00:00:00.000Z',
@@ -129,5 +129,20 @@ describe('VerifyGatePassPage', () => {
 
     await click(button('ثبت رد'));
     await waitFor(() => expect(mocks.denyGatePassExit).toHaveBeenCalledWith('pass-1', { reason: 'پلاک مطابقت ندارد' }));
+  });
+
+  it('blocks the guard decision until the park manager approves the pass', async () => {
+    mocks.getGatePass.mockResolvedValue({ data: { ...approvedPass, id: 'pass-2', status: 'PENDING' } });
+    await act(async () => root.render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/guard/gate-passes/pass-2/verify']}>
+          <Routes>
+            <Route path="/guard/gate-passes/:id/verify" element={<VerifyGatePassPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ));
+    await waitFor(() => expect(document.body.textContent).toContain('هنوز توسط مدیر شهرک تایید نشده'));
+    expect(button('تایید و ثبت خروج')).toBeUndefined();
   });
 });

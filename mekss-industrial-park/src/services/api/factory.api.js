@@ -21,4 +21,5 @@ export const factoryApi = {
   updateStaff: (id, userId, data) => apiClient.patch(`/factories/${id}/staff/${userId}`, data),
   getWallet: (id) => apiClient.get(`/factories/${id}/wallet`),
   topUpWallet: (id, amount) => apiClient.post(`/factories/${id}/wallet/top-up`, { amount }),
+  startWalletPayment: (id, amount) => apiClient.post(`/factories/${id}/wallet/pay`, { amount }),
 };

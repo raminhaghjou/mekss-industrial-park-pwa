@@ -100,7 +100,7 @@ const GuardEmergencyPage = () => {
                       </Chip>
                     </div>
                     <span className="text-xs text-foreground-500 mt-1">
-                      زمان اعلام: {new Date(alarm.createdAt).toLocaleString('fa-IR')}
+                      زمان اعلام: {new Date(alarm.createdAt).toLocaleString('fa-IR-u-ca-persian')}
                     </span>
                   </div>
                 </CardContent>

@@ -920,7 +920,7 @@ describe('ManagementService gate-pass state machine contract', () => {
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'GATE_PASS_CREATED', entityId: 'pass-1' }));
   });
 
-  it('notifies the factory owner and the park managers in-app when a gate pass is created', async () => {
+  it('sends a new gate pass to the park managers for approval and informs the factory owner', async () => {
     const factory = {
       findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]),
       count: jest.fn().mockResolvedValue(1),
@@ -931,7 +931,9 @@ describe('ManagementService gate-pass state machine contract', () => {
     const appSetting = { findUnique: jest.fn().mockResolvedValue({ value: { requireWalletBalance: false } }) };
     const user = {
       findUnique: jest.fn().mockResolvedValue({ employeeOfFactoryId: 'factory-1' }),
-      findMany: jest.fn().mockResolvedValue([{ id: 'owner-1' }, { id: 'pm-1' }]),
+      findMany: jest.fn()
+        .mockResolvedValueOnce([{ id: 'pm-1', phoneNumber: '09125555555' }])
+        .mockResolvedValueOnce([{ id: 'owner-1', phoneNumber: '09126666666' }]),
     };
     const notification = { createMany: jest.fn().mockResolvedValue({ count: 2 }) };
     const prisma = {
@@ -949,21 +951,21 @@ describe('ManagementService gate-pass state machine contract', () => {
       driverPhone: '09120000000', vehicleType: 'KHAVAR', licensePlate: '12A34567', exitDate: '2027-01-01T00:00:00.000Z',
     });
 
-    expect(user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    expect(user.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: expect.objectContaining({
         isActive: true,
         isApproved: true,
-        OR: expect.arrayContaining([
-          { role: Role.PARK_MANAGER, managedParks: { some: { id: 'park-1' } } },
-          { id: { in: ['owner-1'] } },
-        ]),
+        OR: expect.arrayContaining([{ role: Role.PARK_MANAGER, managedParks: { some: { id: 'park-1' } } }]),
       }),
     }));
-    expect(notification.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({ userId: 'owner-1', title: 'ثبت برگ خروج جدید' }),
-        expect.objectContaining({ userId: 'pm-1', title: 'ثبت برگ خروج جدید' }),
-      ],
+    expect(user.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({ OR: [{ id: { in: ['owner-1'] } }] }),
+    }));
+    expect(notification.createMany).toHaveBeenNthCalledWith(1, {
+      data: [expect.objectContaining({ userId: 'pm-1', title: 'برگ خروج در انتظار تایید شما', type: 'WARNING' })],
+    });
+    expect(notification.createMany).toHaveBeenNthCalledWith(2, {
+      data: [expect.objectContaining({ userId: 'owner-1', title: 'ثبت برگ خروج جدید' })],
     });
   });
 
@@ -1017,34 +1019,7 @@ describe('ManagementService gate-pass state machine contract', () => {
     expect(gatePass.create).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['approve', GatePassStatus.PENDING, undefined, {
-      status: GatePassStatus.COMPLETED,
-      approvedById: 'actor-1',
-      verifiedById: 'actor-1',
-      verifiedAt: expect.any(Date),
-    }],
-    ['reject', GatePassStatus.PENDING, 'Invalid cargo', {
-      status: GatePassStatus.REJECTED,
-      approvedById: 'actor-1',
-      verifiedById: 'actor-1',
-      verifiedAt: expect.any(Date),
-      notes: 'Invalid cargo',
-    }],
-    ['verify', GatePassStatus.PENDING, undefined, {
-      status: GatePassStatus.COMPLETED,
-      approvedById: 'actor-1',
-      verifiedById: 'actor-1',
-      verifiedAt: expect.any(Date),
-    }],
-    ['deny', GatePassStatus.APPROVED, 'Plate mismatch', {
-      status: GatePassStatus.REJECTED,
-      approvedById: 'actor-1',
-      verifiedById: 'actor-1',
-      verifiedAt: expect.any(Date),
-      notes: 'Plate mismatch',
-    }],
-  ] as const)('commits a valid %s transition from the required source state', async (action, sourceStatus, reason, expectedData) => {
+  const decisionPrisma = (sourceStatus: GatePassStatus, claimedCount = 1) => {
     const factory = { findMany: jest.fn().mockResolvedValue([{ id: 'factory-1' }]), count: jest.fn().mockResolvedValue(1) };
     const gatePass = {
       findUnique: jest.fn().mockResolvedValue({
@@ -1056,18 +1031,112 @@ describe('ManagementService gate-pass state machine contract', () => {
         licensePlate: '12A34567',
         exitDate: new Date('2027-01-01T00:00:00.000Z'),
         createdBy: { phoneNumber: '09121111111' },
-        factory: { name: 'Factory', managerId: 'mgr-1', manager: { id: 'mgr-1', phoneNumber: '09122222222' } },
+        factory: {
+          name: 'Factory',
+          parkId: 'park-1',
+          managerId: 'mgr-1',
+          manager: { id: 'mgr-1', phoneNumber: '09122222222' },
+          park: { guardPhone: '09123333333' },
+        },
       }),
-      update: jest.fn().mockResolvedValue({ id: 'pass-1', status: 'updated', verifiedAt: new Date() }),
+      updateMany: jest.fn().mockResolvedValue({ count: claimedCount }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'pass-1', status: 'updated' }),
+      update: jest.fn(),
     };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
-    const notification = { create: jest.fn().mockResolvedValue({}) };
-    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ factory, gatePass, notification, industrialPark } as any, audit, config);
+    const notification = { create: jest.fn().mockResolvedValue({}), createMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    const user = { findMany: jest.fn().mockResolvedValue([{ id: 'guard-1', phoneNumber: '09124444444' }]) };
+    return { factory, gatePass, industrialPark, notification, user };
+  };
 
-    await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', action, reason)).resolves.toEqual(expect.objectContaining({ id: 'pass-1' }));
-    expect(gatePass.update).toHaveBeenCalledWith({ where: { id: 'pass-1' }, data: expectedData });
+  it.each([
+    ['approve', Role.PARK_MANAGER, GatePassStatus.PENDING, undefined, {
+      status: GatePassStatus.APPROVED,
+      approvedById: 'actor-1',
+      approvedAt: expect.any(Date),
+    }],
+    ['reject', Role.PARK_MANAGER, GatePassStatus.PENDING, 'Invalid cargo', {
+      status: GatePassStatus.REJECTED,
+      approvedById: 'actor-1',
+      approvedAt: expect.any(Date),
+      notes: 'Invalid cargo',
+    }],
+    ['verify', Role.SECURITY_GUARD, GatePassStatus.APPROVED, undefined, {
+      status: GatePassStatus.COMPLETED,
+      verifiedById: 'actor-1',
+      verifiedAt: expect.any(Date),
+    }],
+    ['deny', Role.SECURITY_GUARD, GatePassStatus.APPROVED, 'Plate mismatch', {
+      status: GatePassStatus.REJECTED,
+      verifiedById: 'actor-1',
+      verifiedAt: expect.any(Date),
+      notes: 'Plate mismatch',
+    }],
+  ] as const)('commits a valid %s transition by %s from the required source state', async (action, role, sourceStatus, reason, expectedData) => {
+    const prisma = decisionPrisma(sourceStatus);
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new ManagementService(prisma as any, audit, config);
+
+    await expect(service.gatePassAction(actor(role), 'pass-1', action, reason)).resolves.toEqual(expect.objectContaining({ id: 'pass-1' }));
+    expect(prisma.gatePass.updateMany).toHaveBeenCalledWith({ where: { id: 'pass-1', status: sourceStatus }, data: expectedData });
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: `GATE_PASS_${action.toUpperCase()}`, entityId: 'pass-1' }));
+  });
+
+  it('sends a park-manager-approved pass to the park guards and tells the owner', async () => {
+    const prisma = decisionPrisma(GatePassStatus.PENDING);
+    const service = new ManagementService(prisma as any, { record: jest.fn() } as any, config);
+
+    await service.gatePassAction(actor(Role.PARK_MANAGER), 'pass-1', 'approve');
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        OR: expect.arrayContaining([
+          { role: Role.SECURITY_GUARD, securityShifts: { some: { parkId: 'park-1', isActive: true } } },
+        ]),
+      }),
+    }));
+    const guardOr = prisma.user.findMany.mock.calls[0][0].where.OR;
+    expect(guardOr).not.toEqual(expect.arrayContaining([expect.objectContaining({ role: Role.PARK_MANAGER })]));
+    expect(prisma.notification.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ userId: 'guard-1', title: 'برگ خروج آماده خروج — بررسی نگهبانی' })],
+    });
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'mgr-1', title: 'تایید برگ خروج توسط مدیر شهرک' }),
+    });
+  });
+
+  it.each([
+    ['verify', Role.SECURITY_GUARD, GatePassStatus.PENDING],
+    ['deny', Role.SECURITY_GUARD, GatePassStatus.PENDING],
+    ['approve', Role.PARK_MANAGER, GatePassStatus.APPROVED],
+    ['reject', Role.PARK_MANAGER, GatePassStatus.COMPLETED],
+  ] as const)('refuses %s by %s while the pass is %s (wrong review stage)', async (action, role, sourceStatus) => {
+    const prisma = decisionPrisma(sourceStatus);
+    const service = new ManagementService(prisma as any, { record: jest.fn() } as any, config);
+
+    await expect(service.gatePassAction(actor(role), 'pass-1', action, 'reason')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.gatePass.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['approve', Role.SECURITY_GUARD],
+    ['reject', Role.SECURITY_GUARD],
+    ['verify', Role.PARK_MANAGER],
+    ['deny', Role.PARK_MANAGER],
+  ] as const)('forbids %s by %s', async (action, role) => {
+    const prisma = decisionPrisma(action === 'approve' || action === 'reject' ? GatePassStatus.PENDING : GatePassStatus.APPROVED);
+    const service = new ManagementService(prisma as any, { record: jest.fn() } as any, config);
+
+    await expect(service.gatePassAction(actor(role), 'pass-1', action, 'reason')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.gatePass.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('reports a conflict when another reviewer decided the pass first', async () => {
+    const prisma = decisionPrisma(GatePassStatus.PENDING, 0);
+    const service = new ManagementService(prisma as any, { record: jest.fn() } as any, config);
+
+    await expect(service.gatePassAction(actor(Role.PARK_MANAGER), 'pass-1', 'approve')).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.gatePass.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it('rejects deciding a completed gate pass without mutating it', async () => {
@@ -1084,11 +1153,12 @@ describe('ManagementService gate-pass state machine contract', () => {
         factory: { name: 'Factory', manager: null },
       }),
       update: jest.fn(),
+      updateMany: jest.fn(),
     };
     const service = new ManagementService({ factory, gatePass } as any, { record: jest.fn() } as any, config);
 
     await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', 'approve')).rejects.toBeInstanceOf(ConflictException);
-    expect(gatePass.update).not.toHaveBeenCalled();
+    expect(gatePass.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects a blank reject/deny reason before mutating', async () => {
@@ -1096,21 +1166,22 @@ describe('ManagementService gate-pass state machine contract', () => {
     const gatePass = {
       findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'factory-1', status: GatePassStatus.PENDING }),
       update: jest.fn(),
+      updateMany: jest.fn(),
     };
     const service = new ManagementService({ factory, gatePass } as any, { record: jest.fn() } as any, config);
 
     await expect(service.gatePassAction(actor(Role.SUPER_ADMIN), 'pass-1', 'reject', '   ')).rejects.toBeInstanceOf(BadRequestException);
-    expect(gatePass.update).not.toHaveBeenCalled();
+    expect(gatePass.updateMany).not.toHaveBeenCalled();
   });
 
   it('rejects verifying a gate pass outside factory scope', async () => {
     const factory = { count: jest.fn().mockResolvedValue(0) };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([]) };
-    const gatePass = { findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'out-of-scope', status: GatePassStatus.PENDING }), update: jest.fn() };
+    const gatePass = { findUnique: jest.fn().mockResolvedValue({ id: 'pass-1', factoryId: 'out-of-scope', status: GatePassStatus.APPROVED }), update: jest.fn(), updateMany: jest.fn() };
     const service = new ManagementService({ factory, industrialPark, gatePass } as any, { record: jest.fn() } as any, config);
 
     await expect(service.gatePassAction(actor(Role.SECURITY_GUARD), 'pass-1', 'verify')).rejects.toBeInstanceOf(ForbiddenException);
-    expect(gatePass.update).not.toHaveBeenCalled();
+    expect(gatePass.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -1562,15 +1633,23 @@ describe('ManagementService park staff contract', () => {
       employeeOfParkId: 'park-1',
     };
     const industrialPark = { findMany: jest.fn().mockResolvedValue([{ id: 'park-1' }]) };
-    const user = { create: jest.fn().mockResolvedValue(created) };
+    const user = { create: jest.fn().mockResolvedValue({ ...created, employeeOfPark: { id: 'park-1', name: 'شهرک آزمون' } }) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new ManagementService({ industrialPark, user } as any, audit, config);
+    const sms = { sendText: jest.fn().mockResolvedValue(undefined), sendOtp: jest.fn() } as any;
+    const service = new ManagementService({ industrialPark, user } as any, audit, config, sms);
 
     await expect(service.createParkStaff(actor(Role.PARK_MANAGER), {
       phoneNumber: '09123334455',
       name: 'کارمند دفتر',
       password: 'Password1234',
-    } as any)).resolves.toEqual(created);
+    } as any)).resolves.toEqual(expect.objectContaining(created));
+
+    expect(sms.sendText).toHaveBeenCalledTimes(1);
+    const [smsPhone, smsText] = sms.sendText.mock.calls[0];
+    expect(smsPhone).toBe('09123334455');
+    expect(smsText).toContain('شهرک آزمون');
+    expect(smsText).toContain('نام کاربری: 09123334455');
+    expect(smsText).toContain('رمز عبور: Password1234');
 
     expect(user.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
@@ -1582,6 +1661,33 @@ describe('ManagementService park staff contract', () => {
       }),
     }));
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'PARK_STAFF_CREATED', entityId: 'staff-1' }));
+  });
+
+  it('texts a new factory employee their unit name, username and initial password', async () => {
+    const created = { id: 'staff-2', phoneNumber: '09124445566', name: 'کارمند واحد', role: Role.EMPLOYEE };
+    const prisma = {
+      factory: {
+        count: jest.fn().mockResolvedValue(1),
+        findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', name: 'فولاد آزمون', status: 'ACTIVE', suspendedReason: null, managerId: 'actor-1' }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'factory-1' }),
+      },
+      user: { create: jest.fn().mockResolvedValue(created) },
+    } as any;
+    const sms = { sendText: jest.fn().mockResolvedValue(undefined), sendOtp: jest.fn() } as any;
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, config, sms);
+    jest.spyOn(service as any, 'assertOwnedFactory').mockResolvedValue(undefined);
+
+    await expect(service.createFactoryStaff(actor(Role.FACTORY_OWNER), 'factory-1', {
+      phoneNumber: '09124445566',
+      name: 'کارمند واحد',
+      password: 'Staff12345x',
+      canApproveRequestTypes: [],
+    } as any)).resolves.toEqual(created);
+
+    expect(sms.sendText).toHaveBeenCalledWith('09124445566', expect.stringContaining('واحد صنعتی «فولاد آزمون»'));
+    const text = sms.sendText.mock.calls[0][1];
+    expect(text).toContain('نام کاربری: 09124445566');
+    expect(text).toContain('رمز عبور: Staff12345x');
   });
 
   it('rejects creating park staff for an unmanaged park', async () => {
@@ -1617,5 +1723,111 @@ describe('ManagementService SMS health contract', () => {
     const service = new ManagementService({} as any, { record: jest.fn() } as any, sms);
 
     await expect(service.smsHealth()).resolves.toEqual({ provider: 'mock', configured: true, maskedSender: null });
+  });
+});
+
+describe('ManagementService wallet top-up via payment gateway', () => {
+  const walletPrisma = (topUp: Record<string, unknown> | null, claimedCount = 1) => {
+    const prisma: any = {
+      factory: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'factory-1', name: 'واحد آزمون' }),
+        update: jest.fn().mockResolvedValue({ gatePassWalletBalance: 750_000 }),
+      },
+      walletTopUp: {
+        create: jest.fn().mockResolvedValue({ id: 'topup-1' }),
+        findUnique: jest.fn().mockResolvedValue(topUp),
+        updateMany: jest.fn().mockResolvedValue({ count: claimedCount }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+    };
+    prisma.$transaction = jest.fn((callback) => callback(prisma));
+    return prisma;
+  };
+  const pendingTopUp = {
+    id: 'topup-1',
+    authority: 'auth-1',
+    amount: 500_000,
+    status: 'INITIATED',
+    provider: 'MOCK',
+    factoryId: 'factory-1',
+    initiatedById: 'owner-1',
+    referenceId: null,
+    factory: { id: 'factory-1', name: 'واحد آزمون' },
+    initiatedBy: { id: 'owner-1', phoneNumber: '09121112233' },
+  };
+  const serviceFor = (prisma: any, sms?: any) => {
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, config, sms);
+    jest.spyOn(service as any, 'assertFactoryAccess').mockResolvedValue(undefined);
+    return service;
+  };
+
+  it('starts a mock gateway payment, records it as INITIATED and returns the callback URL', async () => {
+    const prisma = walletPrisma(null);
+    const result = await serviceFor(prisma).startWalletTopUp(actor(Role.FACTORY_OWNER), 'factory-1', 500_000);
+
+    expect(prisma.walletTopUp.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ factoryId: 'factory-1', amount: 500_000, method: 'ONLINE', provider: 'MOCK', initiatedById: 'actor-1' }),
+    }));
+    expect(result.paymentUrl).toContain('/api/v1/wallet/payment/callback?Authority=');
+    expect(result.paymentUrl).toContain('&Status=OK');
+  });
+
+  it.each([0, 9_999, 2_000_000_001, 1500.5])('rejects an out-of-range or fractional amount (%p)', async (amount) => {
+    const prisma = walletPrisma(null);
+    await expect(serviceFor(prisma).startWalletTopUp(actor(Role.FACTORY_OWNER), 'factory-1', amount)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.walletTopUp.create).not.toHaveBeenCalled();
+  });
+
+  it('credits the wallet exactly once on a successful callback and notifies the payer', async () => {
+    const prisma = walletPrisma(pendingTopUp);
+    const sms = { sendText: jest.fn().mockResolvedValue(undefined), sendOtp: jest.fn() } as any;
+    const result = await serviceFor(prisma, sms).verifyWalletTopUp('auth-1', 'OK');
+
+    expect(result).toEqual(expect.objectContaining({ status: 'success', amount: 500_000, factoryId: 'factory-1' }));
+    expect(prisma.walletTopUp.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'topup-1', status: 'INITIATED' },
+      data: expect.objectContaining({ status: 'VERIFIED' }),
+    }));
+    expect(prisma.factory.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'factory-1' },
+      data: { gatePassWalletBalance: { increment: 500_000 } },
+    }));
+    expect(prisma.notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ userId: 'owner-1', type: 'SUCCESS' }),
+    }));
+    expect(sms.sendText).toHaveBeenCalledWith('09121112233', expect.stringContaining('شارژ شد'));
+  });
+
+  it('does not credit twice when a concurrent callback already claimed the top-up', async () => {
+    const prisma = walletPrisma(pendingTopUp, 0);
+    prisma.walletTopUp.findUnique
+      .mockResolvedValueOnce(pendingTopUp)
+      .mockResolvedValueOnce({ status: 'VERIFIED', referenceId: 'MOCK-1' });
+    const result = await serviceFor(prisma).verifyWalletTopUp('auth-1', 'OK');
+
+    expect(result).toEqual(expect.objectContaining({ status: 'success', referenceId: 'MOCK-1' }));
+    expect(prisma.factory.update).not.toHaveBeenCalled();
+  });
+
+  it('returns success without re-crediting an already verified top-up', async () => {
+    const prisma = walletPrisma({ ...pendingTopUp, status: 'VERIFIED', referenceId: 'REF-9' });
+    const result = await serviceFor(prisma).verifyWalletTopUp('auth-1', 'OK');
+
+    expect(result).toEqual(expect.objectContaining({ status: 'success', referenceId: 'REF-9' }));
+    expect(prisma.walletTopUp.updateMany).not.toHaveBeenCalled();
+    expect(prisma.factory.update).not.toHaveBeenCalled();
+  });
+
+  it('marks a cancelled gateway payment and redirects back to the wallet page with a failure flag', async () => {
+    const prisma = walletPrisma(pendingTopUp);
+    const target = await serviceFor(prisma).handleWalletTopUpCallback('auth-1', 'NOK');
+
+    expect(prisma.walletTopUp.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'topup-1', status: 'INITIATED' },
+      data: expect.objectContaining({ status: 'CANCELLED' }),
+    }));
+    expect(prisma.factory.update).not.toHaveBeenCalled();
+    expect(target).toBe('http://localhost:5173/factory/wallet?topup=failed&amount=500000&factoryId=factory-1');
   });
 });

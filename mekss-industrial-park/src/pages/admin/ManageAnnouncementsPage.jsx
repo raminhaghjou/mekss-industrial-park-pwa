@@ -436,7 +436,7 @@ const ManageAnnouncementsPage = () => {
                       )}
                     </div>
                     <span className="text-xs text-foreground-400">
-                      ثبت: {new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(new Date(ann.createdAt))}
+                      ثبت: {new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium' }).format(new Date(ann.createdAt))}
                     </span>
                   </div>
 

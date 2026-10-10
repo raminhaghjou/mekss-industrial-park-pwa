@@ -120,7 +120,7 @@ const toForm = (factory) => profileFields.reduce((form, field) => ({
 }), { ...emptyForm });
 
 const formatDate = (value) => value
-  ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
   : '—';
 
 const DetailRow = ({ label, children, ltr = false }) => (

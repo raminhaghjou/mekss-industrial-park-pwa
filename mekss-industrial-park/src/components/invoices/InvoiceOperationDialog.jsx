@@ -467,7 +467,7 @@ export const InvoiceOperationDialog = ({ invoice, mode, onClose }) => {
               <li key={row.id} className="rounded-xl border border-default-200 p-3 text-xs dark:border-white/10">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <strong className="text-sm">{invoiceAdjustmentTypeLabels[row.type] || row.type}</strong>
-                  <span className="text-foreground-500">{new Date(row.createdAt).toLocaleString('fa-IR')}</span>
+                  <span className="text-foreground-500">{new Date(row.createdAt).toLocaleString('fa-IR-u-ca-persian')}</span>
                 </div>
                 <p className="mt-1 text-foreground-500">
                   {row.actor?.name || '—'}{row.actor?.role ? ` (${roleLabels[row.actor.role] || row.actor.role})` : ''}

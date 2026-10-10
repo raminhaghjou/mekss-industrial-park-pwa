@@ -50,7 +50,7 @@ const formatMoney = (value) =>
 const formatDate = (value) => {
   if (!value) return '—';
   try {
-    return new Date(value).toLocaleDateString('fa-IR');
+    return new Date(value).toLocaleDateString('fa-IR-u-ca-persian');
   } catch {
     return '—';
   }

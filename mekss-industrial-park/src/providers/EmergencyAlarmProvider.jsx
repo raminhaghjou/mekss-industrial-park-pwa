@@ -75,7 +75,7 @@ const EmergencyAlarmOverlay = ({ alert, soundBlocked, onEnableSound, onDismiss, 
               <p className="mt-1 text-xs text-danger-700/80 dark:text-danger-200/80">
                 شدت: {severityLabel[alert.severity] || alert.severity}
                 {' · '}
-                {new Date(alert.createdAt).toLocaleString('fa-IR')}
+                {new Date(alert.createdAt).toLocaleString('fa-IR-u-ca-persian')}
               </p>
             </div>
           </div>

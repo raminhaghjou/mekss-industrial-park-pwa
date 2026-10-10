@@ -17,7 +17,7 @@ import { ArrowRight, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-rea
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { gatePassStatusLabels } from '../../constants/persianLabels';
-import { useGatePassDecision } from '../../hooks/useGatePassDecision';
+import { canDecideGatePass, useGatePassDecision } from '../../hooks/useGatePassDecision';
 
 const VerifyGatePassPage = () => {
   const { id } = useParams();
@@ -64,7 +64,7 @@ const VerifyGatePassPage = () => {
     );
   }
 
-  const canDecide = pass.status === 'PENDING' || pass.status === 'APPROVED';
+  const canDecide = canDecideGatePass(pass);
   const decisionAt = pass.verifiedAt || pass.updatedAt;
 
   return (
@@ -96,7 +96,7 @@ const VerifyGatePassPage = () => {
 
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
               <span className="text-xs text-foreground-500 font-medium">تاریخ خروج</span>
-              <span className="font-bold text-foreground">{new Date(pass.exitDate).toLocaleDateString('fa-IR')}</span>
+              <span className="font-bold text-foreground">{new Date(pass.exitDate).toLocaleDateString('fa-IR-u-ca-persian')}</span>
             </div>
 
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
@@ -117,8 +117,22 @@ const VerifyGatePassPage = () => {
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
               <span className="text-xs text-foreground-500 font-medium">زمان ثبت تصمیم</span>
               <span className="font-bold text-foreground">
-                {decisionAt ? new Date(decisionAt).toLocaleString('fa-IR') : '—'}
+                {decisionAt ? new Date(decisionAt).toLocaleString('fa-IR-u-ca-persian') : '—'}
               </span>
+            </div>
+
+            <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
+              <span className="text-xs text-foreground-500 font-medium">تایید مدیر شهرک</span>
+              <span className="font-bold text-foreground">
+                {pass.approvedAt
+                  ? `${pass.approvedBy?.name || 'مدیر شهرک'} · ${new Date(pass.approvedAt).toLocaleString('fa-IR-u-ca-persian')}`
+                  : 'در انتظار'}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
+              <span className="text-xs text-foreground-500 font-medium">ثبت‌کننده</span>
+              <span className="font-bold text-foreground">{pass.createdBy?.name || '—'}</span>
             </div>
 
             <div className="sm:col-span-2 flex flex-col gap-1 p-3.5 rounded-2xl bg-default-50 dark:bg-default-100/30">
@@ -173,9 +187,13 @@ const VerifyGatePassPage = () => {
           ) : (
             <Alert status="warning" className="mt-2">
               <AlertContent>
-                <AlertTitle>این برگ خروج قبلاً رسیدگی شده</AlertTitle>
+                <AlertTitle>
+                  {pass.status === 'PENDING' ? 'این برگ خروج هنوز توسط مدیر شهرک تایید نشده' : 'این برگ خروج قبلاً رسیدگی شده'}
+                </AlertTitle>
                 <AlertDescription>
-                  وضعیت فعلی قابل تایید یا رد مجدد نیست. جزئیات کامل در بالا نمایش داده شده است.
+                  {pass.status === 'PENDING'
+                    ? 'تا زمان تایید مدیر شهرک امکان ثبت خروج وجود ندارد. پس از تایید، اعلان آن برای نگهبانی ارسال می‌شود.'
+                    : 'وضعیت فعلی قابل تایید یا رد مجدد نیست. جزئیات کامل در بالا نمایش داده شده است.'}
                 </AlertDescription>
               </AlertContent>
             </Alert>

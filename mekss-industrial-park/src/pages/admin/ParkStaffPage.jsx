@@ -28,7 +28,7 @@ import {
   ListBox,
   ListBoxItem,
 } from '@heroui/react';
-import { Edit2, Trash2, UserPlus, Users } from 'lucide-react';
+import { Edit2, KeyRound, MessageSquareText, Trash2, UserPlus, Users } from 'lucide-react';
 import { parkStaffApi } from '../../services/api/parkStaff.api';
 import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -38,6 +38,13 @@ import { PasswordInput } from '../../components/common/PasswordInput';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { queryKeys } from '../../services/queryKeys';
+import { digitsOnly } from '../../utils/digits';
+import {
+  STAFF_PASSWORD_HINT,
+  generateStaffPassword,
+  normalizeStaffPhone,
+  validateStaffForm,
+} from '../../utils/staffForm';
 
 const emptyForm = {
   name: '',
@@ -56,6 +63,7 @@ export const ParkStaffPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showErrors, setShowErrors] = useState(false);
 
   const { data: scope } = useQuery({
     queryKey: queryKeys.factories.managementScope(),
@@ -72,9 +80,10 @@ export const ParkStaffPage = () => {
 
   const createMutation = useMutation({
     mutationFn: (payload) => parkStaffApi.create(payload),
-    onSuccess: () => {
-      showNotification('کارمند شهرک با موفقیت ثبت شد', 'success');
+    onSuccess: (_, payload) => {
+      showNotification(`کارمند شهرک ثبت شد و نام کاربری و رمز عبور به ${payload.phoneNumber} پیامک شد.`, 'success');
       setForm(emptyForm);
+      setShowErrors(false);
       invalidate();
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ثبت کارمند ناموفق بود'), 'error'),
@@ -82,10 +91,14 @@ export const ParkStaffPage = () => {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }) => parkStaffApi.update(id, payload),
-    onSuccess: () => {
-      showNotification('اطلاعات کارمند به‌روز شد', 'success');
+    onSuccess: (_, { payload }) => {
+      showNotification(
+        payload.password ? 'اطلاعات کارمند به‌روز شد و رمز جدید برای او پیامک شد.' : 'اطلاعات کارمند به‌روز شد',
+        'success',
+      );
       setEditing(null);
       setForm(emptyForm);
+      setShowErrors(false);
       invalidate();
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ویرایش کارمند ناموفق بود'), 'error'),
@@ -105,16 +118,18 @@ export const ParkStaffPage = () => {
     onError: (err) => showNotification(getErrorMessage(err, 'حذف کارمند ناموفق بود'), 'error'),
   });
 
-  const canSubmit = useMemo(() => {
-    const phoneOk = /^09\d{9}$/.test(form.phoneNumber);
-    const nameOk = form.name.trim().length >= 2;
-    if (editing) {
-      return nameOk && phoneOk;
-    }
-    return nameOk && phoneOk && form.password.length >= 10;
-  }, [form, editing]);
+  const effectiveParkId = form.parkId || (parks.length === 1 ? parks[0].id : '');
+
+  const errors = useMemo(() => {
+    const next = validateStaffForm(form, { requirePassword: !editing });
+    if (!editing && parks.length > 1 && !form.parkId) next.parkId = 'شهرک محل خدمت کارمند را انتخاب کنید.';
+    return next;
+  }, [form, editing, parks.length]);
+  const visibleErrors = showErrors ? errors : {};
+  const fieldError = (field) => (visibleErrors[field] ? <p className="text-[11px] text-danger-600">{visibleErrors[field]}</p> : null);
 
   const startEdit = (member) => {
+    setShowErrors(false);
     setEditing(member);
     setForm({
       name: member.name || '',
@@ -131,11 +146,13 @@ export const ParkStaffPage = () => {
   const resetForm = () => {
     setEditing(null);
     setForm(emptyForm);
+    setShowErrors(false);
   };
 
   const handleSubmit = () => {
-    if (!canSubmit) {
-      showNotification('نام، موبایل و رمز عبور معتبر الزامی است', 'error');
+    if (Object.keys(errors).length) {
+      setShowErrors(true);
+      showNotification(Object.values(errors)[0], 'error');
       return;
     }
     if (editing) {
@@ -158,7 +175,7 @@ export const ParkStaffPage = () => {
       username: form.username.trim() || undefined,
       nationalId: form.nationalId.trim() || undefined,
       email: form.email.trim() || undefined,
-      parkId: form.parkId || undefined,
+      parkId: effectiveParkId || undefined,
     });
   };
 
@@ -189,55 +206,93 @@ export const ParkStaffPage = () => {
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">نام و نام خانوادگی</Label>
-              <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="rounded-xl" />
+              <Label htmlFor="park-staff-name" className="text-xs">نام و نام خانوادگی</Label>
+              <Input
+                id="park-staff-name"
+                value={form.name}
+                placeholder="مثلاً علی رضایی"
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                className="rounded-xl"
+              />
+              {fieldError('name')}
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">موبایل (نام کاربری ورود)</Label>
+              <Label htmlFor="park-staff-phone" className="text-xs">موبایل (نام کاربری ورود)</Label>
               <Input
+                id="park-staff-phone"
                 dir="ltr"
+                inputMode="numeric"
                 value={form.phoneNumber}
-                onChange={(e) => setForm((p) => ({ ...p, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+                onChange={(e) => setForm((p) => ({ ...p, phoneNumber: normalizeStaffPhone(e.target.value) }))}
                 className="rounded-xl"
                 placeholder="09xxxxxxxxx"
               />
+              {fieldError('phoneNumber')}
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">{editing ? 'رمز عبور جدید (اختیاری)' : 'رمز عبور اولیه'}</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="park-staff-password" className="text-xs">{editing ? 'رمز عبور جدید (اختیاری)' : 'رمز عبور اولیه'}</Label>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-brand)] hover:underline"
+                  onClick={() => setForm((p) => ({ ...p, password: generateStaffPassword() }))}
+                >
+                  <KeyRound className="h-3 w-3" />
+                  تولید رمز
+                </button>
+              </div>
               <PasswordInput
+                id="park-staff-password"
                 value={form.password}
                 onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
                 className="rounded-xl"
-                placeholder="حداقل ۱۰ کاراکتر حرف و عدد"
               />
+              <p className={`text-[11px] ${visibleErrors.password ? 'text-danger-600' : 'text-foreground-500'}`}>
+                {visibleErrors.password || STAFF_PASSWORD_HINT}
+              </p>
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">نام کاربری سیستمی (اختیاری)</Label>
+              <Label htmlFor="park-staff-username" className="text-xs">نام کاربری سیستمی (اختیاری)</Label>
               <Input
+                id="park-staff-username"
                 dir="ltr"
                 value={form.username}
                 onChange={(e) => setForm((p) => ({ ...p, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '') }))}
                 className="rounded-xl"
               />
+              {fieldError('username')}
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">کد ملی (اختیاری)</Label>
+              <Label htmlFor="park-staff-national-id" className="text-xs">کد ملی (اختیاری)</Label>
               <Input
+                id="park-staff-national-id"
                 dir="ltr"
+                inputMode="numeric"
                 value={form.nationalId}
-                onChange={(e) => setForm((p) => ({ ...p, nationalId: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                onChange={(e) => setForm((p) => ({ ...p, nationalId: digitsOnly(e.target.value, 10) }))}
                 className="rounded-xl"
               />
+              {fieldError('nationalId')}
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">ایمیل (اختیاری)</Label>
+              <Label htmlFor="park-staff-email" className="text-xs">ایمیل (اختیاری)</Label>
               <Input
+                id="park-staff-email"
                 dir="ltr"
                 value={form.email}
                 onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                 className="rounded-xl"
               />
+              {fieldError('email')}
             </div>
+            {!editing && parks.length === 1 && (
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">شهرک صنعتی</Label>
+                <div className="flex h-10 items-center rounded-xl border border-default-200 bg-default-50 px-3 text-sm font-medium dark:border-white/10 dark:bg-white/5">
+                  {parks[0].name}
+                </div>
+              </div>
+            )}
             {!editing && parks.length > 1 && (
               <div className="flex flex-col gap-1">
                 <Label className="text-xs">شهرک صنعتی</Label>
@@ -259,6 +314,7 @@ export const ParkStaffPage = () => {
                     </ListBox>
                   </SelectPopover>
                 </Select>
+                {fieldError('parkId')}
               </div>
             )}
             {editing && (
@@ -274,11 +330,18 @@ export const ParkStaffPage = () => {
             )}
           </div>
 
+          {!editing && (
+            <p className="flex items-center gap-1.5 rounded-xl bg-default-50 px-3 py-2 text-[11px] text-foreground-500 dark:bg-white/5">
+              <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
+              پس از ثبت، نام کاربری و رمز عبور اولیه برای کارمند پیامک می‌شود و در اولین ورود باید رمز خود را تغییر دهد.
+            </p>
+          )}
+
           <div className="flex justify-end">
             <Button
               variant="primary"
               className="font-bold"
-              isDisabled={!canSubmit || saving}
+              isDisabled={saving}
               onPress={handleSubmit}
             >
               {saving ? <Spinner size="sm" /> : (editing ? 'ذخیره تغییرات' : 'ثبت کارمند')}
@@ -309,7 +372,7 @@ export const ParkStaffPage = () => {
               <Table>
                 <TableContent aria-label="پرسنل شهرک">
                   <TableHeader>
-                    <TableColumn isRowHeader>نام</TableColumn>
+                    <TableColumn isRowHeader>نام و نام خانوادگی</TableColumn>
                     <TableColumn>موبایل</TableColumn>
                     <TableColumn>نام کاربری</TableColumn>
                     <TableColumn>شهرک</TableColumn>

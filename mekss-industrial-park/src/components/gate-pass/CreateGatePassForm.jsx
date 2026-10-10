@@ -194,7 +194,7 @@ const CreateGatePassForm = ({ handleBack, initialPass = null }) => {
       showNotification(
         isEdit
           ? 'برگ خروج با موفقیت به‌روز شد.'
-          : 'برگ خروج ثبت شد و برای تایید نگهبان ارسال گردید.',
+          : 'برگ خروج ثبت شد و برای تایید مدیر شهرک ارسال گردید.',
         'success',
       );
       queryClient.invalidateQueries({ queryKey: ['gate-passes'] });

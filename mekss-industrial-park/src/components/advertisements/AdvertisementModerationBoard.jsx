@@ -60,7 +60,7 @@ const statusMeta = {
 
 const advertisementCategoryKey = (advertisement) => advertisement.category?.key || advertisement.category;
 const formatDate = (value) => value
-  ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
   : '—';
 const formatPrice = (value) => value === null || value === undefined
   ? 'توافقی'

@@ -23,6 +23,11 @@ export const JALALI_MONTHS = [
 
 export const JALALI_WEEKDAYS = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
 
+export const JALALI_WEEKDAY_NAMES = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+
+/** 0 = Saturday … 6 = Friday. */
+export const jalaliWeekdayIndex = (jy, jm, jd) => (jalaaliToDateObject(jy, jm, jd).getDay() + 1) % 7;
+
 const FA_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
 
 export const pad2 = (value) => String(value).padStart(2, '0');

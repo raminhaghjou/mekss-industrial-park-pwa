@@ -35,7 +35,7 @@ export function useGatePassDecision(passId, { licensePlate, onVerified, onDenied
   const denyMutation = useMutation({
     mutationFn: (/** @type {string} */ reason) => gatePassApi.denyGatePassExit(passId, { reason }),
     onSuccess: async (res) => {
-      showNotification('گزارش مغایرت ثبت و به مدیر شهرک ارجاع داده شد.', 'success');
+      showNotification('رد خروج ثبت شد و به مدیر واحد و مدیر شهرک اطلاع داده شد.', 'success');
       await refreshLists();
       onDenied?.(res?.data);
     },
@@ -52,6 +52,7 @@ export function useGatePassDecision(passId, { licensePlate, onVerified, onDenied
   };
 }
 
-export const canDecideGatePass = (pass) => pass?.status === 'PENDING' || pass?.status === 'APPROVED';
+/** Guards decide only after the park manager approved the pass. */
+export const canDecideGatePass = (pass) => pass?.status === 'APPROVED';
 
 export default useGatePassDecision;

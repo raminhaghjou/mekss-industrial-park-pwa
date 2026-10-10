@@ -12,6 +12,7 @@ import {
   categoryForRole,
   defaultInvoiceDescription,
   formatJalaliDate,
+  formatJalaliDateTime,
   formatRial,
   INVOICE_ITEM_LABELS_FA,
   itemsSummaryFa,
@@ -285,7 +286,7 @@ export class ManagementService {
 
   async createUser(actor: AuthenticatedUser, input: CreateManagedUserDto) {
     const password = await bcrypt.hash(input.password, 12);
-    return this.userLifecycleTransaction(actor, undefined, async (tx) => {
+    const created = await this.userLifecycleTransaction(actor, undefined, async (tx) => {
       const managedParkIds = this.uniqueIds(input.managedParkIds ?? [], 'managedParkIds');
       const managedFactoryIds = this.uniqueIds(input.managedFactoryIds ?? [], 'managedFactoryIds');
       this.assertCreateAssignmentCompatibility(input.role, managedParkIds, managedFactoryIds, input.employeeOfFactoryId ?? null);
@@ -322,6 +323,20 @@ export class ManagementService {
         },
       };
     });
+    let employer: { name: string } | null = null;
+    if (input.employeeOfFactoryId) {
+      try {
+        employer = await this.prisma.factory.findUnique({ where: { id: input.employeeOfFactoryId }, select: { name: true } });
+      } catch {
+        employer = null;
+      }
+    }
+    await this.sendStaffCredentialsSms(
+      { phoneNumber: input.phoneNumber, username: input.username },
+      employer?.name ? `واحد صنعتی «${employer.name}»` : null,
+      input.password,
+    );
+    return created;
   }
 
   async updateUser(actor: AuthenticatedUser, id: string, input: UpdateManagedUserDto) {
@@ -845,31 +860,52 @@ export class ManagementService {
     return registered;
   }
 
-  /** In-app notification for the park's active managers (and optionally every super admin). */
+  /**
+   * In-app notification (and optional SMS) for the park's active managers, and optionally its
+   * on-duty security guards, every super admin and specific users. Never throws.
+   */
   private async notifyParkStaff(
     parkId: string | null | undefined,
-    options: { superAdmins?: boolean; extraUserIds?: Array<string | null | undefined> },
+    options: {
+      parkManagers?: boolean;
+      guards?: boolean;
+      superAdmins?: boolean;
+      extraUserIds?: Array<string | null | undefined>;
+      sms?: string;
+      /** Extra numbers (e.g. the park gate phone) that receive the same SMS, de-duplicated. */
+      extraPhones?: Array<string | null | undefined>;
+    },
     title: string,
     body: string,
     type: 'INFO' | 'SUCCESS' | 'WARNING' = 'INFO',
   ) {
     try {
+      const includeManagers = options.parkManagers !== false;
       const recipients = await this.prisma.user.findMany({
         where: {
           isActive: true,
           isApproved: true,
           OR: [
-            ...(parkId ? [{ role: Role.PARK_MANAGER, managedParks: { some: { id: parkId } } }] : []),
+            ...(parkId && includeManagers ? [{ role: Role.PARK_MANAGER, managedParks: { some: { id: parkId } } }] : []),
+            ...(parkId && options.guards ? [{ role: Role.SECURITY_GUARD, securityShifts: { some: { parkId, isActive: true } } }] : []),
             ...(options.superAdmins ? [{ role: Role.SUPER_ADMIN }] : []),
             { id: { in: (options.extraUserIds || []).filter((id): id is string => Boolean(id)) } },
           ],
         },
-        select: { id: true },
+        select: { id: true, phoneNumber: true },
       });
-      if (!recipients.length) return;
-      await this.prisma.notification.createMany({
-        data: recipients.map((recipient) => ({ userId: recipient.id, title, body, type })),
-      });
+      if (recipients.length) {
+        await this.prisma.notification.createMany({
+          data: recipients.map((recipient) => ({ userId: recipient.id, title, body, type })),
+        });
+      }
+      if (options.sms) {
+        const phones = new Set(
+          [...recipients.map((recipient) => recipient.phoneNumber), ...(options.extraPhones || [])]
+            .filter((phone): phone is string => Boolean(phone)),
+        );
+        await Promise.all([...phones].map((phone) => this.safeSendSms(phone, options.sms as string)));
+      }
     } catch (error) {
       this.logger.warn(`Park staff notification failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     }
@@ -1057,6 +1093,15 @@ export class ManagementService {
     const where: Prisma.GatePassWhereInput = {
       factoryId: { in: factoryIds },
     };
+    if (user.role === Role.SECURITY_GUARD) {
+      // Guards only work on passes the park manager approved (plus their own exit decisions).
+      where.AND = [{
+        OR: [
+          { status: { in: [GatePassStatus.APPROVED, GatePassStatus.COMPLETED, GatePassStatus.EXPIRED] } },
+          { status: GatePassStatus.REJECTED, verifiedById: { not: null } },
+        ],
+      }];
+    }
     if (query.status) where.status = query.status as GatePassStatus;
     if (query.cargoType) where.cargoType = query.cargoType as CargoType;
     if (query.driverNationalId) where.driverNationalId = { contains: query.driverNationalId };
@@ -1087,7 +1132,9 @@ export class ManagementService {
       where: {
         factoryId: { in: factoryIds },
         licensePlate: { equals: plate, mode: 'insensitive' },
-        status: { in: [GatePassStatus.PENDING, GatePassStatus.APPROVED] },
+        status: actor.role === Role.SECURITY_GUARD
+          ? GatePassStatus.APPROVED
+          : { in: [GatePassStatus.PENDING, GatePassStatus.APPROVED] },
       },
       include: {
         factory: { select: { id: true, name: true } },
@@ -1099,12 +1146,12 @@ export class ManagementService {
     return pass;
   }
 
-  /** Open (awaiting guard) gate passes visible to the actor, projected for ANPR plate matching. */
+  /** Park-manager-approved (awaiting guard) gate passes visible to the actor, projected for ANPR plate matching. */
   async openGatePassPlates(actor: AuthenticatedUser) {
     const factoryIds = await this.factoryIds(actor);
     if (!factoryIds.length) return [];
     return this.prisma.gatePass.findMany({
-      where: { factoryId: { in: factoryIds }, status: { in: [GatePassStatus.PENDING, GatePassStatus.APPROVED] } },
+      where: { factoryId: { in: factoryIds }, status: GatePassStatus.APPROVED },
       select: { id: true, licensePlate: true, plateType: true, factoryId: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take: 5000,
@@ -1355,20 +1402,27 @@ export class ManagementService {
       });
     }
 
-    const smsText = `MEKSS: برگ خروج برای واحد «${factory.name}» صادر شد. راننده ${input.driverName}، پلاک ${input.licensePlate}.`;
+    // Stage 1: the pass waits for the park manager; the guard is only alerted after approval.
+    const passSummary = `واحد «${factory.name}» · راننده ${input.driverName} · پلاک ${input.licensePlate} · تاریخ خروج ${formatJalaliDate(new Date(input.exitDate))}`;
+    const smsText = `MEKSS: برگ خروج برای واحد «${factory.name}» ثبت شد و در انتظار تایید مدیر شهرک است. راننده ${input.driverName}، پلاک ${input.licensePlate}.`;
     const phones = new Set<string>();
     if (factory.phoneNumber) phones.add(factory.phoneNumber);
     if (factory.phoneNumber2) phones.add(factory.phoneNumber2);
     if (factory.manager?.phoneNumber) phones.add(factory.manager.phoneNumber);
-    if (factory.park?.guardPhone) phones.add(factory.park.guardPhone);
     await Promise.all([...phones].map((phone) => this.safeSendSms(phone, smsText)));
 
-    // In-app alert for both the unit owner and the park managers, whoever issued the pass.
     await this.notifyParkStaff(
       factory.parkId,
-      { extraUserIds: [factory.managerId] },
+      { sms: `MEKSS: برگ خروج جدید در انتظار تایید شما. ${passSummary}` },
+      'برگ خروج در انتظار تایید شما',
+      `${passSummary} · ثبت‌کننده: ${pass.createdBy?.name || 'کاربر واحد'}. لطفاً از بخش برگ‌های خروج تایید یا رد کنید.`,
+      'WARNING',
+    );
+    await this.notifyParkStaff(
+      null,
+      { parkManagers: false, extraUserIds: [factory.managerId] },
       'ثبت برگ خروج جدید',
-      `برگ خروج برای واحد «${factory.name}» ثبت شد: راننده ${input.driverName}، پلاک ${input.licensePlate}، توسط ${pass.createdBy?.name || 'کاربر واحد'}.`,
+      `${passSummary} ثبت شد و برای تایید به مدیر شهرک ارسال گردید.`,
       'INFO',
     );
 
@@ -1402,7 +1456,7 @@ export class ManagementService {
   }) {
     const existing = await this.prisma.gatePass.findUnique({
       where: { id },
-      include: { factory: { select: { status: true, suspendedReason: true } } },
+      include: { factory: { select: { status: true, suspendedReason: true, name: true, parkId: true } } },
     });
     if (!existing) throw new NotFoundException('Gate pass not found');
     await this.assertFactoryAccess(actor, existing.factoryId);
@@ -1412,8 +1466,9 @@ export class ManagementService {
     }
     if (!Object.keys(input || {}).length) throw new BadRequestException('At least one gate-pass field is required');
 
-    const updated = await this.prisma.gatePass.update({
-      where: { id },
+    // Guarded on the status we read so an edit can never land on a pass the park manager approved meanwhile.
+    const claimed = await this.prisma.gatePass.updateMany({
+      where: { id, status: existing.status },
       data: {
         ...(input.cargoType !== undefined ? { cargoType: input.cargoType as any } : {}),
         ...(input.cargoDescription !== undefined ? { cargoDescription: input.cargoDescription || null } : {}),
@@ -1427,60 +1482,135 @@ export class ManagementService {
           : {}),
         ...(input.licensePlatePhoto !== undefined ? { licensePlatePhoto: input.licensePlatePhoto || null } : {}),
         ...(input.exitDate !== undefined ? { exitDate: new Date(input.exitDate) } : {}),
-        // Re-submit rejected passes for guard review.
-        ...(existing.status === GatePassStatus.REJECTED ? { status: GatePassStatus.PENDING, notes: null } : {}),
+        // A corrected rejected pass starts the review again from the park manager.
+        ...(existing.status === GatePassStatus.REJECTED
+          ? { status: GatePassStatus.PENDING, notes: null, approvedById: null, approvedAt: null, verifiedById: null, verifiedAt: null }
+          : {}),
       },
-      include: { factory: true },
     });
+    if (claimed.count !== 1) {
+      throw new ConflictException('Gate pass status changed while editing; reload and try again');
+    }
+    const updated = await this.prisma.gatePass.findUniqueOrThrow({ where: { id }, include: { factory: true } });
     await this.audit.record({ userId: actor.id, action: 'GATE_PASS_UPDATED', entity: 'GatePass', entityId: id, changes: input as any });
     this.gatePassEvents.emit({ gatePassId: id, factoryId: existing.factoryId, kind: 'updated' });
+    if (existing.status === GatePassStatus.REJECTED) {
+      const summary = `واحد «${existing.factory?.name || ''}» · راننده ${updated.driverName} · پلاک ${updated.licensePlate}`;
+      await this.notifyParkStaff(
+        existing.factory?.parkId,
+        { sms: `MEKSS: برگ خروج اصلاح‌شده در انتظار تایید شما. ${summary}` },
+        'برگ خروج اصلاح‌شده در انتظار تایید',
+        `${summary} پس از اصلاح دوباره ارسال شد. لطفاً بررسی و تایید یا رد کنید.`,
+        'WARNING',
+      );
+    }
     return updated;
   }
 
+  /**
+   * Two-stage review:
+   *   1. park manager (or super admin): `approve` PENDING → APPROVED, or `reject` PENDING → REJECTED (reason required);
+   *   2. security guard (or super admin): `verify` APPROVED → COMPLETED, or `deny` APPROVED → REJECTED (reason required).
+   */
   async gatePassAction(actor: AuthenticatedUser, id: string, action: 'approve' | 'reject' | 'verify' | 'deny', reason?: string) {
     const pass = await this.prisma.gatePass.findUnique({
       where: { id },
       include: {
         createdBy: { select: { phoneNumber: true } },
-        factory: { select: { name: true, managerId: true, manager: { select: { id: true, phoneNumber: true } } } },
+        factory: {
+          select: {
+            name: true,
+            parkId: true,
+            managerId: true,
+            manager: { select: { id: true, phoneNumber: true } },
+            park: { select: { guardPhone: true } },
+          },
+        },
       },
     });
     if (!pass) throw new NotFoundException('Gate pass not found');
     await this.assertFactoryAccess(actor, pass.factoryId);
 
-    // Only security guards (and super admin via controller) may decide exits.
-    // Accept PENDING (new flow) and APPROVED (legacy park-manager-approved rows).
-    const awaitingGuard = pass.status === GatePassStatus.PENDING || pass.status === GatePassStatus.APPROVED;
-    if (!awaitingGuard) throw new ConflictException('Gate pass is not awaiting guard confirmation');
-    if ((action === 'reject' || action === 'deny') && !reason?.trim()) throw new BadRequestException('A reason is required');
+    const parkStage = action === 'approve' || action === 'reject';
+    if (parkStage && actor.role !== Role.PARK_MANAGER && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('Only the park manager can approve or reject a gate pass');
+    }
+    if (!parkStage && actor.role !== Role.SECURITY_GUARD && actor.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('Only security guards can confirm or deny an exit');
+    }
+    const expectedStatus = parkStage ? GatePassStatus.PENDING : GatePassStatus.APPROVED;
+    if (pass.status !== expectedStatus) {
+      throw new ConflictException(parkStage
+        ? 'Gate pass is not awaiting park manager review'
+        : 'Gate pass has not been approved by the park manager yet');
+    }
+    const cleanReason = reason?.trim().slice(0, 2000);
+    if ((action === 'reject' || action === 'deny') && !cleanReason) throw new BadRequestException('A reason is required');
 
-    const data =
-      action === 'approve' || action === 'verify'
-        ? {
-            status: GatePassStatus.COMPLETED,
-            approvedById: pass.approvedById || actor.id,
-            verifiedById: actor.id,
-            verifiedAt: new Date(),
-          }
-        : {
-            status: GatePassStatus.REJECTED,
-            approvedById: pass.approvedById || actor.id,
-            verifiedById: actor.id,
-            verifiedAt: new Date(),
-            notes: reason?.trim(),
-          };
-    const updated = await this.prisma.gatePass.update({ where: { id }, data });
-    await this.audit.record({ userId: actor.id, action: `GATE_PASS_${action.toUpperCase()}`, entity: 'GatePass', entityId: id });
+    const now = new Date();
+    const data: Prisma.GatePassUncheckedUpdateManyInput =
+      action === 'approve'
+        ? { status: GatePassStatus.APPROVED, approvedById: actor.id, approvedAt: now }
+        : action === 'reject'
+          ? { status: GatePassStatus.REJECTED, approvedById: actor.id, approvedAt: now, notes: cleanReason }
+          : action === 'verify'
+            ? { status: GatePassStatus.COMPLETED, verifiedById: actor.id, verifiedAt: now }
+            : { status: GatePassStatus.REJECTED, verifiedById: actor.id, verifiedAt: now, notes: cleanReason };
+    // Claim on the expected status so two reviewers cannot both decide the same pass.
+    const claimed = await this.prisma.gatePass.updateMany({ where: { id, status: expectedStatus }, data });
+    if (claimed.count !== 1) throw new ConflictException('Gate pass was already decided by someone else');
+    const updated = await this.prisma.gatePass.findUniqueOrThrow({
+      where: { id },
+      include: {
+        factory: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true, phoneNumber: true } },
+        approvedBy: { select: { id: true, name: true } },
+        verifiedBy: { select: { id: true, name: true } },
+      },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: `GATE_PASS_${action.toUpperCase()}`,
+      entity: 'GatePass',
+      entityId: id,
+      ...(cleanReason ? { changes: { reason: cleanReason } } : {}),
+    });
     this.gatePassEvents.emit({ gatePassId: id, factoryId: pass.factoryId, kind: 'decided' });
 
-    if (action === 'approve' || action === 'verify') {
-      const managerPhone = pass.factory?.manager?.phoneNumber;
-      const verifiedAt = updated.verifiedAt || new Date();
-      const summary = `خروج تایید شد · ${pass.factory.name} · راننده ${pass.driverName} · پلاک ${pass.licensePlate} · ${verifiedAt.toLocaleString('fa-IR')}`;
-      if (managerPhone) await this.safeSendSms(managerPhone, `MEKSS: ${summary}`);
-      if (pass.factory?.managerId) {
-        await this.notifyUser(pass.factory.managerId, 'تایید خروج نگهبانی', summary, 'SUCCESS');
-      }
+    const ownerId = pass.factory?.managerId;
+    const ownerPhone = pass.factory?.manager?.phoneNumber;
+    const parkId = pass.factory?.parkId;
+    const summary = `واحد «${pass.factory?.name || ''}» · راننده ${pass.driverName} · پلاک ${pass.licensePlate}`;
+    const at = formatJalaliDateTime(now);
+
+    if (action === 'approve') {
+      await this.notifyParkStaff(
+        parkId,
+        {
+          parkManagers: false,
+          guards: true,
+          sms: `MEKSS: برگ خروج تاییدشده آماده بررسی نگهبانی. ${summary}`,
+          extraPhones: [pass.factory?.park?.guardPhone],
+        },
+        'برگ خروج آماده خروج — بررسی نگهبانی',
+        `${summary} توسط مدیر شهرک تایید شد (${at}). لطفاً هنگام خروج، مشخصات را تطبیق و خروج را تایید یا رد کنید.`,
+        'WARNING',
+      );
+      if (ownerPhone) await this.safeSendSms(ownerPhone, `MEKSS: برگ خروج ${summary} توسط مدیر شهرک تایید شد و برای نگهبانی ارسال گردید.`);
+      if (ownerId) await this.notifyUser(ownerId, 'تایید برگ خروج توسط مدیر شهرک', `${summary} تایید شد و برای نگهبانی ارسال گردید (${at}).`, 'SUCCESS');
+    } else if (action === 'reject') {
+      if (ownerPhone) await this.safeSendSms(ownerPhone, `MEKSS: برگ خروج ${summary} توسط مدیر شهرک رد شد. دلیل: ${cleanReason}`);
+      if (ownerId) await this.notifyUser(ownerId, 'رد برگ خروج توسط مدیر شهرک', `${summary} رد شد (${at}). دلیل: ${cleanReason}. می‌توانید برگ را اصلاح و دوباره ارسال کنید.`, 'WARNING');
+    } else if (action === 'verify') {
+      const text = `خروج تایید شد · ${summary} · ${at}`;
+      if (ownerPhone) await this.safeSendSms(ownerPhone, `MEKSS: ${text}`);
+      if (ownerId) await this.notifyUser(ownerId, 'تایید خروج نگهبانی', text, 'SUCCESS');
+      await this.notifyParkStaff(parkId, {}, 'تایید خروج نگهبانی', text, 'SUCCESS');
+    } else {
+      const text = `${summary} در نگهبانی رد شد (${at}). دلیل: ${cleanReason}`;
+      if (ownerPhone) await this.safeSendSms(ownerPhone, `MEKSS: خروج ${text}`);
+      if (ownerId) await this.notifyUser(ownerId, 'رد خروج در نگهبانی', text, 'WARNING');
+      await this.notifyParkStaff(parkId, {}, 'رد خروج در نگهبانی', text, 'WARNING');
     }
     return updated;
   }
@@ -1518,7 +1648,15 @@ export class ManagementService {
   }
 
   async gatePassDetail(actor: AuthenticatedUser, id: string) {
-    const pass = await this.prisma.gatePass.findUnique({ where: { id }, include: { factory: true, createdBy: { select: { id: true, name: true, phoneNumber: true } } } });
+    const pass = await this.prisma.gatePass.findUnique({
+      where: { id },
+      include: {
+        factory: true,
+        createdBy: { select: { id: true, name: true, phoneNumber: true } },
+        approvedBy: { select: { id: true, name: true } },
+        verifiedBy: { select: { id: true, name: true } },
+      },
+    });
     if (!pass) throw new NotFoundException('Gate pass not found');
     await this.assertFactoryAccess(actor, pass.factoryId);
     return pass;
@@ -3550,7 +3688,17 @@ export class ManagementService {
         tx.invoice.count({ where: { targetType: InvoiceTarget.FACTORY, ...factoryWhere } }),
         tx.request.count({ where: factoryWhere }),
         tx.emergencyAlert.count({ where: emergencyWhere }),
-        tx.gatePass.count({ where: { ...factoryWhere, status: GatePassStatus.PENDING } }),
+        tx.gatePass.count({
+          where: {
+            ...factoryWhere,
+            // Each role counts the stage waiting on it: guards → approved passes, reviewers → new ones.
+            status: user.role === Role.SECURITY_GUARD
+              ? GatePassStatus.APPROVED
+              : canReviewPendingWork
+                ? GatePassStatus.PENDING
+                : { in: [GatePassStatus.PENDING, GatePassStatus.APPROVED] },
+          },
+        }),
         tx.request.count({ where: { ...factoryWhere, status: RequestStatus.PENDING } }),
         canReviewPendingWork
           ? tx.advertisement.count({ where: advertisementWhere })
@@ -3615,7 +3763,7 @@ export class ManagementService {
           status: item.status,
           createdAt: item.createdAt.toISOString(),
           title: item.factory.name,
-          capability: 'view_gate_passes',
+          capability: 'approve_gate_passes',
           rank: priorityWeight.MEDIUM,
         })),
         ...recentAdvertisements.map((item) => ({
@@ -4385,7 +4533,8 @@ export class ManagementService {
 
   async createFactoryStaff(actor: AuthenticatedUser, factoryId: string, input: CreateFactoryStaffDto) {
     await this.assertOwnedFactory(actor, factoryId);
-    this.assertFactoryNotSuspended(await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { status: true, suspendedReason: true } }));
+    const factory = await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { name: true, status: true, suspendedReason: true } });
+    this.assertFactoryNotSuspended(factory);
     const password = await bcrypt.hash(input.password, 12);
     try {
       const created = await this.prisma.user.create({
@@ -4409,6 +4558,11 @@ export class ManagementService {
         entityId: created.id,
         changes: { factoryId, canApproveRequestTypes: input.canApproveRequestTypes },
       });
+      await this.sendStaffCredentialsSms(
+        { phoneNumber: input.phoneNumber },
+        factory?.name ? `واحد صنعتی «${factory.name}»` : 'واحد صنعتی',
+        input.password,
+      );
       return created;
     } catch (error) {
       if (this.prismaErrorCode(error) === 'P2002') throw new ConflictException('Phone number is already registered');
@@ -4489,6 +4643,11 @@ export class ManagementService {
         entityId: created.id,
         changes: { parkId, phoneNumber: input.phoneNumber, username: input.username || null },
       });
+      await this.sendStaffCredentialsSms(
+        { phoneNumber: input.phoneNumber, username: input.username },
+        created.employeeOfPark?.name ? `مدیریت شهرک «${created.employeeOfPark.name}»` : 'مدیریت شهرک',
+        input.password,
+      );
       return created;
     } catch (error) {
       if (this.prismaErrorCode(error) === 'P2002') {
@@ -4555,6 +4714,14 @@ export class ManagementService {
           password: input.password ? '[redacted]' : undefined,
         } as unknown as Prisma.InputJsonObject,
       });
+      if (input.password && updated.phoneNumber) {
+        await this.sendStaffCredentialsSms(
+          { phoneNumber: updated.phoneNumber, username: updated.username },
+          updated.employeeOfPark?.name ? `مدیریت شهرک «${updated.employeeOfPark.name}»` : 'مدیریت شهرک',
+          input.password,
+          'password-reset',
+        );
+      }
       return updated;
     } catch (error) {
       if (this.prismaErrorCode(error) === 'P2002') {
@@ -4609,6 +4776,9 @@ export class ManagementService {
     return { id: userId, deleted: true, deactivated: false };
   }
 
+  static readonly WALLET_TOP_UP_MIN = 10_000;
+  static readonly WALLET_TOP_UP_MAX = 2_000_000_000;
+
   async factoryWallet(actor: AuthenticatedUser, factoryId: string) {
     await this.assertFactoryAccess(actor, factoryId);
     const factory = await this.prisma.factory.findUnique({
@@ -4616,25 +4786,285 @@ export class ManagementService {
       select: { id: true, name: true, gatePassWalletBalance: true },
     });
     if (!factory) throw new NotFoundException('Factory not found');
-    return { factoryId: factory.id, name: factory.name, balance: Number(factory.gatePassWalletBalance) };
+    const balance = Number(factory.gatePassWalletBalance);
+    const [fee, walletRequired, topUps] = await Promise.all([
+      Promise.resolve(this.gatePassFee()),
+      this.isGatePassWalletRequired(),
+      this.prisma.walletTopUp.findMany({
+        where: { factoryId },
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          method: true,
+          provider: true,
+          referenceId: true,
+          failureReason: true,
+          balanceAfter: true,
+          verifiedAt: true,
+          createdAt: true,
+          initiatedBy: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+    ]);
+    return {
+      factoryId: factory.id,
+      name: factory.name,
+      balance,
+      fee,
+      walletRequired,
+      passesRemaining: fee > 0 ? Math.floor(balance / fee) : null,
+      minTopUp: ManagementService.WALLET_TOP_UP_MIN,
+      maxTopUp: ManagementService.WALLET_TOP_UP_MAX,
+      paymentProvider: this.paymentProvider(),
+      topUps: topUps.map((row) => ({
+        ...row,
+        amount: Number(row.amount),
+        balanceAfter: row.balanceAfter === null ? null : Number(row.balanceAfter),
+      })),
+    };
   }
 
+  /** Manual credit by a park manager / super admin (cash, bank transfer, ...), recorded in the top-up ledger. */
   async topUpFactoryWallet(actor: AuthenticatedUser, factoryId: string, amount: number) {
     await this.assertFactoryAccess(actor, factoryId);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid top-up amount');
-    const factory = await this.prisma.factory.update({
-      where: { id: factoryId },
-      data: { gatePassWalletBalance: { increment: amount } },
-      select: { id: true, name: true, gatePassWalletBalance: true },
+    const factory = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.factory.update({
+        where: { id: factoryId },
+        data: { gatePassWalletBalance: { increment: amount } },
+        select: { id: true, name: true, managerId: true, gatePassWalletBalance: true },
+      });
+      await tx.walletTopUp.create({
+        data: {
+          factoryId,
+          amount,
+          status: PaymentStatus.VERIFIED,
+          method: 'MANUAL',
+          provider: 'MANUAL',
+          authority: `manual-${randomBytes(16).toString('hex')}`,
+          balanceAfter: updated.gatePassWalletBalance,
+          verifiedAt: new Date(),
+          initiatedById: actor.id,
+        },
+      });
+      return updated;
     });
     await this.audit.record({
       userId: actor.id,
       action: 'FACTORY_WALLET_TOP_UP',
       entity: 'Factory',
       entityId: factoryId,
-      changes: { amount },
+      changes: { amount, method: 'MANUAL' },
     });
+    if (factory.managerId && factory.managerId !== actor.id) {
+      await this.notifyUser(
+        factory.managerId,
+        'شارژ کیف پول واحد',
+        `کیف پول واحد «${factory.name}» به مبلغ ${this.formatRial(amount)} ریال توسط مدیریت شهرک شارژ شد. موجودی فعلی: ${this.formatRial(Number(factory.gatePassWalletBalance))} ریال.`,
+        'SUCCESS',
+      );
+    }
     return { factoryId: factory.id, name: factory.name, balance: Number(factory.gatePassWalletBalance) };
+  }
+
+  /** Starts an online wallet top-up through the payment gateway (unit owner, or staff on the unit's behalf). */
+  async startWalletTopUp(actor: AuthenticatedUser, factoryId: string, amount: number) {
+    await this.assertFactoryAccess(actor, factoryId);
+    if (!Number.isInteger(amount) || amount < ManagementService.WALLET_TOP_UP_MIN || amount > ManagementService.WALLET_TOP_UP_MAX) {
+      throw new BadRequestException('Invalid top-up amount');
+    }
+    const factory = await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { id: true, name: true } });
+    if (!factory) throw new NotFoundException('Factory not found');
+
+    const provider = this.paymentProvider();
+    if (
+      provider === 'mock'
+      && this.config.get<string>('NODE_ENV') === 'production'
+      && this.config.get<string>('PAYMENT_ALLOW_MOCK') !== 'true'
+    ) {
+      throw new BadRequestException('Online payment gateway is not configured');
+    }
+    const callbackUrl = this.walletCallbackUrl();
+    let authority = randomBytes(18).toString('hex');
+    let paymentUrl = `${callbackUrl}?Authority=${authority}&Status=OK`;
+    if (provider === 'zarinpal') {
+      const merchantId = this.config.get<string>('ZARINPAL_MERCHANT_ID');
+      if (!merchantId) throw new BadRequestException('ZarinPal is not configured');
+      const baseUrl = this.zarinpalBaseUrl();
+      const response = await fetch(`${baseUrl}/pg/v4/payment/request.json`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          merchant_id: merchantId,
+          amount,
+          callback_url: callbackUrl,
+          description: `شارژ کیف پول برگ خروج واحد «${factory.name}»`,
+          metadata: actor.phoneNumber ? { mobile: actor.phoneNumber } : undefined,
+        }),
+      });
+      const result: any = await response.json().catch(() => null);
+      if (!response.ok || result?.data?.code !== 100 || !result?.data?.authority) {
+        throw new BadRequestException('Unable to initialize ZarinPal payment');
+      }
+      authority = result.data.authority;
+      paymentUrl = `${baseUrl}/pg/StartPay/${authority}`;
+    }
+
+    const topUp = await this.prisma.walletTopUp.create({
+      data: {
+        factoryId,
+        amount,
+        authority,
+        method: 'ONLINE',
+        provider: provider === 'zarinpal' ? 'ZARINPAL' : 'MOCK',
+        initiatedById: actor.id,
+      },
+      select: { id: true },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'WALLET_TOP_UP_INITIATED',
+      entity: 'Factory',
+      entityId: factoryId,
+      changes: { amount, topUpId: topUp.id, provider },
+    });
+    return { topUpId: topUp.id, authority, paymentUrl, amount };
+  }
+
+  /**
+   * Gateway callback: verifies the payment and credits the wallet exactly once.
+   * Returns the frontend URL to redirect the payer to (never throws).
+   */
+  async handleWalletTopUpCallback(authority: string, status: string): Promise<string> {
+    let result: { status: 'success' | 'failed'; amount?: number; referenceId?: string | null; factoryId?: string };
+    try {
+      result = await this.verifyWalletTopUp(authority, status);
+    } catch (error) {
+      this.logger.error(`Wallet top-up verification failed for ${String(authority).slice(0, 8)}…: ${error instanceof Error ? error.message : 'unknown error'}`);
+      result = { status: 'failed' };
+    }
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') || 'http://localhost:5173').trim().replace(/\/+$/, '');
+    const params = new URLSearchParams({ topup: result.status });
+    if (result.amount) params.set('amount', String(result.amount));
+    if (result.referenceId) params.set('ref', result.referenceId);
+    if (result.factoryId) params.set('factoryId', result.factoryId);
+    return `${frontendUrl}/factory/wallet?${params.toString()}`;
+  }
+
+  async verifyWalletTopUp(authority: string, status: string) {
+    if (!authority) return { status: 'failed' as const };
+    const topUp = await this.prisma.walletTopUp.findUnique({
+      where: { authority },
+      include: {
+        factory: { select: { id: true, name: true } },
+        initiatedBy: { select: { id: true, phoneNumber: true } },
+      },
+    });
+    if (!topUp) return { status: 'failed' as const };
+    const amount = Number(topUp.amount);
+    const base = { amount, factoryId: topUp.factoryId };
+    if (topUp.status === PaymentStatus.VERIFIED) return { ...base, status: 'success' as const, referenceId: topUp.referenceId };
+    if (topUp.status !== PaymentStatus.INITIATED) return { ...base, status: 'failed' as const };
+
+    const markFailed = async (failureReason: string, providerStatus?: unknown) => {
+      await this.prisma.walletTopUp.updateMany({
+        where: { id: topUp.id, status: PaymentStatus.INITIATED },
+        data: {
+          status: status === 'OK' ? PaymentStatus.FAILED : PaymentStatus.CANCELLED,
+          failureReason,
+          ...(providerStatus ? { providerStatus: providerStatus as Prisma.InputJsonValue } : {}),
+        },
+      });
+      return { ...base, status: 'failed' as const };
+    };
+    if (status !== 'OK') return markFailed('Gateway cancelled payment');
+
+    let referenceId = `MOCK-${randomBytes(6).toString('hex').toUpperCase()}`;
+    let providerStatus: Record<string, unknown> = { mode: 'mock' };
+    if (topUp.provider === 'ZARINPAL') {
+      const merchantId = this.config.get<string>('ZARINPAL_MERCHANT_ID');
+      if (!merchantId) throw new BadRequestException('ZarinPal is not configured');
+      const response = await fetch(`${this.zarinpalBaseUrl()}/pg/v4/payment/verify.json`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ merchant_id: merchantId, amount, authority }),
+      });
+      const result: any = await response.json().catch(() => null);
+      if (!response.ok || ![100, 101].includes(result?.data?.code)) {
+        return markFailed('ZarinPal verification failed', result || {});
+      }
+      referenceId = String(result.data.ref_id);
+      providerStatus = result;
+    }
+
+    const credited = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.walletTopUp.updateMany({
+        where: { id: topUp.id, status: PaymentStatus.INITIATED },
+        data: {
+          status: PaymentStatus.VERIFIED,
+          referenceId,
+          verifiedAt: new Date(),
+          providerStatus: providerStatus as Prisma.InputJsonValue,
+        },
+      });
+      if (claimed.count !== 1) return null;
+      const factory = await tx.factory.update({
+        where: { id: topUp.factoryId },
+        data: { gatePassWalletBalance: { increment: amount } },
+        select: { gatePassWalletBalance: true },
+      });
+      await tx.walletTopUp.update({ where: { id: topUp.id }, data: { balanceAfter: factory.gatePassWalletBalance } });
+      return Number(factory.gatePassWalletBalance);
+    });
+    if (credited === null) {
+      // A concurrent callback already settled this top-up; report its final state.
+      const settled = await this.prisma.walletTopUp.findUnique({ where: { id: topUp.id }, select: { status: true, referenceId: true } });
+      return settled?.status === PaymentStatus.VERIFIED
+        ? { ...base, status: 'success' as const, referenceId: settled.referenceId }
+        : { ...base, status: 'failed' as const };
+    }
+
+    await this.audit.record({
+      userId: topUp.initiatedById || undefined,
+      action: 'WALLET_TOP_UP_VERIFIED',
+      entity: 'Factory',
+      entityId: topUp.factoryId,
+      changes: { amount, referenceId, balanceAfter: credited },
+    });
+    const message = `کیف پول واحد «${topUp.factory.name}» به مبلغ ${this.formatRial(amount)} ریال شارژ شد. کد پیگیری: ${referenceId} — موجودی: ${this.formatRial(credited)} ریال.`;
+    if (topUp.initiatedById) await this.notifyUser(topUp.initiatedById, 'شارژ موفق کیف پول', message, 'SUCCESS');
+    if (topUp.initiatedBy?.phoneNumber) await this.safeSendSms(topUp.initiatedBy.phoneNumber, `MEKSS: ${message}`);
+    return { ...base, status: 'success' as const, referenceId };
+  }
+
+  private paymentProvider(): 'mock' | 'zarinpal' {
+    return (this.config.get<string>('PAYMENT_PROVIDER', 'mock') || 'mock').toLowerCase() === 'zarinpal' ? 'zarinpal' : 'mock';
+  }
+
+  private zarinpalBaseUrl() {
+    return this.config.get<string>('ZARINPAL_SANDBOX', 'true') === 'true' ? 'https://sandbox.zarinpal.com' : 'https://payment.zarinpal.com';
+  }
+
+  private walletCallbackUrl() {
+    const explicit = this.config.get<string>('ZARINPAL_WALLET_CALLBACK_URL');
+    if (explicit) return explicit;
+    const invoiceCallback = this.config.get<string>('ZARINPAL_CALLBACK_URL');
+    let origin = 'http://localhost:3000';
+    if (invoiceCallback) {
+      try {
+        origin = new URL(invoiceCallback).origin;
+      } catch {
+        /* keep default */
+      }
+    }
+    return `${origin}/api/v1/wallet/payment/callback`;
+  }
+
+  private formatRial(value: number) {
+    return Math.round(value).toLocaleString('en-US');
   }
 
   async listMarketRates() {
@@ -5126,9 +5556,9 @@ export class ManagementService {
     const shared = ['view_dashboard'];
     const byRole: Record<string, string[]> = {
       SUPER_ADMIN: [...shared, 'manage_parks', 'manage_users', 'manage_advertisements', 'manage_sms'],
-      PARK_MANAGER: [...shared, 'manage_factories', 'view_gate_passes', 'approve_requests', 'manage_announcements', 'moderate_advertisements', 'send_messages', 'view_reports'],
+      PARK_MANAGER: [...shared, 'manage_factories', 'view_gate_passes', 'approve_gate_passes', 'approve_requests', 'manage_announcements', 'moderate_advertisements', 'send_messages', 'view_reports'],
       FACTORY_OWNER: [...shared, 'create_gate_passes', 'edit_gate_passes', 'create_requests', 'create_advertisements', 'view_invoices'],
-      SECURITY_GUARD: [...shared, 'verify_gate_passes', 'approve_gate_passes', 'view_emergencies'],
+      SECURITY_GUARD: [...shared, 'verify_gate_passes', 'view_emergencies'],
       GOVERNMENT_OFFICIAL: [...shared, 'view_reports'],
       EMPLOYEE: shared,
     };
@@ -5520,6 +5950,26 @@ export class ManagementService {
       })),
       skipDuplicates: true,
     });
+  }
+
+  /** Texts a newly created (or password-reset) staff member the credentials they can sign in with. */
+  private async sendStaffCredentialsSms(
+    staff: { phoneNumber: string; username?: string | null },
+    organization: string | null,
+    plainPassword: string,
+    kind: 'created' | 'password-reset' = 'created',
+  ) {
+    const frontendUrl = (this.config.get<string>('FRONTEND_URL') || '').trim().replace(/\/+$/, '');
+    const loginHint = frontendUrl && !/localhost|127\.0\.0\.1/.test(frontendUrl) ? ` ورود: ${frontendUrl}/login` : '';
+    const username = staff.username || staff.phoneNumber;
+    const where = organization ? ` در ${organization}` : '';
+    const intro = kind === 'created'
+      ? `اطلاعات کاربری شما${where} در سامانه MEKSS ثبت شد.`
+      : `رمز عبور شما${where} در سامانه MEKSS بازنشانی شد.`;
+    await this.safeSendSms(
+      staff.phoneNumber,
+      `${intro} نام کاربری: ${username} رمز عبور: ${plainPassword} — پس از اولین ورود رمز خود را تغییر دهید.${loginHint}`,
+    );
   }
 
   private async safeSendSms(phoneNumber: string, message: string) {

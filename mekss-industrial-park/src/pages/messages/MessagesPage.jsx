@@ -25,6 +25,7 @@ import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
 import { messageStatusLabels } from '../../constants/persianLabels';
+import JalaliDatePicker from '../../components/common/JalaliDatePicker';
 
 const roleRecipientLabels = {
   PARK_MANAGER: 'مدیر شهرک',
@@ -322,11 +323,11 @@ export const MessagesPage = () => {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs">از تاریخ</Label>
-              <Input type="date" dir="ltr" value={messageFromDate} onChange={(e) => setMessageFromDate(e.target.value)} className="rounded-xl" />
+              <JalaliDatePicker compact value={messageFromDate} onChange={(value) => setMessageFromDate(value)} />
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-xs">تا تاریخ</Label>
-              <Input type="date" dir="ltr" value={messageToDate} onChange={(e) => setMessageToDate(e.target.value)} className="rounded-xl" />
+              <JalaliDatePicker compact value={messageToDate} onChange={(value) => setMessageToDate(value)} />
             </div>
           </CardContent>
         </Card>
@@ -414,7 +415,7 @@ export const MessagesPage = () => {
                                 {item.title}
                               </span>
                               <span className="shrink-0 text-[11px] text-foreground-500">
-                                {new Date(item.createdAt).toLocaleDateString('fa-IR')}
+                                {new Date(item.createdAt).toLocaleDateString('fa-IR-u-ca-persian')}
                               </span>
                             </div>
                             <div className="mt-1 flex items-center gap-2">
@@ -461,7 +462,7 @@ export const MessagesPage = () => {
                               {msg.subject}
                             </span>
                             <span className="shrink-0 text-[11px] text-foreground-500">
-                              {new Date(msg.createdAt).toLocaleDateString('fa-IR')}
+                              {new Date(msg.createdAt).toLocaleDateString('fa-IR-u-ca-persian')}
                             </span>
                           </div>
                           <p className="mt-0.5 truncate text-xs text-foreground-500">
@@ -665,7 +666,7 @@ export const MessagesPage = () => {
                   </div>
                   <h2 className="text-lg font-bold">{selectedNotification.title}</h2>
                   <p className="mt-1 text-xs text-foreground-500">
-                    {new Date(selectedNotification.createdAt).toLocaleString('fa-IR')}
+                    {new Date(selectedNotification.createdAt).toLocaleString('fa-IR-u-ca-persian')}
                   </p>
                 </div>
                 <div className="whitespace-pre-wrap rounded-xl bg-default-50 p-4 text-sm leading-7 text-foreground">
@@ -680,7 +681,7 @@ export const MessagesPage = () => {
                     <p className="mt-1 text-xs text-foreground-500">
                       {(tab === 'inbox' ? selectedMessage.sender?.name : selectedMessage.receiver?.name) || 'کاربر'}
                       {' · '}
-                      {new Date(selectedMessage.createdAt).toLocaleString('fa-IR')}
+                      {new Date(selectedMessage.createdAt).toLocaleString('fa-IR-u-ca-persian')}
                     </p>
                   </div>
                   <Button size="sm" variant="tertiary" className="gap-1.5" onPress={startReply}>

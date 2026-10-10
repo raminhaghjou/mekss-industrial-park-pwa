@@ -333,7 +333,21 @@ The daily penalty counts calendar days after the due date. When the due date is 
 Each banner has a desktop image (recommended 1920×480, 4:1) and a mobile image (1080×540, 2:1), uploaded to the `banner` file domain. Links may only be `https://…` or an in-app path `/…`.
 
 ### Gate pass wallet
-`GET /api/v1/settings/gate-pass-wallet` and `PATCH` (super admin only, global). When `requireWalletBalance` is off, no fee is charged and the wallet UI is hidden from park managers and owners.
+`GET /api/v1/settings/gate-pass-wallet` and `PATCH` (super admin only, global). When `requireWalletBalance` is off, no fee is charged and the wallet menu is hidden from park managers. Unit owners always keep the wallet page.
+
+#### Wallet top-up endpoints
+- **`POST /api/v1/factories/:id/wallet/pay`** `{ amount }` (whole Rials, 10,000 to 2,000,000,000)
+  - Starts an online top-up and records a `WalletTopUp` row with status `INITIATED`.
+  - Returns `paymentUrl`.
+- **`GET /api/v1/wallet/payment/callback`** (public gateway callback)
+  - Verifies the payment and credits the wallet exactly once.
+  - Redirects to `${FRONTEND_URL}/factory/wallet?topup=success|failed`.
+  - The callback URL is `ZARINPAL_WALLET_CALLBACK_URL`. If that is unset, it is derived from the origin of `ZARINPAL_CALLBACK_URL`.
+  - The mock provider is refused when `NODE_ENV=production`, unless `PAYMENT_ALLOW_MOCK=true`.
+- **`POST /api/v1/factories/:id/wallet/top-up`** (park manager or super admin)
+  - Records a manual credit as a `MANUAL` / `VERIFIED` top-up.
+- **`GET /api/v1/factories/:id/wallet`**
+  - Returns the balance, fee, `passesRemaining` and the latest 30 top-ups.
 
 ### Analytics
 - `GET /api/v1/analytics/dashboard` - Get dashboard data

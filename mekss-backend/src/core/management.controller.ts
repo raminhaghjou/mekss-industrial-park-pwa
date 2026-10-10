@@ -63,6 +63,7 @@ import {
   UpdateParkDto,
   UpdateParkStaffDto,
   WalletTopUpDto,
+  StartWalletTopUpDto,
   UpdateGatePassWalletSettingDto,
 } from './management.dto';
 import { ManagementService } from './management.service';
@@ -108,6 +109,7 @@ export class ManagementController {
   @Patch('factories/:id/staff/:userId') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') updateFactoryStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueUserIdParamDto, @Body() body: UpdateFactoryStaffDto) { return this.management.updateFactoryStaff(currentUser(req), params.id, params.userId, body); }
   @Get('factories/:id/wallet') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Factories') factoryWallet(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.factoryWallet(currentUser(req), params.id); }
   @Post('factories/:id/wallet/top-up') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') factoryWalletTopUp(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: WalletTopUpDto) { return this.management.topUpFactoryWallet(currentUser(req), params.id, body.amount); }
+  @Post('factories/:id/wallet/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Factories') factoryWalletPay(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: StartWalletTopUpDto) { return this.management.startWalletTopUp(currentUser(req), params.id, body.amount); }
   @Get('factories/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Factories') factoryDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.factoryDetail(currentUser(req), params.id); }
   @Post('factories/register') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') registerFactory(@Req() req: AuthenticatedRequest, @Body() body: RegisterFactoryDto) { return this.management.registerFactory(currentUser(req), body); }
   @Post('factories') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') createFactory(@Req() req: AuthenticatedRequest, @Body() body: CreateFactoryDto) { return this.management.createFactory(currentUser(req), body); }
@@ -137,8 +139,8 @@ export class ManagementController {
   @Patch('settings/gate-pass-wallet') @Roles(Role.SUPER_ADMIN) @ApiTags('Settings') updateGatePassWalletSettings(@Req() req: AuthenticatedRequest, @Body() body: UpdateGatePassWalletSettingDto) { return this.management.updateGatePassWalletSettings(currentUser(req), body.requireWalletBalance); }
   @Post('gate-passes') @Roles(Role.SUPER_ADMIN, Role.FACTORY_OWNER) @ApiTags('Gate passes') createGatePass(@Req() req: AuthenticatedRequest, @Body() body: CreateGatePassDto) { return this.management.createGatePass(currentUser(req), body); }
   @Put('gate-passes/:id') @Roles(Role.SUPER_ADMIN, Role.FACTORY_OWNER) @ApiTags('Gate passes') updateGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: UpdateGatePassDto) { return this.management.updateGatePass(currentUser(req), params.id, body); }
-  @Post('gate-passes/:id/approve') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') approveGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassAction(currentUser(req), params.id, 'approve'); }
-  @Post('gate-passes/:id/reject') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') rejectGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'reject', body.reason); }
+  @Post('gate-passes/:id/approve') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Gate passes') approveGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassAction(currentUser(req), params.id, 'approve'); }
+  @Post('gate-passes/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Gate passes') rejectGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'reject', body.reason); }
   @Post('gate-passes/:id/verify') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') verifyGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassAction(currentUser(req), params.id, 'verify'); }
   @Post('gate-passes/:id/deny') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') denyGatePassExit(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'deny', body.reason); }
   @Get('gate-passes/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePassDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassDetail(currentUser(req), params.id); }
@@ -269,4 +271,17 @@ export class PaymentCallbackController {
   @Get('callback')
   @ApiTags('Invoices')
   callback(@Query('Authority') authority: string, @Query('Status') status: string) { return this.management.verifyPayment(authority, status); }
+}
+
+@Controller('api/v1/wallet/payment')
+export class WalletPaymentCallbackController {
+  constructor(private readonly management: ManagementService) {}
+
+  /** Gateway redirect target: credits the wallet once, then sends the payer back to the wallet page. */
+  @Get('callback')
+  @ApiTags('Factories')
+  async callback(@Query('Authority') authority: string, @Query('Status') status: string, @Res() res: Response) {
+    const target = await this.management.handleWalletTopUpCallback(String(authority || ''), String(status || ''));
+    return res.redirect(302, target);
+  }
 }

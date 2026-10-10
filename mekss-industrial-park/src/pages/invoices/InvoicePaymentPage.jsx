@@ -100,7 +100,7 @@ const InvoicePaymentPage = () => {
 
             <div className="flex flex-col gap-1 p-3 rounded-2xl bg-default-50 dark:bg-default-100/30">
               <span className="text-xs text-foreground-500 font-medium">مهلت پرداخت</span>
-              <span className="font-semibold text-foreground">{new Date(invoice.dueDate).toLocaleDateString('fa-IR')}</span>
+              <span className="font-semibold text-foreground">{new Date(invoice.dueDate).toLocaleDateString('fa-IR-u-ca-persian')}</span>
             </div>
 
             <div className="sm:col-span-2 flex flex-col gap-1 p-3 rounded-2xl bg-default-50 dark:bg-default-100/30">

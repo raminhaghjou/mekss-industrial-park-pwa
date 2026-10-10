@@ -46,22 +46,27 @@ describe('DashboardLayout mobile shell', () => {
   let container;
   let root;
 
-  beforeEach(async () => {
-    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
+  const renderAt = async (path) => {
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={['/dashboard']}>
+        <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<div>محتوای داشبورد</div>} />
+              <Route path="/invoices" element={<div>صفحه قبض</div>} />
+              <Route path="/messages" element={<div>صفحه پیام</div>} />
             </Route>
           </Routes>
         </MemoryRouter>,
       );
     });
+  };
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
   });
 
   afterEach(async () => {
@@ -71,15 +76,36 @@ describe('DashboardLayout mobile shell', () => {
     delete globalThis.IS_REACT_ACT_ENVIRONMENT;
   });
 
-  it('renders the mobile bottom navigation and opens the full menu drawer', async () => {
-    expect(document.querySelector('[aria-label="ناوبری موبایل"]')).toBeTruthy();
-    expect(document.body.textContent).toContain('قبض‌های من');
-    expect(document.body.textContent).toContain('منو');
+  it('shows four fixed tabs instead of a sidebar or menu drawer', async () => {
+    await renderAt('/dashboard');
+    const mobileNav = document.querySelector('[aria-label="ناوبری موبایل"]');
+    expect(mobileNav).toBeTruthy();
+    expect(mobileNav.querySelectorAll('button')).toHaveLength(4);
+    expect(mobileNav.textContent).toContain('خانه');
+    expect(mobileNav.textContent).toContain('پیام‌ها');
+    expect(mobileNav.textContent).toContain('اضطراری');
+    expect(mobileNav.textContent).toContain('پروفایل');
+    expect(document.querySelector('[data-testid="tab-home"]').getAttribute('aria-current')).toBe('page');
 
-    const openMenu = document.querySelector('[aria-label="باز کردن منو"]');
+    expect(document.querySelector('aside')).toBeNull();
+    expect(document.querySelector('[aria-label="باز کردن منو"]')).toBeNull();
+    expect(document.querySelector('[data-testid="back-button"]')).toBeNull();
+    expect(document.body.textContent).toContain('MEKSS');
+  });
+
+  it('titles inner pages and offers a way back', async () => {
+    await renderAt('/invoices');
+    expect(document.querySelector('header h1')?.textContent).toBe('قبض‌های من');
+    expect(document.querySelector('[data-testid="back-button"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="tab-home"]').getAttribute('aria-current')).toBeNull();
+  });
+
+  it('navigates with the bottom tabs', async () => {
+    await renderAt('/dashboard');
     await act(async () => {
-      openMenu?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      document.querySelector('[data-testid="tab-messages"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(document.body.textContent).toContain('خروج از حساب');
+    expect(document.body.textContent).toContain('صفحه پیام');
+    expect(document.querySelector('[data-testid="tab-messages"]').getAttribute('aria-current')).toBe('page');
   });
 });

@@ -1617,27 +1617,37 @@ export class ManagementService {
       createdBy: { select: { id: true, name: true, phoneNumber: true } },
     } as const;
     let pass = await this.prisma.gatePass.findUnique({ where: { qrCode: raw }, include });
-    if (!pass) {
-      // QR payloads may be URLs or prefixed tokens — match by containment / suffix.
-      const candidates = await this.prisma.gatePass.findMany({
-        where: {
-          OR: [
-            { qrCode: { contains: raw, mode: 'insensitive' } },
-            { id: raw },
-            { licensePlate: { contains: raw, mode: 'insensitive' } },
-          ],
-        },
-        include,
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-      });
-      pass = candidates.find((item) => item.qrCode === raw)
-        || candidates.find((item) => item.qrCode?.endsWith(raw) || item.qrCode?.includes(raw))
-        || candidates[0]
-        || null;
+    if (pass) {
+      await this.assertFactoryAccess(actor, pass.factoryId);
+      return pass;
     }
+    // Fallback: printed gate-pass number (last 8 chars of the id, or a prefix of it), a QR fragment or a plate —
+    // only within the actor's own factories so another park's pass never shadows a local one.
+    const factoryIds = await this.factoryIds(actor);
+    const lower = raw.toLowerCase();
+    const candidates = await this.prisma.gatePass.findMany({
+      where: {
+        factoryId: { in: factoryIds },
+        OR: [
+          { id: raw },
+          { id: { endsWith: lower } },
+          { id: { contains: lower } },
+          { qrCode: { contains: raw, mode: 'insensitive' } },
+          { licensePlate: { contains: raw, mode: 'insensitive' } },
+        ],
+      },
+      include,
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+    });
+    const number = (id: string) => id.slice(-8).toLowerCase();
+    pass = candidates.find((item) => item.id === raw)
+      || candidates.find((item) => number(item.id) === lower)
+      || candidates.find((item) => number(item.id).startsWith(lower))
+      || candidates.find((item) => item.qrCode?.toLowerCase().endsWith(lower))
+      || candidates[0]
+      || null;
     if (!pass) throw new NotFoundException('Gate pass not found');
-    await this.assertFactoryAccess(actor, pass.factoryId);
     return pass;
   }
 

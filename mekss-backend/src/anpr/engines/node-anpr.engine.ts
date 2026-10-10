@@ -26,6 +26,7 @@ type OrtModule = typeof import('onnxruntime-node');
 type Detection = Box & { conf: number; source: string };
 
 const EARLY_EXIT_PROBABILITY = 0.9;
+const LOAD_RETRY_MS = 30_000;
 
 export function decodeYolo(
   data: Float32Array,
@@ -96,6 +97,7 @@ export class NodeAnprEngine implements AnprEngine {
   private active = 0;
   private loading: Promise<void> | null = null;
   private loadError: Error | null = null;
+  private loadErrorAt = 0;
   private ort: OrtModule | null = null;
   private detector: InferenceSession | null = null;
   private detectorFallback: InferenceSession | null = null;
@@ -118,7 +120,11 @@ export class NodeAnprEngine implements AnprEngine {
 
   private async load(): Promise<void> {
     if (this.recognizer) return;
-    if (this.loadError) throw this.loadError;
+    if (this.loadError) {
+      if (Date.now() - this.loadErrorAt < LOAD_RETRY_MS) throw this.loadError;
+      this.loadError = null;
+      this.loading = null;
+    }
     if (!this.loading) {
       this.loading = (async () => {
         const required = ['plate_yolo.onnx', 'ocr_crnn.onnx', 'ocr_crnn.labels.json'];
@@ -142,6 +148,7 @@ export class NodeAnprEngine implements AnprEngine {
         this.logger.log(`Node ANPR engine loaded from ${this.modelDir}`);
       })().catch((error) => {
         this.loadError = error instanceof EngineUnavailableError ? error : new EngineUnavailableError(String(error?.message || error), false);
+        this.loadErrorAt = Date.now();
         this.logger.warn(this.loadError.message);
         throw this.loadError;
       });

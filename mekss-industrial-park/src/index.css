@@ -176,3 +176,18 @@
   50% { opacity: 0.9; transform: scale(1.08); }
 }
 
+@keyframes tileIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@utility animate-tile-in {
+  animation: tileIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+

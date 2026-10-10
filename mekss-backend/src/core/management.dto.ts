@@ -76,7 +76,7 @@ export class MarketRateKeyParamDto {
 }
 
 export class QrCodeParamDto {
-  @IsString() @Length(8, 128) @Matches(/^[A-Za-z0-9_-]+$/) code!: string;
+  @IsString() @Length(3, 128) @Matches(/^[A-Za-z0-9_-]+$/) code!: string;
 }
 
 export class CreateParkDto {

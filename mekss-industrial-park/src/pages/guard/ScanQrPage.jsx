@@ -14,7 +14,7 @@ import {
   AlertDescription,
 } from '@heroui/react';
 import { Camera, QrCode, ScanLine, Search, X } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { anprApi } from '../../services/api/anpr.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -25,9 +25,11 @@ import IranPlateOcrCamera from '../../components/gate-pass/IranPlateOcrCamera';
 import IranLicensePlateInput from '../../components/common/IranLicensePlateInput';
 import GatePassQuickVerifyCard from '../../components/gate-pass/GatePassQuickVerifyCard';
 import { gatePassStatusLabels as statusLabel } from '../../constants/persianLabels';
+import { gatePassNumber } from '../../utils/gatePassPrint';
+import { extractGatePassCode, matchesGatePassNumber } from '../../utils/gatePassCode';
 
 const SCANNER_REGION_ID = 'mekss-qr-scanner';
-const MIN_SEARCH_LEN = 4;
+const MIN_SEARCH_LEN = 3;
 
 const canonicalizePlate = (value) => normalizeIranPlate(value).plate || String(value || '').trim();
 
@@ -52,12 +54,16 @@ export const ScanQrPage = () => {
   });
 
   const lookup = useMutation({
-    mutationFn: (qr) => gatePassApi.getByQr(String(qr).trim()).then((res) => res.data),
+    mutationFn: (qr) => {
+      const token = extractGatePassCode(qr);
+      if (token.length < MIN_SEARCH_LEN) return Promise.reject(new Error('کد QR یا شماره برگ خروج معتبر نیست'));
+      return gatePassApi.getByQr(token).then((res) => res.data);
+    },
     onSuccess: (pass) => {
       showNotification('برگ خروج یافت شد', 'success');
       navigate(`/guard/gate-passes/${pass.id}/verify`);
     },
-    onError: (error) => showNotification(getErrorMessage(error, 'کد QR معتبر نیست'), 'error'),
+    onError: (error) => showNotification(getErrorMessage(error, error?.response ? 'کد QR معتبر نیست' : error?.message || 'کد QR معتبر نیست'), 'error'),
   });
 
   const plateLookup = useMutation({
@@ -149,14 +155,18 @@ export const ScanQrPage = () => {
     navigate(`/guard/gate-passes/${pass.id}/verify`);
   };
 
-  const handleDecoded = async (decodedText) => {
+  const notifyRef = useRef(showNotification);
+  notifyRef.current = showNotification;
+  const handleDecodedRef = useRef(null);
+  handleDecodedRef.current = async (decodedText) => {
     if (handlingScanRef.current) return;
     handlingScanRef.current = true;
-    const value = String(decodedText || '').trim();
+    const value = extractGatePassCode(decodedText);
     setCode(value);
     await stopScanner();
     if (!value) {
       handlingScanRef.current = false;
+      showNotification('محتوای QR قابل شناسایی نیست', 'error');
       return;
     }
     lookup.mutate(value, {
@@ -172,35 +182,56 @@ export const ScanQrPage = () => {
     setPlateCameraOpen(false);
     await stopScanner();
     setScanning(true);
-    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-
-    try {
-      const scanner = new Html5Qrcode(SCANNER_REGION_ID, { verbose: false });
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: 'environment' },
-        {
-          fps: 12,
-          qrbox: (viewfinderWidth, viewfinderHeight) => {
-            const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.72);
-            return { width: edge, height: edge };
-          },
-          aspectRatio: 1,
-          disableFlip: false,
-        },
-        (decoded) => {
-          handleDecoded(decoded);
-        },
-        () => {},
-      );
-    } catch (error) {
-      setScanning(false);
-      scannerRef.current = null;
-      const message = getErrorMessage(error, 'دسترسی به دوربین ممکن نشد');
-      setCameraError(message);
-      showNotification(message, 'error');
-    }
   };
+
+  // Start only after the scanner region is rendered visible: html5-qrcode sizes its viewfinder from the
+  // element, and a still-hidden (0px) region yields an empty scan box that never decodes.
+  useEffect(() => {
+    if (!scanning || scannerRef.current) return;
+    const scanner = new Html5Qrcode(SCANNER_REGION_ID, {
+      verbose: false,
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      useBarCodeDetectorIfSupported: true,
+    });
+    scannerRef.current = scanner;
+    const config = {
+      fps: 15,
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const edge = Math.max(160, Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.8));
+        return { width: Math.min(edge, viewfinderWidth), height: Math.min(edge, viewfinderHeight) };
+      },
+      disableFlip: false,
+    };
+    const onDecoded = (decoded) => handleDecodedRef.current?.(decoded);
+    const onFrameError = () => {};
+    // stopScanner() clears the ref; a start that resolves afterwards must release the camera itself.
+    const cancelled = () => scannerRef.current !== scanner;
+
+    (async () => {
+      try {
+        await scanner.start({ facingMode: 'environment' }, config, onDecoded, onFrameError);
+        if (cancelled() && scanner.isScanning) scanner.stop().catch(() => undefined);
+      } catch (firstError) {
+        // Desktops / some phones have no "environment" camera: fall back to the last listed camera.
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cancelled()) return;
+          if (!cameras?.length) throw firstError;
+          await scanner.start(cameras[cameras.length - 1].id, config, onDecoded, onFrameError);
+          if (cancelled() && scanner.isScanning) scanner.stop().catch(() => undefined);
+        } catch (error) {
+          if (cancelled()) return;
+          scannerRef.current = null;
+          setScanning(false);
+          const message = error?.name === 'NotAllowedError' || /permission/i.test(String(error))
+            ? 'اجازه دسترسی به دوربین داده نشد.'
+            : getErrorMessage(error, 'دسترسی به دوربین ممکن نشد');
+          setCameraError(message);
+          notifyRef.current(message, 'error');
+        }
+      }
+    })();
+  }, [scanning]);
 
   useEffect(() => () => {
     stopScanner();
@@ -210,9 +241,12 @@ export const ScanQrPage = () => {
     const query = code.trim();
     if (query.length < MIN_SEARCH_LEN) return [];
     const passes = Array.isArray(passesQuery.data) ? passesQuery.data : [];
-    return semanticFilter(passes, query, (pass) => [
+    const byNumber = passes.filter((pass) => matchesGatePassNumber(pass, query));
+    const semantic = semanticFilter(passes, query, (pass) => [
+      gatePassNumber(pass),
       pass.qrCode,
       pass.licensePlate,
+      displayIranLicensePlate(pass.licensePlate),
       pass.driverName,
       pass.id,
       pass.factory?.name,
@@ -222,7 +256,8 @@ export const ScanQrPage = () => {
       'مجوز',
       'برگ خروج',
       'پلاک',
-    ]).slice(0, 12);
+    ]);
+    return [...new Set([...byNumber, ...semantic])].slice(0, 12);
   }, [code, passesQuery.data]);
 
   const submitExact = (event) => {
@@ -232,8 +267,18 @@ export const ScanQrPage = () => {
       showNotification('کد QR یا عبارت جستجو را وارد کنید', 'error');
       return;
     }
+    const passes = Array.isArray(passesQuery.data) ? passesQuery.data : [];
+    const numberMatches = passes.filter((pass) => matchesGatePassNumber(pass, value));
+    if (numberMatches.length === 1) {
+      openPass(numberMatches[0]);
+      return;
+    }
     if (value.length >= MIN_SEARCH_LEN && searchResults.length === 1) {
       openPass(searchResults[0]);
+      return;
+    }
+    if (numberMatches.length > 1) {
+      showNotification('چند برگ خروج با این شماره پیدا شد؛ از فهرست نتایج انتخاب کنید', 'warning');
       return;
     }
     lookup.mutate(value);
@@ -304,7 +349,7 @@ export const ScanQrPage = () => {
                   dir="ltr"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="MEKSS-... یا پلاک / نام راننده"
+                  placeholder="شماره برگ (مثلاً ۳ رقم اول)، MEKSS-... یا پلاک / نام راننده"
                   className="rounded-xl pe-10 font-mono"
                   autoComplete="off"
                 />
@@ -406,7 +451,10 @@ export const ScanQrPage = () => {
                     className="flex w-full flex-col gap-1 rounded-xl border border-default-200 bg-default-50 px-4 py-3 text-right transition hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-soft)]"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-foreground">{pass.factory?.name || 'واحد نامشخص'}</span>
+                      <span className="font-bold text-foreground">
+                        {pass.factory?.name || 'واحد نامشخص'}
+                        <span className="ms-2 font-mono text-[11px] font-normal text-foreground-500" dir="ltr">#{gatePassNumber(pass)}</span>
+                      </span>
                       <span className="text-[11px] text-foreground-500">
                         {statusLabel[pass.status] || pass.status}
                       </span>

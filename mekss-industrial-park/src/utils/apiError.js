@@ -59,6 +59,12 @@ const SERVER_MESSAGE_FA = {
     'وضعیت برگ خروج هم‌زمان تغییر کرد (احتمالاً بررسی شد). صفحه را به‌روز و دوباره تلاش کنید.',
   'only pending or rejected gate passes can be edited':
     'فقط برگ خروج در انتظار تایید یا رد‌شده قابل ویرایش است.',
+  'gate pass not found':
+    'برگ خروجی با این کد QR یا شماره یافت نشد.',
+  'you do not have access to this factory':
+    'این برگ خروج متعلق به شهرک شما نیست.',
+  'plate recognition is temporarily unavailable':
+    'سرویس تشخیص پلاک موقتاً در دسترس نیست.',
   'a reason is required':
     'ثبت دلیل الزامی است.',
   'a rejection reason is required':
@@ -75,6 +81,7 @@ const VALIDATION_PATTERNS_FA = [
   [/^amount must not be less than/, 'مبلغ کمتر از حداقل مجاز است.'],
   [/^amount must not be greater than/, 'مبلغ بیشتر از سقف مجاز است.'],
   [/^amount must be a number/, 'مبلغ معتبر نیست.'],
+  [/^code must (match|be longer|be shorter)/, 'کد QR یا شماره برگ خروج معتبر نیست.'],
 ];
 
 const localizeOne = (message) => {

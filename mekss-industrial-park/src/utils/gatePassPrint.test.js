@@ -51,7 +51,7 @@ describe('gate pass printing', () => {
     const rows = Object.fromEntries(gatePassPrintRows(pass));
     expect(rows['نوع خودرو']).toBe('خاور');
     expect(rows['نوع بار']).toBe('محصول نهایی');
-    expect(rows['وضعیت']).toBe('در انتظار');
+    expect(rows['وضعیت']).toBe('در انتظار تایید مدیر شهرک');
     expect(rows['واحد صنعتی']).toBe('فولاد <ایران>');
   });
 

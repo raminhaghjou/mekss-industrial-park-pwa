@@ -334,7 +334,6 @@ export class ManagementService {
     await this.sendStaffCredentialsSms(
       { phoneNumber: input.phoneNumber, username: input.username },
       employer?.name ? `واحد صنعتی «${employer.name}»` : null,
-      input.password,
     );
     return created;
   }
@@ -1106,12 +1105,7 @@ export class ManagementService {
     if (query.cargoType) where.cargoType = query.cargoType as CargoType;
     if (query.driverNationalId) where.driverNationalId = { contains: query.driverNationalId };
     if (query.licensePlate) where.licensePlate = { contains: query.licensePlate, mode: 'insensitive' };
-    if (query.fromDate || query.toDate) {
-      where.exitDate = {
-        ...(query.fromDate ? { gte: new Date(query.fromDate) } : {}),
-        ...(query.toDate ? { lte: new Date(query.toDate) } : {}),
-      };
-    }
+    if (query.fromDate || query.toDate) where.exitDate = this.dateRangeFilter(query.fromDate, query.toDate);
     return this.prisma.gatePass.findMany({
       where,
       include: {
@@ -1678,12 +1672,7 @@ export class ManagementService {
       ...(await this.invoiceListWhere(user, resolvedScope)),
     };
     if (query.status) where.status = query.status as InvoiceStatus;
-    if (query.fromDate || query.toDate) {
-      where.issueDate = {
-        ...(query.fromDate ? { gte: new Date(query.fromDate) } : {}),
-        ...(query.toDate ? { lte: new Date(query.toDate) } : {}),
-      };
-    }
+    if (query.fromDate || query.toDate) where.issueDate = this.dateRangeFilter(query.fromDate, query.toDate);
     if (query.minAmount != null || query.maxAmount != null) {
       where.totalAmount = {
         ...(query.minAmount != null ? { gte: query.minAmount } : {}),
@@ -4561,7 +4550,6 @@ export class ManagementService {
       await this.sendStaffCredentialsSms(
         { phoneNumber: input.phoneNumber },
         factory?.name ? `واحد صنعتی «${factory.name}»` : 'واحد صنعتی',
-        input.password,
       );
       return created;
     } catch (error) {
@@ -4646,7 +4634,6 @@ export class ManagementService {
       await this.sendStaffCredentialsSms(
         { phoneNumber: input.phoneNumber, username: input.username },
         created.employeeOfPark?.name ? `مدیریت شهرک «${created.employeeOfPark.name}»` : 'مدیریت شهرک',
-        input.password,
       );
       return created;
     } catch (error) {
@@ -4718,7 +4705,6 @@ export class ManagementService {
         await this.sendStaffCredentialsSms(
           { phoneNumber: updated.phoneNumber, username: updated.username },
           updated.employeeOfPark?.name ? `مدیریت شهرک «${updated.employeeOfPark.name}»` : 'مدیریت شهرک',
-          input.password,
           'password-reset',
         );
       }
@@ -4778,6 +4764,8 @@ export class ManagementService {
 
   static readonly WALLET_TOP_UP_MIN = 10_000;
   static readonly WALLET_TOP_UP_MAX = 2_000_000_000;
+  /** Unverified gateway sessions older than this are abandoned (ZarinPal refunds unverified payments). */
+  static readonly WALLET_TOP_UP_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
   async factoryWallet(actor: AuthenticatedUser, factoryId: string) {
     await this.assertFactoryAccess(actor, factoryId);
@@ -4787,6 +4775,14 @@ export class ManagementService {
     });
     if (!factory) throw new NotFoundException('Factory not found');
     const balance = Number(factory.gatePassWalletBalance);
+    await this.prisma.walletTopUp.updateMany({
+      where: {
+        factoryId,
+        status: PaymentStatus.INITIATED,
+        createdAt: { lt: new Date(Date.now() - ManagementService.WALLET_TOP_UP_EXPIRY_MS) },
+      },
+      data: { status: PaymentStatus.CANCELLED, failureReason: 'Payment session expired' },
+    });
     const [fee, walletRequired, topUps] = await Promise.all([
       Promise.resolve(this.gatePassFee()),
       this.isGatePassWalletRequired(),
@@ -4880,11 +4876,7 @@ export class ManagementService {
     if (!factory) throw new NotFoundException('Factory not found');
 
     const provider = this.paymentProvider();
-    if (
-      provider === 'mock'
-      && this.config.get<string>('NODE_ENV') === 'production'
-      && this.config.get<string>('PAYMENT_ALLOW_MOCK') !== 'true'
-    ) {
+    if (provider === 'mock' && !this.mockPaymentsAllowed()) {
       throw new BadRequestException('Online payment gateway is not configured');
     }
     const callbackUrl = this.walletCallbackUrl();
@@ -4981,6 +4973,10 @@ export class ManagementService {
       return { ...base, status: 'failed' as const };
     };
     if (status !== 'OK') return markFailed('Gateway cancelled payment');
+    if (topUp.provider === 'MOCK' && !this.mockPaymentsAllowed()) return markFailed('Mock payments are disabled');
+    if (Date.now() - topUp.createdAt.getTime() > ManagementService.WALLET_TOP_UP_EXPIRY_MS) {
+      return markFailed('Payment session expired');
+    }
 
     let referenceId = `MOCK-${randomBytes(6).toString('hex').toUpperCase()}`;
     let providerStatus: Record<string, unknown> = { mode: 'mock' };
@@ -5038,6 +5034,10 @@ export class ManagementService {
     if (topUp.initiatedById) await this.notifyUser(topUp.initiatedById, 'شارژ موفق کیف پول', message, 'SUCCESS');
     if (topUp.initiatedBy?.phoneNumber) await this.safeSendSms(topUp.initiatedBy.phoneNumber, `MEKSS: ${message}`);
     return { ...base, status: 'success' as const, referenceId };
+  }
+
+  private mockPaymentsAllowed() {
+    return this.config.get<string>('NODE_ENV') !== 'production' || this.config.get<string>('PAYMENT_ALLOW_MOCK') === 'true';
   }
 
   private paymentProvider(): 'mock' | 'zarinpal' {
@@ -5952,11 +5952,13 @@ export class ManagementService {
     });
   }
 
-  /** Texts a newly created (or password-reset) staff member the credentials they can sign in with. */
+  /**
+   * Texts a newly created (or password-reset) staff member how to sign in.
+   * The password itself is never sent: SMS content passes through the provider and its logs.
+   */
   private async sendStaffCredentialsSms(
     staff: { phoneNumber: string; username?: string | null },
     organization: string | null,
-    plainPassword: string,
     kind: 'created' | 'password-reset' = 'created',
   ) {
     const frontendUrl = (this.config.get<string>('FRONTEND_URL') || '').trim().replace(/\/+$/, '');
@@ -5968,7 +5970,7 @@ export class ManagementService {
       : `رمز عبور شما${where} در سامانه MEKSS بازنشانی شد.`;
     await this.safeSendSms(
       staff.phoneNumber,
-      `${intro} نام کاربری: ${username} رمز عبور: ${plainPassword} — پس از اولین ورود رمز خود را تغییر دهید.${loginHint}`,
+      `${intro} نام کاربری: ${username} — رمز عبور را از مدیر خود دریافت کنید یا در صفحه ورود از «فراموشی رمز عبور» رمز موقت بگیرید و پس از ورود آن را تغییر دهید.${loginHint}`,
     );
   }
 
@@ -6509,14 +6511,22 @@ export class ManagementService {
     return { id: { in: [] } };
   }
 
+  /**
+   * Inclusive range filter. Date-only values (`YYYY-MM-DD`) are whole Tehran calendar days (fixed +03:30, no DST);
+   * values that already carry a time are used as-is.
+   */
+  private dateRangeFilter(fromDate?: string, toDate?: string): { gte?: Date; lte?: Date } {
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
+    const bound = (value: string, time: string) => new Date(dateOnly.test(value) ? `${value}T${time}+03:30` : value);
+    return {
+      ...(fromDate ? { gte: bound(fromDate, '00:00:00.000') } : {}),
+      ...(toDate ? { lte: bound(toDate, '23:59:59.999') } : {}),
+    };
+  }
+
   private messageSearchWhere(query: { search?: string; subject?: string; fromDate?: string; toDate?: string }): Prisma.MessageWhereInput {
     const where: Prisma.MessageWhereInput = {};
-    if (query.fromDate || query.toDate) {
-      where.createdAt = {
-        ...(query.fromDate ? { gte: new Date(query.fromDate) } : {}),
-        ...(query.toDate ? { lte: new Date(`${query.toDate}T23:59:59.999Z`) } : {}),
-      };
-    }
+    if (query.fromDate || query.toDate) where.createdAt = this.dateRangeFilter(query.fromDate, query.toDate);
     const term = (query.search || query.subject || '').trim();
     if (term) {
       where.OR = [

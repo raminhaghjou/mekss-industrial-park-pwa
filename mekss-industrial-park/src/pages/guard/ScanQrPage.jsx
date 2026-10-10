@@ -24,19 +24,10 @@ import { displayIranLicensePlate, isCompleteIranLicensePlate, normalizeIranPlate
 import IranPlateOcrCamera from '../../components/gate-pass/IranPlateOcrCamera';
 import IranLicensePlateInput from '../../components/common/IranLicensePlateInput';
 import GatePassQuickVerifyCard from '../../components/gate-pass/GatePassQuickVerifyCard';
+import { gatePassStatusLabels as statusLabel } from '../../constants/persianLabels';
 
 const SCANNER_REGION_ID = 'mekss-qr-scanner';
 const MIN_SEARCH_LEN = 4;
-
-const statusLabel = {
-  PENDING: 'در انتظار',
-  APPROVED: 'تایید شده',
-  REJECTED: 'رد شده',
-  COMPLETED: 'تکمیل شده',
-  EXPIRED: 'منقضی شده',
-  VERIFIED: 'تایید نهایی',
-  DENIED: 'رد خروج',
-};
 
 const canonicalizePlate = (value) => normalizeIranPlate(value).plate || String(value || '').trim();
 

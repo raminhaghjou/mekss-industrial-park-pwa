@@ -60,7 +60,7 @@ export const FactoryStaffPage = () => {
   const createMutation = useMutation({
     mutationFn: (payload) => factoryApi.createStaff(activeFactoryId, payload),
     onSuccess: (_, payload) => {
-      showNotification(`کارمند ثبت شد و نام کاربری و رمز عبور به ${payload.phoneNumber} پیامک شد.`, 'success');
+      showNotification(`کارمند ثبت شد و نام کاربری به ${payload.phoneNumber} پیامک شد؛ رمز عبور را خودتان به او اعلام کنید.`, 'success');
       queryClient.invalidateQueries({ queryKey: ['factory-staff', activeFactoryId] });
       setForm({ name: '', phoneNumber: '', password: '', canApproveRequestTypes: [] });
       setShowErrors(false);
@@ -169,7 +169,7 @@ export const FactoryStaffPage = () => {
           </div>
           <p className="flex items-center gap-1.5 rounded-xl bg-default-50 px-3 py-2 text-[11px] text-foreground-500 dark:bg-white/5">
             <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
-            پس از ثبت، نام کاربری و رمز عبور اولیه برای کارمند پیامک می‌شود و در اولین ورود باید رمز خود را تغییر دهد.
+            پس از ثبت، نام کاربری برای کارمند پیامک می‌شود (رمز عبور پیامک نمی‌شود؛ آن را خودتان اعلام کنید یا کارمند از «فراموشی رمز عبور» رمز موقت بگیرد) و در اولین ورود باید رمز خود را تغییر دهد.
           </p>
 
           <StaffAccessLevelPicker

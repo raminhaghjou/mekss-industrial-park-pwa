@@ -133,6 +133,8 @@ describe('VerifyGatePassPage', () => {
 
   it('blocks the guard decision until the park manager approves the pass', async () => {
     mocks.getGatePass.mockResolvedValue({ data: { ...approvedPass, id: 'pass-2', status: 'PENDING' } });
+    await act(async () => root.unmount());
+    root = createRoot(container);
     await act(async () => root.render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={['/guard/gate-passes/pass-2/verify']}>

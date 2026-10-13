@@ -13,6 +13,7 @@ import {
   normalizeIranPlate,
   parseIranFreeZonePlate,
   parseIranLicensePlate,
+  partialIranLicensePlate,
   plateTypeForLetter,
 } from './iranLicensePlate';
 
@@ -115,5 +116,23 @@ describe('iranLicensePlate', () => {
     expect(findIranPlateRegion('98')?.province).toBe('ایلام');
     expect(findIranPlateRegion('16')?.province).toBe('قم');
     expect(findIranPlateRegion('49')?.province).toBe('کهگیلویه و بویراحمد');
+  });
+});
+
+describe('partialIranLicensePlate', () => {
+  it('returns every segment for a complete read', () => {
+    expect(partialIranLicensePlate('12ب34567')).toEqual({ series: '12', letter: 'ب', middle: '345', region: '67' });
+  });
+
+  it('places only the segments it can be sure of', () => {
+    expect(partialIranLicensePlate('12ب345')).toEqual({ series: '12', letter: 'ب', middle: '345', region: '' });
+    expect(partialIranLicensePlate('ب34567')).toEqual({ series: '', letter: 'ب', middle: '345', region: '67' });
+    expect(partialIranLicensePlate('۱۲ ب ۳۴')).toEqual({ series: '12', letter: 'ب', middle: '', region: '' });
+  });
+
+  it('ignores unreadable or ambiguous text', () => {
+    expect(partialIranLicensePlate('')).toEqual({ series: '', letter: '', middle: '', region: '' });
+    expect(partialIranLicensePlate('1234')).toEqual({ series: '', letter: '', middle: '', region: '' });
+    expect(partialIranLicensePlate('12بب345')).toEqual({ series: '', letter: '', middle: '', region: '' });
   });
 });

@@ -35,7 +35,9 @@ function mekssPwaPrecache() {
  */
 function selfHostedOrt() {
   const ortDist = path.resolve(rootDir, 'node_modules/onnxruntime-web/dist');
-  const isRuntimeFile = (name) => /^ort-wasm.*\.(wasm|mjs)$/.test(name);
+  // The worker imports `onnxruntime-web/wasm` (CPU only), which loads exactly these two files; the
+  // JSEP/WebGPU build (~24 MB) is never requested, so it is not shipped.
+  const isRuntimeFile = (name) => /^ort-wasm-simd-threaded\.(wasm|mjs)$/.test(name);
   const mime = (name) => (name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
   return {
     name: 'mekss-self-hosted-ort',
@@ -72,6 +74,10 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
+  },
+  // Pre-bundling rewrites onnxruntime-web's `import.meta.url` lookups of its .mjs/.wasm helpers.
+  optimizeDeps: {
+    exclude: ['onnxruntime-web'],
   },
   build: {
     outDir: 'dist',

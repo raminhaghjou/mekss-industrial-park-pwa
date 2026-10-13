@@ -90,7 +90,30 @@ def decode_yolo(
     return out
 
 
+def merge_detections(dets: list[Detection], iou_threshold: float) -> list[Detection]:
+    """Global NMS over detections gathered from several scales / tiles."""
+    if len(dets) < 2:
+        return list(dets)
+    boxes = np.array([[d.x, d.y, d.x + d.w, d.y + d.h] for d in dets], dtype=np.float32)
+    scores = np.array([d.conf for d in dets], dtype=np.float32)
+    return [dets[i] for i in nms(boxes, scores, iou_threshold)]
+
+
+def tile_windows(width: int, height: int, fraction: float = 0.62) -> list[tuple[int, int, int, int]]:
+    """2x2 overlapping windows (x, y, w, h) covering the image; small plates become large in each tile."""
+    tw, th = max(1, int(width * fraction)), max(1, int(height * fraction))
+    xs = sorted({0, width - tw})
+    ys = sorted({0, height - th})
+    return [(x, y, tw, th) for y in ys for x in xs]
+
+
 class YoloDetector:
+    """
+    The bundled ``plate_yolo.onnx`` has a dynamic input, so the same weights run at several scales:
+    live frames try 416 then 640; still photos try 640, 960 and finally overlapping tiles, which is
+    what finds a plate that only covers a few percent of a full-scene phone photo.
+    """
+
     def __init__(
         self,
         primary: Path,
@@ -100,6 +123,7 @@ class YoloDetector:
         conf: float,
         iou: float,
         session_options,
+        photo_conf: float | None = None,
     ) -> None:
         import onnxruntime as ort
 
@@ -114,20 +138,54 @@ class YoloDetector:
         self.size = self.fixed_size or size
         self.fallback_size = (_fixed_square(self.fallback) if self.fallback else None) or fallback_size
         self.conf = conf
+        self.photo_conf = photo_conf if photo_conf is not None else min(conf, 0.15)
         self.iou = iou
 
-    def _run(self, session, input_name: str, image: np.ndarray, size: int, source: str) -> list[Detection]:
+    def _sizes(self, preferred: list[int]) -> list[int]:
+        if self.fixed_size:
+            return [self.fixed_size]
+        return list(dict.fromkeys(preferred))
+
+    def _run(
+        self, session, input_name: str, image: np.ndarray, size: int, source: str, conf: float | None = None
+    ) -> list[Detection]:
         blob, ratio, pad = letterbox(image, size)
         out = session.run(None, {input_name: blob[None]})[0]
-        dets = decode_yolo(out, ratio, pad, image.shape[:2], self.conf, self.iou)
+        dets = decode_yolo(out, ratio, pad, image.shape[:2], self.conf if conf is None else conf, self.iou)
         for d in dets:
             d.source = source
         return dets
 
-    def detect(self, image: np.ndarray) -> list[Detection]:
-        dets = self._run(self.session, self.input_name, image, self.size, "yolo")
-        if not dets and self.fallback is not None:
-            dets = self._run(self.fallback, self.fallback_input, image, self.fallback_size, "yolo-fallback")
+    def _tiles(self, image: np.ndarray, size: int, conf: float) -> list[Detection]:
+        h, w = image.shape[:2]
+        if max(h, w) < 800:
+            return []
+        found: list[Detection] = []
+        for x, y, tw, th in tile_windows(w, h):
+            crop = image[y : y + th, x : x + tw]
+            for d in self._run(self.session, self.input_name, crop, size, "yolo-tile", conf):
+                found.append(Detection(d.x + x, d.y + y, d.w, d.h, d.conf, "yolo-tile"))
+        return merge_detections(found, self.iou)
+
+    def detect(self, image: np.ndarray, mode: str = "live") -> list[Detection]:
+        if mode == "photo":
+            dets: list[Detection] = []
+            for size in self._sizes([640, 960]):
+                dets = self._run(self.session, self.input_name, image, size, f"yolo-{size}", self.photo_conf)
+                if dets:
+                    break
+            if not dets:
+                dets = self._tiles(image, self.fixed_size or 640, self.photo_conf)
+        else:
+            dets = []
+            for size in self._sizes([self.size, 640]):
+                dets = self._run(self.session, self.input_name, image, size, "yolo")
+                if dets:
+                    break
+        # The second detector only runs for still photos: in live mode most frames legitimately have no
+        # plate, and running a third model on each of them would triple the cost of an empty frame.
+        if not dets and mode == "photo" and self.fallback is not None:
+            dets = self._run(self.fallback, self.fallback_input, image, self.fallback_size, "yolo-fallback", self.photo_conf)
         dets.sort(key=lambda d: d.conf, reverse=True)
         return dets
 

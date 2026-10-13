@@ -20,14 +20,18 @@ export interface FusionConfig {
   maxFramesBeforeCandidate: number;
 }
 
+/**
+ * Lock on 2 agreeing frames ≥ 0.80, or on a single grammar-valid frame ≥ 0.97; either way the fused
+ * plate must still reach `lockConfidence`, so a contested character keeps the scanner open.
+ */
 export const DEFAULT_FUSION: FusionConfig = {
-  minAgreeingFrames: 3,
-  lockConfidence: 0.97,
-  minFrameConfidence: 0.85,
-  fastFrames: 2,
-  fastFrameConfidence: 0.99,
+  minAgreeingFrames: 2,
+  lockConfidence: 0.8,
+  minFrameConfidence: 0.8,
+  fastFrames: 1,
+  fastFrameConfidence: 0.97,
   decay: 0.85,
-  maxFramesBeforeCandidate: 10,
+  maxFramesBeforeCandidate: 4,
 };
 
 export interface FusedPlate {

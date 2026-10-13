@@ -15,8 +15,13 @@ const result = (engine: 'python' | 'node'): EngineResult => ({
 });
 
 function setup() {
-  const python = { name: 'python', recognize: jest.fn(), isAvailable: jest.fn().mockResolvedValue(true) };
-  const node = { name: 'node', recognize: jest.fn().mockResolvedValue(result('node')), isAvailable: jest.fn().mockResolvedValue(true) };
+  const python = { name: 'python', configured: true, recognize: jest.fn(), isAvailable: jest.fn().mockResolvedValue(true) };
+  const node = {
+    name: 'node',
+    recognize: jest.fn().mockResolvedValue(result('node')),
+    isAvailable: jest.fn().mockResolvedValue(true),
+    state: jest.fn().mockReturnValue({ state: 'ready', error: null }),
+  };
   const config = { get: (key: string, fallback?: string) => ({ ANPR_BREAKER_FAILURES: '3', ANPR_BREAKER_COOLDOWN_MS: '30000' } as Record<string, string>)[key] ?? fallback } as ConfigService;
   const service = new AnprEngineService(python as unknown as PythonAnprEngine, node as unknown as NodeAnprEngine, config);
   return { service, python, node };
@@ -48,6 +53,33 @@ describe('AnprEngineService (engine A with engine B failover)', () => {
     await expect(service.recognize(Buffer.from('x'))).rejects.toBeInstanceOf(InvalidImageError);
     expect(node.recognize).not.toHaveBeenCalled();
     expect(service.breakerState).toBe('closed');
+  });
+
+  it('forwards the mode to both engines', async () => {
+    const { service, python, node } = setup();
+    python.recognize.mockRejectedValue(new EngineUnavailableError('down'));
+    await service.recognize(Buffer.from('x'), 'photo');
+    expect(python.recognize).toHaveBeenCalledWith(expect.any(Buffer), { mode: 'photo' });
+    expect(node.recognize).toHaveBeenCalledWith(expect.any(Buffer), { mode: 'photo' });
+  });
+
+  it('does not open the breaker for slow photos or a busy engine A', async () => {
+    const { service, python } = setup();
+    python.recognize.mockRejectedValue(new EngineUnavailableError('slow', true, 'timeout'));
+    for (let i = 0; i < 5; i += 1) await service.recognize(Buffer.from('x'), 'photo');
+    python.recognize.mockRejectedValue(new EngineUnavailableError('busy', true, 'busy'));
+    for (let i = 0; i < 5; i += 1) await service.recognize(Buffer.from('x'), 'live');
+    expect(service.breakerState).toBe('closed');
+  });
+
+  it('reports status without loading models and stays available while engine B loads', async () => {
+    const { service, python, node } = setup();
+    python.isAvailable.mockResolvedValue(false);
+    node.state.mockReturnValue({ state: 'loading', error: null });
+    await expect(service.status()).resolves.toMatchObject({ available: true, pythonAvailable: false, nodeState: 'loading' });
+    node.state.mockReturnValue({ state: 'failed', error: 'no models' });
+    await expect(service.status()).resolves.toMatchObject({ available: false, nodeError: 'no models' });
+    expect(node.isAvailable).not.toHaveBeenCalled();
   });
 });
 

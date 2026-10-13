@@ -2,6 +2,14 @@ import type { PlateTypeName } from './plate-grammar';
 
 export type EngineName = 'python' | 'node';
 
+/** `live`: camera frames, fast path. `photo`: one still, thorough multi-scale + tiled search. */
+export type RecognizeMode = 'live' | 'photo';
+
+export interface RecognizeOptions {
+  mode?: RecognizeMode;
+  signal?: AbortSignal;
+}
+
 export interface PositionChoice {
   c: string;
   p: number;
@@ -34,16 +42,21 @@ export interface EngineResult {
   image: { w: number; h: number };
   candidates: EngineCandidate[];
   timings: Record<string, number>;
+  mode?: RecognizeMode;
+  /** Plate boxes found by the detector (0 means the guided fallback box was read). */
+  detections?: number;
 }
 
 export interface AnprEngine {
   readonly name: EngineName;
-  recognize(image: Buffer, signal?: AbortSignal): Promise<EngineResult>;
+  recognize(image: Buffer, options?: RecognizeOptions): Promise<EngineResult>;
   isAvailable(): Promise<boolean>;
 }
 
+export type EngineFailureKind = 'timeout' | 'busy' | 'unavailable';
+
 export class EngineUnavailableError extends Error {
-  constructor(message: string, readonly retryable = true) {
+  constructor(message: string, readonly retryable = true, readonly kind: EngineFailureKind = 'unavailable') {
     super(message);
     this.name = 'EngineUnavailableError';
   }

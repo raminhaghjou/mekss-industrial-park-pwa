@@ -98,6 +98,7 @@ class AnprEngine:
             settings.det_conf,
             settings.det_iou,
             opts,
+            photo_conf=settings.photo_det_conf,
         )
         self.recognizer = CrnnRecognizer(model_dir / MODEL_FILES["recognizer"], model_dir / MODEL_FILES["labels"], opts)
         self.model_version = self._model_version(model_dir)
@@ -117,8 +118,9 @@ class AnprEngine:
         ok, buf = cv2.imencode(".jpg", dummy)
         if ok:
             self.recognize(buf.tobytes())
+            self.recognize(buf.tobytes(), mode="photo")
 
-    def _read_detection(self, image: np.ndarray, det: Detection) -> dict:
+    def _read_detection(self, image: np.ndarray, det: Detection, *, tta: bool, rescue: bool) -> dict:
         tight = image[det.y : det.y + det.h, det.x : det.x + det.w]
         px, py, pw, ph = pad_box(det.x, det.y, det.w, det.h, image.shape[:2], 0.12)
         padded = image[py : py + ph, px : px + pw]
@@ -127,7 +129,7 @@ class AnprEngine:
         crops = [tight]
         if rectified is not None:
             crops.append(rectified)
-        if self.settings.tta:
+        if tta:
             crops.extend(shift_variants(tight))
 
         probs = self.recognizer.probabilities(crops)
@@ -136,7 +138,7 @@ class AnprEngine:
             constrained_beam_search(p, labels, beam_width=self.settings.beam_width) for p in probs
         ]
         merged = merge_decodes(decodes) or decodes[0]
-        if not merged.valid or merged.probability < RESCUE_BELOW_PROBABILITY:
+        if rescue and (not merged.valid or merged.probability < RESCUE_BELOW_PROBABILITY):
             extra = rescue_crops(image, (det.x, det.y, det.w, det.h))
             rescued = [
                 constrained_beam_search(p, labels, beam_width=self.settings.beam_width)
@@ -178,20 +180,26 @@ class AnprEngine:
             "partial": partial,
         }
 
-    def recognize(self, data: bytes) -> dict:
+    def recognize(self, data: bytes, mode: str = "live") -> dict:
+        """
+        ``live``: fast path for camera frames (fewer candidates, no TTA / rescue crops).
+        ``photo``: thorough path for a single still (multi-scale + tiled detection, TTA, rescue).
+        """
+        photo = mode == "photo"
         timer = _Timer(time.perf_counter())
         total_start = timer.start
         image = decode_image(data, self.settings.max_side)
         decode_ms = timer.lap()
 
-        detections = self.detector.detect(image)
+        detections = self.detector.detect(image, "photo" if photo else "live")
         if not detections:
             detections = guided_boxes(image.shape[:2])
         detect_ms = timer.lap()
 
+        limit = self.settings.photo_max_candidates if photo else min(self.settings.max_candidates, self.settings.live_max_candidates)
         candidates: list[dict] = []
-        for det in detections[: self.settings.max_candidates]:
-            cand = self._read_detection(image, det)
+        for det in detections[: max(1, limit)]:
+            cand = self._read_detection(image, det, tta=self.settings.tta and photo, rescue=photo)
             candidates.append(cand)
             if cand["valid"] and cand["confidence"] >= EARLY_EXIT_PROBABILITY:
                 break
@@ -204,6 +212,8 @@ class AnprEngine:
             "modelVersion": self.model_version,
             "image": {"w": int(image.shape[1]), "h": int(image.shape[0])},
             "candidates": candidates,
+            "mode": "photo" if photo else "live",
+            "detections": len(detections),
             "timings": {
                 "decodeMs": decode_ms,
                 "detectMs": detect_ms,

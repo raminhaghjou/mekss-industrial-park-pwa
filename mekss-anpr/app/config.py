@@ -41,6 +41,9 @@ class Settings:
     max_side: int
     max_concurrency: int
     max_queue: int
+    photo_det_conf: float = 0.15
+    photo_max_candidates: int = 5
+    live_max_candidates: int = 2
 
 
 def load_settings() -> Settings:
@@ -59,4 +62,7 @@ def load_settings() -> Settings:
         max_side=_env_int("ANPR_MAX_SIDE", 1920),
         max_concurrency=_env_int("ANPR_MAX_CONCURRENCY", 2),
         max_queue=_env_int("ANPR_MAX_QUEUE", 8),
+        photo_det_conf=_env_float("ANPR_PHOTO_DET_CONF", 0.15),
+        photo_max_candidates=_env_int("ANPR_PHOTO_MAX_CANDIDATES", 5),
+        live_max_candidates=_env_int("ANPR_LIVE_MAX_CANDIDATES", 2),
     )

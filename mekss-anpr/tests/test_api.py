@@ -17,12 +17,14 @@ class FakeEngine:
     def __init__(self, block: threading.Event | None = None):
         self.block = block
         self.calls = 0
+        self.modes: list[str] = []
 
     def warmup(self):
         pass
 
-    def recognize(self, data: bytes) -> dict:
+    def recognize(self, data: bytes, mode: str = "live") -> dict:
         self.calls += 1
+        self.modes.append(mode)
         if data == b"bad":
             raise ImageDecodeError("unsupported or corrupt image")
         if self.block:
@@ -48,6 +50,15 @@ def test_recognize_returns_engine_payload():
         res = client.post("/v1/recognize", content=b"jpeg", headers={"Content-Type": "image/jpeg"})
         assert res.status_code == 200
         assert res.json()["candidates"][0]["plate"] == "12ب34567"
+
+
+def test_forwards_photo_mode_to_the_engine():
+    engine = FakeEngine()
+    with client_for(engine) as client:
+        assert client.post("/v1/recognize?mode=photo", content=b"jpeg").status_code == 200
+        assert client.post("/v1/recognize", content=b"jpeg").status_code == 200
+        assert client.post("/v1/recognize?mode=weird", content=b"jpeg").status_code == 200
+    assert engine.modes == ["photo", "live", "live"]
 
 
 def test_rejects_bad_and_oversized_images():

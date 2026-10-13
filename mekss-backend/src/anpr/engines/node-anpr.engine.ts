@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import type { InferenceSession, Tensor } from 'onnxruntime-node';
-import { AnprEngine, EngineCandidate, EngineResult, EngineUnavailableError } from '../anpr.types';
+import sharp = require('sharp');
+import { AnprEngine, EngineCandidate, EngineResult, EngineUnavailableError, RecognizeMode, RecognizeOptions } from '../anpr.types';
 import { DecodeResult, constrainedBeamSearch, mergeDecodes, softmaxRows } from '../ctc-decoder';
 import { normalizePlate } from '../plate-grammar';
 import {
@@ -27,6 +28,35 @@ type Detection = Box & { conf: number; source: string };
 
 const EARLY_EXIT_PROBABILITY = 0.9;
 const LOAD_RETRY_MS = 30_000;
+const PHOTO_DET_CONF = 0.15;
+const MODEL_FILES = ['plate_yolo.onnx', 'ocr_crnn.onnx', 'ocr_crnn.labels.json'] as const;
+/** How long a request may wait for a free inference slot before it is shed. */
+const QUEUE_WAIT_MS: Record<RecognizeMode, number> = { live: 3000, photo: 15000 };
+
+/** Global NMS over detections gathered from several scales / tiles. */
+export function mergeDetections(dets: Detection[], iouThreshold: number): Detection[] {
+  const sorted = [...dets].sort((a, b) => b.conf - a.conf);
+  const kept: Detection[] = [];
+  for (const d of sorted) {
+    const overlaps = kept.some((k) => {
+      const iw = Math.max(0, Math.min(k.x + k.w, d.x + d.w) - Math.max(k.x, d.x));
+      const ih = Math.max(0, Math.min(k.y + k.h, d.y + d.h) - Math.max(k.y, d.y));
+      const inter = iw * ih;
+      return inter / (k.w * k.h + d.w * d.h - inter + 1e-9) > iouThreshold;
+    });
+    if (!overlaps) kept.push(d);
+  }
+  return kept;
+}
+
+/** 2x2 overlapping windows covering the image, so a small plate in a full-scene photo becomes large. */
+export function tileWindows(width: number, height: number, fraction = 0.62): Box[] {
+  const tw = Math.max(1, Math.floor(width * fraction));
+  const th = Math.max(1, Math.floor(height * fraction));
+  const xs = [...new Set([0, width - tw])];
+  const ys = [...new Set([0, height - th])];
+  return ys.flatMap((y) => xs.map((x) => ({ x, y, w: tw, h: th })));
+}
 
 export function decodeYolo(
   data: Float32Array,
@@ -84,17 +114,34 @@ export function guidedBoxes(width: number, height: number): Detection[] {
   return [{ x: Math.floor((width - bw) / 2), y: Math.floor(height * 0.39), w: bw, h: bh, conf: 0, source: 'guided' }];
 }
 
+/**
+ * Candidate model locations, first match per file wins: the configured dir (Docker volume), then the
+ * repo copies so a bare `npm run start` next to `mekss-anpr` works without any download.
+ */
+export function modelSearchDirs(configured: string | undefined, cwd = process.cwd()): string[] {
+  return [...new Set([
+    ...(configured ? [resolve(cwd, configured)] : []),
+    join(cwd, 'models', 'iran-plate'),
+    join(cwd, '..', 'mekss-anpr', 'models'),
+    join(cwd, '..', 'mekss-anpr', 'models', 'bundled'),
+    join(cwd, '..', 'mekss-industrial-park', 'public', 'models', 'iran-plate'),
+  ])];
+}
+
 /** Engine B: in-process fail-over engine (onnxruntime-node + sharp). */
 @Injectable()
-export class NodeAnprEngine implements AnprEngine {
+export class NodeAnprEngine implements AnprEngine, OnModuleInit {
   readonly name = 'node' as const;
   private readonly logger = new Logger(NodeAnprEngine.name);
-  private readonly modelDir: string;
+  private readonly searchDirs: string[];
   private readonly detConf: number;
   private readonly maxSide: number;
   private readonly maxConcurrency: number;
+  private readonly maxQueue: number;
   private readonly tta: boolean;
+  private readonly warmOnStart: boolean;
   private active = 0;
+  private readonly waiters: Array<() => void> = [];
   private loading: Promise<void> | null = null;
   private loadError: Error | null = null;
   private loadErrorAt = 0;
@@ -104,18 +151,52 @@ export class NodeAnprEngine implements AnprEngine {
   private recognizer: InferenceSession | null = null;
   private labels: string[] = [];
   private detectorSize = 416;
+  /** Null while the detector accepts any square input size (the bundled export does). */
+  private detectorFixed: number | null = null;
   private recognizerBatchable = false;
 
   constructor(config: ConfigService) {
-    this.modelDir = config.get<string>('ANPR_MODEL_DIR') || join(process.cwd(), 'models', 'iran-plate');
+    this.searchDirs = modelSearchDirs(config.get<string>('ANPR_MODEL_DIR'));
     this.detConf = Number(config.get<string>('ANPR_DET_CONF', '0.25')) || 0.25;
-    this.maxSide = Number(config.get<string>('ANPR_MAX_SIDE', '1280')) || 1280;
+    this.maxSide = Number(config.get<string>('ANPR_MAX_SIDE', '1600')) || 1600;
     this.maxConcurrency = Number(config.get<string>('ANPR_NODE_CONCURRENCY', '2')) || 2;
+    this.maxQueue = Number(config.get<string>('ANPR_NODE_QUEUE', '6')) || 6;
     this.tta = config.get<string>('ANPR_TTA', 'true') !== 'false';
+    this.warmOnStart = config.get<string>('ANPR_NODE_WARMUP', process.env.NODE_ENV === 'test' ? 'false' : 'true') !== 'false';
   }
 
-  private file(name: string) {
-    return join(this.modelDir, name);
+  onModuleInit(): void {
+    if (!this.warmOnStart) return;
+    void this.load()
+      .then(() => this.warmup())
+      .catch(() => undefined);
+  }
+
+  /** Non-blocking health snapshot for `/anpr/status`; kicks off a (re)load in the background. */
+  state(): { state: 'ready' | 'loading' | 'failed' | 'idle'; error: string | null } {
+    if (this.recognizer) return { state: 'ready', error: null };
+    if (this.loadError && Date.now() - this.loadErrorAt < LOAD_RETRY_MS) return { state: 'failed', error: this.loadError.message };
+    if (!this.loading || this.loadError) void this.load().catch(() => undefined);
+    return { state: 'loading', error: null };
+  }
+
+  private file(name: string): string | null {
+    for (const dir of this.searchDirs) {
+      const path = join(dir, name);
+      if (existsSync(path)) return path;
+    }
+    return null;
+  }
+
+  private async warmup(): Promise<void> {
+    try {
+      const jpeg = await sharp({ create: { width: 640, height: 220, channels: 3, background: { r: 200, g: 200, b: 200 } } }).jpeg().toBuffer();
+      const started = Date.now();
+      await this.recognize(jpeg, { mode: 'live' });
+      this.logger.log(`Node ANPR engine warmed up in ${Date.now() - started}ms`);
+    } catch (error) {
+      this.logger.warn(`Node ANPR warm-up failed: ${(error as Error).message}`);
+    }
   }
 
   private async load(): Promise<void> {
@@ -127,9 +208,10 @@ export class NodeAnprEngine implements AnprEngine {
     }
     if (!this.loading) {
       this.loading = (async () => {
-        const required = ['plate_yolo.onnx', 'ocr_crnn.onnx', 'ocr_crnn.labels.json'];
-        const missing = required.filter((f) => !existsSync(this.file(f)));
-        if (missing.length) throw new EngineUnavailableError(`node engine models missing in ${this.modelDir}: ${missing.join(', ')}`, false);
+        const missing = MODEL_FILES.filter((f) => !this.file(f));
+        if (missing.length) {
+          throw new EngineUnavailableError(`node engine models missing (${missing.join(', ')}); searched ${this.searchDirs.join(', ')}`, false);
+        }
         this.ort = await import('onnxruntime-node');
         const options: InferenceSession.SessionOptions = {
           graphOptimizationLevel: 'all',
@@ -137,15 +219,18 @@ export class NodeAnprEngine implements AnprEngine {
           interOpNumThreads: 1,
           executionMode: 'sequential',
         };
-        this.detector = await this.ort.InferenceSession.create(this.file('plate_yolo.onnx'), options);
-        if (existsSync(this.file('plate_yolo_fallback.onnx'))) {
-          this.detectorFallback = await this.ort.InferenceSession.create(this.file('plate_yolo_fallback.onnx'), options);
-        }
-        this.recognizer = await this.ort.InferenceSession.create(this.file('ocr_crnn.onnx'), options);
-        this.labels = JSON.parse(readFileSync(this.file('ocr_crnn.labels.json'), 'utf8'));
-        this.detectorSize = fixedSquare(this.detector) ?? 416;
+        const detectorPath = this.file('plate_yolo.onnx') as string;
+        this.detector = await this.ort.InferenceSession.create(detectorPath, options);
+        const fallbackPath = this.file('plate_yolo_fallback.onnx');
+        if (fallbackPath) this.detectorFallback = await this.ort.InferenceSession.create(fallbackPath, options);
+        const labels = JSON.parse(readFileSync(this.file('ocr_crnn.labels.json') as string, 'utf8'));
+        const recognizer = await this.ort.InferenceSession.create(this.file('ocr_crnn.onnx') as string, options);
+        this.labels = labels;
+        this.detectorFixed = fixedSquare(this.detector);
+        this.detectorSize = this.detectorFixed ?? 416;
         this.recognizerBatchable = true;
-        this.logger.log(`Node ANPR engine loaded from ${this.modelDir}`);
+        this.recognizer = recognizer;
+        this.logger.log(`Node ANPR engine loaded (${detectorPath}${this.detectorFixed ? `, fixed ${this.detectorFixed}px` : ', multi-scale'})`);
       })().catch((error) => {
         this.loadError = error instanceof EngineUnavailableError ? error : new EngineUnavailableError(String(error?.message || error), false);
         this.loadErrorAt = Date.now();
@@ -165,14 +250,88 @@ export class NodeAnprEngine implements AnprEngine {
     }
   }
 
-  private async detect(img: RgbImage, session: InferenceSession, size: number, source: string): Promise<Detection[]> {
+  /** Bounded wait for a free inference slot instead of failing instantly with "busy". */
+  private async acquire(mode: RecognizeMode): Promise<void> {
+    if (this.active < this.maxConcurrency) {
+      this.active += 1;
+      return;
+    }
+    if (this.waiters.length >= this.maxQueue) throw new EngineUnavailableError('node engine busy', true, 'busy');
+    await new Promise<void>((resolveSlot, reject) => {
+      const grant = () => {
+        clearTimeout(timer);
+        resolveSlot();
+      };
+      const timer = setTimeout(() => {
+        const index = this.waiters.indexOf(grant);
+        if (index >= 0) this.waiters.splice(index, 1);
+        reject(new EngineUnavailableError('node engine busy', true, 'busy'));
+      }, QUEUE_WAIT_MS[mode]);
+      this.waiters.push(grant);
+    });
+  }
+
+  /** Hands the slot straight to the next waiter (so `active` is unchanged) or frees it. */
+  private release(): void {
+    const next = this.waiters.shift();
+    if (next) next();
+    else this.active -= 1;
+  }
+
+  private async detect(img: RgbImage, session: InferenceSession, size: number, source: string, conf = this.detConf): Promise<Detection[]> {
     const ort = this.ort as OrtModule;
     const lb = await letterboxTensor(img, size);
     const input = new ort.Tensor('float32', lb.tensor, [1, 3, size, size]);
     const out = await session.run({ [session.inputNames[0]]: input });
     const tensor = out[session.outputNames[0]] as Tensor;
-    return decodeYolo(tensor.data as Float32Array, tensor.dims, { ...lb, width: img.width, height: img.height }, this.detConf, 0.45)
+    return decodeYolo(tensor.data as Float32Array, tensor.dims, { ...lb, width: img.width, height: img.height }, conf, 0.45)
       .map((d) => ({ ...d, source }));
+  }
+
+  private async detectAt(img: RgbImage, size: number, source: string, conf: number): Promise<Detection[]> {
+    try {
+      return await this.detect(img, this.detector as InferenceSession, size, source, conf);
+    } catch (error) {
+      // Some exports pin the input to 640x640 without exposing it in metadata.
+      if (this.detectorFixed === 640) throw error;
+      this.detectorFixed = 640;
+      this.detectorSize = 640;
+      return this.detect(img, this.detector as InferenceSession, 640, source, conf);
+    }
+  }
+
+  private scales(preferred: number[]): number[] {
+    return this.detectorFixed ? [this.detectorFixed] : [...new Set(preferred)];
+  }
+
+  /**
+   * Live: 416 then 640. Photo: 640, 960, then 2x2 overlapping tiles: a plate covering a few percent of
+   * a full-scene phone photo is invisible at 416 but large inside a tile.
+   */
+  private async detectMultiScale(img: RgbImage, mode: RecognizeMode): Promise<Detection[]> {
+    const conf = mode === 'photo' ? Math.min(this.detConf, PHOTO_DET_CONF) : this.detConf;
+    let dets: Detection[] = [];
+    for (const size of this.scales(mode === 'photo' ? [640, 960] : [this.detectorSize, 640])) {
+      dets = await this.detectAt(img, size, mode === 'photo' ? `yolo-${size}` : 'yolo', conf);
+      if (dets.length) return dets;
+    }
+    if (mode === 'photo' && Math.max(img.width, img.height) >= 800) {
+      const found: Detection[] = [];
+      for (const win of tileWindows(img.width, img.height)) {
+        const tile = cropRgb(img, win);
+        for (const d of await this.detectAt(tile, this.detectorFixed ?? 640, 'yolo-tile', conf)) {
+          found.push({ ...d, x: d.x + win.x, y: d.y + win.y, source: 'yolo-tile' });
+        }
+      }
+      dets = mergeDetections(found, 0.45);
+      if (dets.length) return dets;
+    }
+    // Still photos only: most live frames legitimately contain no plate, and a third model per empty
+    // frame would triple its cost.
+    if (mode === 'photo' && this.detectorFallback) {
+      dets = await this.detect(img, this.detectorFallback, fixedSquare(this.detectorFallback) ?? 640, 'yolo-fallback', conf);
+    }
+    return dets;
   }
 
   private async readCrops(crops: RgbImage[]): Promise<DecodeResult[]> {
@@ -204,11 +363,11 @@ export class NodeAnprEngine implements AnprEngine {
     return results;
   }
 
-  private async readDetection(img: RgbImage, det: Detection): Promise<EngineCandidate> {
+  private async readDetection(img: RgbImage, det: Detection, tta: boolean): Promise<EngineCandidate> {
     const tight = cropRgb(img, det);
     const padded = cropRgb(img, padBox(det, img.width, img.height, 0.12));
     const rotated = await deskew(padded);
-    const crops = [tight, ...(rotated ? [rotated] : []), ...(this.tta ? shiftVariants(tight) : [])];
+    const crops = [tight, ...(rotated ? [rotated] : []), ...(tta ? shiftVariants(tight) : [])];
     const decodes = await this.readCrops(crops);
     const merged = mergeDecodes(decodes) ?? decodes[0];
     const color = classifyPlateColor(rotated ?? tight);
@@ -240,31 +399,21 @@ export class NodeAnprEngine implements AnprEngine {
     };
   }
 
-  async recognize(image: Buffer): Promise<EngineResult> {
+  async recognize(image: Buffer, options: RecognizeOptions = {}): Promise<EngineResult> {
+    const mode = options.mode ?? 'live';
     await this.load();
-    if (this.active >= this.maxConcurrency) throw new EngineUnavailableError('node engine busy');
-    this.active += 1;
+    await this.acquire(mode);
     try {
       const t0 = performance.now();
       const img = await decodeToRgb(image, this.maxSide);
       const t1 = performance.now();
-      let dets: Detection[];
-      try {
-        dets = await this.detect(img, this.detector as InferenceSession, this.detectorSize, 'yolo');
-      } catch (error) {
-        // Some exports pin the input to 640x640 without exposing it in metadata.
-        if (this.detectorSize === 640) throw error;
-        this.detectorSize = 640;
-        dets = await this.detect(img, this.detector as InferenceSession, this.detectorSize, 'yolo');
-      }
-      if (!dets.length && this.detectorFallback) {
-        dets = await this.detect(img, this.detectorFallback, fixedSquare(this.detectorFallback) ?? 640, 'yolo-fallback');
-      }
+      let dets = await this.detectMultiScale(img, mode);
+      const detections = dets.length;
       if (!dets.length) dets = guidedBoxes(img.width, img.height);
       const t2 = performance.now();
       const candidates: EngineCandidate[] = [];
-      for (const det of dets.slice(0, 3)) {
-        const cand = await this.readDetection(img, det);
+      for (const det of dets.slice(0, mode === 'photo' ? 5 : 2)) {
+        const cand = await this.readDetection(img, det, this.tta && mode === 'photo');
         candidates.push(cand);
         if (cand.valid && cand.confidence >= EARLY_EXIT_PROBABILITY) break;
       }
@@ -277,6 +426,8 @@ export class NodeAnprEngine implements AnprEngine {
         modelVersion: 'node-local',
         image: { w: img.width, h: img.height },
         candidates,
+        mode,
+        detections,
         timings: {
           decodeMs: round(t1 - t0),
           detectMs: round(t2 - t1),
@@ -285,7 +436,7 @@ export class NodeAnprEngine implements AnprEngine {
         },
       };
     } finally {
-      this.active -= 1;
+      this.release();
     }
   }
 }

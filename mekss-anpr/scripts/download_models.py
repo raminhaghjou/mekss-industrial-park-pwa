@@ -50,6 +50,19 @@ def main() -> int:
     parser.add_argument("--out", default=os.environ.get("ANPR_MODEL_DIR", str(ROOT / "models")))
     parser.add_argument("--base-url", default=os.environ.get("ANPR_MODEL_BASE_URL"))
     parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument(
+        "--optional-timeout",
+        type=float,
+        default=float(os.environ.get("ANPR_OPTIONAL_FETCH_TIMEOUT", 10)),
+        help="short timeout for optional files so an unreachable mirror never delays startup",
+    )
+    parser.add_argument(
+        "--skip-optional",
+        action="store_true",
+        default=os.environ.get("ANPR_FETCH_OPTIONAL", "0").strip().lower() not in {"1", "true", "yes", "on"},
+        help="do not download optional models (default unless ANPR_FETCH_OPTIONAL=1)",
+    )
+    parser.add_argument("--fetch-optional", dest="skip_optional", action="store_false")
     parser.add_argument("--pin", action="store_true", help="record observed hashes in manifest.json")
     parser.add_argument("--force", action="store_true", help="re-download files that already verify")
     args = parser.parse_args()
@@ -74,11 +87,14 @@ def main() -> int:
             shutil.copy2(bundled, dest)
         elif name.endswith(".labels.json") and (ROOT / "models" / name).exists() and out != ROOT / "models":
             shutil.copy2(ROOT / "models" / name, dest)
+        elif not meta.get("required") and args.skip_optional:
+            print(f"skip     {name} (optional; set ANPR_FETCH_OPTIONAL=1 to download)")
+            continue
         else:
             url = f"{base}/{name}"
             try:
                 print(f"fetch    {url}")
-                download(url, dest, args.timeout)
+                download(url, dest, args.timeout if meta.get("required") else args.optional_timeout)
             except Exception as exc:  # noqa: BLE001
                 level = "ERROR" if meta.get("required") else "skip"
                 print(f"{level:8} {name}: {exc}", file=sys.stderr)

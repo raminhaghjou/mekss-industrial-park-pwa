@@ -240,7 +240,10 @@ npm run test:cov
 | `KAVEH_NEGAR_API_KEY` | SMS service API key | - |
 | `ZARINPAL_MERCHANT_ID` | Payment gateway merchant ID | - |
 | `ANPR_SERVICE_URL` | Python ANPR service (engine A); unset = Node engine only | - |
-| `ANPR_TIMEOUT_MS` | Per-frame timeout for engine A | `400` |
+| `ANPR_LIVE_TIMEOUT_MS` | Per-frame timeout for engine A (min 1000; falls back to `ANPR_TIMEOUT_MS`) | `1500` |
+| `ANPR_PHOTO_TIMEOUT_MS` | Timeout for still photos (multi-scale + tiled detection) | `8000` |
+| `ANPR_NODE_QUEUE` | Requests waiting for a free engine-B slot before "busy" | `6` |
+| `ANPR_NODE_WARMUP` | Load and warm engine B at startup | `true` |
 | `ANPR_BREAKER_FAILURES` / `ANPR_BREAKER_COOLDOWN_MS` | Failover to engine B and re-probe delay | `3` / `30000` |
 | `ANPR_MODEL_DIR` | ONNX models for engine B | `./models/iran-plate` |
 | `ANPR_AUDIT_IMAGES` | Store plate-read frames in MinIO | `true` |

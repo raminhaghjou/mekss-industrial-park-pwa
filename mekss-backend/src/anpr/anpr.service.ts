@@ -3,7 +3,7 @@ import { PlateReadEngine, PlateReadOutcome } from '@prisma/client';
 import type { AuthenticatedUser } from '../core/auth.guard';
 import { ManagementService } from '../core/management.service';
 import { AnprEngineService } from './anpr-engine.service';
-import { EngineCandidate, EngineResult, EngineUnavailableError, InvalidImageError } from './anpr.types';
+import { EngineCandidate, EngineResult, EngineUnavailableError, InvalidImageError, RecognizeMode } from './anpr.types';
 import type { MatchPlateDto } from './anpr.dto';
 import { FusedPlate, PlateFusion } from './plate-fusion';
 import { canonicalPlateOrRaw, displayPlate, normalizePlate } from './plate-grammar';
@@ -36,6 +36,19 @@ export interface FrameOutcome {
   candidates: Array<Pick<EngineCandidate, 'bbox' | 'plate' | 'valid' | 'confidence' | 'plateType' | 'color'>>;
   fused: Pick<FusedPlate, 'plate' | 'confidence' | 'charConfidences' | 'agreeingFrames' | 'frames'> | null;
   decision?: PlateDecision;
+  /** Photo mode only: the strongest read even when it is not a complete plate, to prefill manual entry. */
+  bestGuess?: PlateGuess | null;
+  /** Plate boxes the detector found (0: only the guide box was read). */
+  detections?: number;
+}
+
+export interface PlateGuess {
+  plate: string;
+  raw: string;
+  valid: boolean;
+  confidence: number;
+  charConfidences: number[];
+  plateType: string | null;
 }
 
 interface Session {
@@ -87,7 +100,7 @@ export class AnprService implements OnModuleDestroy {
       return { seq, state: 'locked', engine: null, latencyMs: 0, image: null, candidates: [], fused: compactFused(session.fusion.current()), decision: session.decision };
     }
 
-    const result = await this.recognize(image);
+    const result = await this.recognize(image, 'live');
     const best = pickCandidate(result.candidates, session.fusion.current()?.plate ?? null);
     const update = session.fusion.push(best);
     const outcome: FrameOutcome = {
@@ -98,6 +111,7 @@ export class AnprService implements OnModuleDestroy {
       image: result.image,
       candidates: result.candidates.map((c) => ({ bbox: c.bbox, plate: c.plate, valid: c.valid, confidence: c.confidence, plateType: c.plateType, color: c.color })),
       fused: compactFused(update.fused),
+      detections: result.detections,
     };
 
     if (update.state !== 'scanning' && update.fused) {
@@ -118,7 +132,7 @@ export class AnprService implements OnModuleDestroy {
   /** A single still photo (browsers without live camera): decide from one frame, confirm if unsure. */
   async processPhoto(actor: AuthenticatedUser, image: Buffer): Promise<FrameOutcome> {
     const started = Date.now();
-    const result = await this.recognize(image);
+    const result = await this.recognize(image, 'photo');
     const best = pickCandidate(result.candidates, null);
     const outcome: FrameOutcome = {
       seq: 0,
@@ -128,6 +142,8 @@ export class AnprService implements OnModuleDestroy {
       image: result.image,
       candidates: result.candidates.map((c) => ({ bbox: c.bbox, plate: c.plate, valid: c.valid, confidence: c.confidence, plateType: c.plateType, color: c.color })),
       fused: null,
+      bestGuess: plateGuess(result.candidates),
+      detections: result.detections,
     };
     if (!best?.valid) return outcome;
     const fusion = new PlateFusion();
@@ -224,9 +240,9 @@ export class AnprService implements OnModuleDestroy {
     };
   }
 
-  private async recognize(image: Buffer): Promise<EngineResult> {
+  private async recognize(image: Buffer, mode: RecognizeMode): Promise<EngineResult> {
     try {
-      return await this.engines.recognize(image);
+      return await this.engines.recognize(image, mode);
     } catch (error) {
       if (error instanceof InvalidImageError) throw new BadRequestException(error.message);
       if (error instanceof EngineUnavailableError) throw new ServiceUnavailableException('Plate recognition is temporarily unavailable');
@@ -259,6 +275,26 @@ export function pickCandidate(candidates: EngineCandidate[], tracking: string | 
     || Number(b.valid) - Number(a.valid)
     || b.confidence - a.confidence);
   return ranked[0];
+}
+
+/**
+ * Strongest read in a photo, valid or not: a complete plate wins, otherwise the longest/most confident
+ * raw OCR string, so the guard only corrects the unreadable segments instead of typing everything.
+ */
+export function plateGuess(candidates: EngineCandidate[]): PlateGuess | null {
+  const readable = candidates.filter((c) => c.valid || (c.raw && c.raw.replace(/\s/g, '').length >= 3));
+  if (!readable.length) return null;
+  const score = (c: EngineCandidate) => (c.valid ? 10 : 0) + Math.min(8, (c.raw ?? '').length) / 8
+    + ((c.valid ? c.confidence : c.rawConfidence) || 0);
+  const best = [...readable].sort((a, b) => score(b) - score(a))[0];
+  return {
+    plate: best.valid ? best.plate : '',
+    raw: best.raw,
+    valid: best.valid,
+    confidence: best.valid ? best.confidence : best.rawConfidence,
+    charConfidences: best.charConfidences,
+    plateType: best.plateType,
+  };
 }
 
 function auditOutcome(match: PlateMatch): PlateReadOutcome {

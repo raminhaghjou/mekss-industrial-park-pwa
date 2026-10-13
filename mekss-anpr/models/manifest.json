@@ -10,7 +10,8 @@
     },
     "plate_yolo_fallback.onnx": {
       "required": false,
-      "sha256": "a6974fcb0a79755c270d50f1ebefd4d96d765c879a29051a19aac00dfda8b5af"
+      "sha256": "a6974fcb0a79755c270d50f1ebefd4d96d765c879a29051a19aac00dfda8b5af",
+      "bundled": "bundled/plate_yolo_fallback.onnx"
     },
     "ocr_crnn.onnx": {
       "required": true,

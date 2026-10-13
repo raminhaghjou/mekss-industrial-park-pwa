@@ -44,8 +44,9 @@ services:
       retries: 12
       start_period: 5s
 
-  # Engine A for live plate recognition (Python + OpenCV + ONNX Runtime). Downloads the models into the
-  # shared volume on first start; the backend's in-process engine B reads the same files.
+  # Engine A for live plate recognition (Python + OpenCV + ONNX Runtime). Copies the models bundled in
+  # the image into the shared volume on first start (no internet needed); the backend's in-process
+  # engine B reads the same files.
   anpr:
     build:
       context: ../mekss-anpr
@@ -54,9 +55,11 @@ services:
     environment:
       ANPR_MODEL_DIR: /models
       ANPR_MODEL_BASE_URL: ${MEKSS_ANPR_MODEL_BASE_URL:-}
+      ANPR_FETCH_OPTIONAL: ${MEKSS_ANPR_FETCH_OPTIONAL:-0}
       ANPR_WORKERS: ${MEKSS_ANPR_WORKERS:-2}
       ANPR_INTRA_THREADS: ${MEKSS_ANPR_INTRA_THREADS:-2}
       ANPR_TTA: ${MEKSS_ANPR_TTA:-1}
+      ANPR_PHOTO_DET_CONF: ${MEKSS_ANPR_PHOTO_DET_CONF:-0.15}
     volumes:
       - anpr-models:/models
     healthcheck:
@@ -111,7 +114,9 @@ services:
       ZARINPAL_SANDBOX: "true"
       LOG_LEVEL: ${MEKSS_LOCAL_LOG_LEVEL:-info}
       ANPR_SERVICE_URL: http://anpr:8000
-      ANPR_TIMEOUT_MS: ${MEKSS_ANPR_TIMEOUT_MS:-400}
+      ANPR_LIVE_TIMEOUT_MS: ${MEKSS_ANPR_LIVE_TIMEOUT_MS:-1500}
+      ANPR_PHOTO_TIMEOUT_MS: ${MEKSS_ANPR_PHOTO_TIMEOUT_MS:-8000}
+      ANPR_NODE_QUEUE: ${MEKSS_ANPR_NODE_QUEUE:-6}
       ANPR_MODEL_DIR: /app/models/iran-plate
       ANPR_BREAKER_FAILURES: "3"
       ANPR_BREAKER_COOLDOWN_MS: "30000"
@@ -120,9 +125,9 @@ services:
     volumes:
       - anpr-models:/app/models/iran-plate:ro
     depends_on:
-      # Only "started": if engine A is down the backend serves plates with engine B.
+      # Healthy = models are in the shared volume and warmed up, so engine B can load them at startup.
       anpr:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:

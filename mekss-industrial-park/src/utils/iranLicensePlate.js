@@ -265,6 +265,30 @@ export function formatIranLicensePlate(parts) {
   return `${series}${letter}${middle}${region}`;
 }
 
+/**
+ * Best-effort segments from an incomplete OCR read (e.g. `12ب345` or `ب34567`) so the guard only
+ * fills the missing parts. Segments that cannot be placed with certainty are left empty.
+ * @param {string} raw
+ * @returns {{ series: string, letter: string, middle: string, region: string }}
+ */
+export function partialIranLicensePlate(raw = '') {
+  const empty = { series: '', letter: '', middle: '', region: '' };
+  const full = parseIranLicensePlate(raw);
+  if (full.series) return full;
+  const text = toAsciiDigits(String(raw || '')).replace(/ایران|IRAN/gi, '').replace(/[^\d\u0600-\u06FF]/g, '');
+  const match = text.match(/^(\d*)([\u0600-\u06FF])(\d*)$/u);
+  if (!match) return empty;
+  const letter = match[2] === 'آ' ? 'ا' : match[2];
+  const before = match[1];
+  const after = match[3];
+  return {
+    series: before.length === 2 ? before : '',
+    letter: IRAN_PLATE_LETTERS.some((item) => item.value === letter) ? letter : '',
+    middle: after.length >= 3 ? after.slice(0, 3) : '',
+    region: after.length === 5 ? after.slice(3) : '',
+  };
+}
+
 export function isCompleteIranLicensePlate(value) {
   return Boolean(formatIranLicensePlate(parseIranLicensePlate(value))) || Boolean(parseIranFreeZonePlate(value));
 }

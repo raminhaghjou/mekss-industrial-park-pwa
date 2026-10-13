@@ -13,7 +13,8 @@ export function supportsWorkerSampling() {
  * Crops the guide ROI from the live <video>, gates it and returns JPEG bytes.
  * Uses the worker (OffscreenCanvas) when available; older Safari falls back to canvas.toBlob.
  */
-export function createFrameSampler({ gates = DEFAULT_GATES, maxWidth = 640, quality = 0.85 } = {}) {
+export function createFrameSampler({ gates: initialGates = DEFAULT_GATES, maxWidth = 640, quality = 0.85 } = {}) {
+  let gates = { ...DEFAULT_GATES, ...initialGates };
   const useWorker = supportsWorkerSampling();
   let worker = null;
   let seq = 0;
@@ -97,6 +98,11 @@ export function createFrameSampler({ gates = DEFAULT_GATES, maxWidth = 640, qual
       prevThumb = null;
       lastSentAt = 0;
       worker?.postMessage({ type: 'reset' });
+    },
+    /** Relax or tighten the gates on the fly (e.g. lower `minSharpness` for a camera that never focuses). */
+    setGates(next) {
+      gates = { ...gates, ...next };
+      worker?.postMessage({ type: 'config', gates });
     },
     close() {
       worker?.terminate();

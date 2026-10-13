@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Label } from '@heroui/react';
 import {
   CUSTOM_REGION,
@@ -25,6 +25,8 @@ const emptyDigits = () => ['', '', ''];
 /**
  * Iranian license-plate picker with dropdown segments.
  * Emits canonical value like `12ب34567`, or `FZ-KISH-12345` for free-zone plates.
+ * `draft` (`{ series, letter, middle, region, key }`) prefills segments of an incomplete read
+ * whenever its `key` changes, without emitting a value until the guard completes the plate.
  */
 export default function IranLicensePlateInput({
   label = 'شماره پلاک',
@@ -33,6 +35,7 @@ export default function IranLicensePlateInput({
   required = false,
   disabled = false,
   highlight = false,
+  draft = null,
 }) {
   const freeZone = useMemo(() => parseIranFreeZonePlate(value), [value]);
   const [layout, setLayout] = useState(freeZone ? 'free-zone' : 'standard');
@@ -40,6 +43,10 @@ export default function IranLicensePlateInput({
     if (freeZone) setLayout('free-zone');
     else if (parseIranLicensePlate(value).series) setLayout('standard');
   }, [value, freeZone]);
+  const draftKey = draft?.key;
+  useEffect(() => {
+    if (draftKey) setLayout('standard');
+  }, [draftKey]);
 
   if (layout === 'free-zone') {
     return (
@@ -65,6 +72,7 @@ export default function IranLicensePlateInput({
       required={required}
       disabled={disabled}
       highlight={highlight}
+      draft={draft}
       onLayoutChange={() => {
         setLayout('free-zone');
         onChange?.('');
@@ -161,7 +169,7 @@ function FreeZonePlateInput({ label, value, onChange, required, disabled, highli
   );
 }
 
-function StandardPlateInput({ label, value, onChange, required, disabled, highlight, onLayoutChange }) {
+function StandardPlateInput({ label, value, onChange, required, disabled, highlight, onLayoutChange, draft }) {
   const parsed = useMemo(() => parseIranLicensePlate(value), [value]);
   const [series, setSeries] = useState(parsed.series);
   const [letter, setLetter] = useState(parsed.letter);
@@ -181,6 +189,19 @@ function StandardPlateInput({ label, value, onChange, required, disabled, highli
     setRegion(parsed.region);
     setRegionMode(parsed.region && !findIranPlateRegion(parsed.region) ? CUSTOM_REGION : parsed.region);
   }, [parsed.series, parsed.letter, parsed.middle, parsed.region]);
+
+  const draftKey = draft?.key;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  useEffect(() => {
+    const next = draftRef.current;
+    if (!draftKey || !next) return;
+    setSeries(next.series || '');
+    setLetter(next.letter || '');
+    setMiddleDigits(next.middle?.length === 3 ? next.middle.split('') : emptyDigits());
+    setRegion(next.region || '');
+    setRegionMode(next.region && !findIranPlateRegion(next.region) ? CUSTOM_REGION : next.region || '');
+  }, [draftKey]);
 
   const emit = (nextSeries, nextLetter, nextDigits, nextRegion) => {
     const middle = nextDigits.every((d) => d !== '') ? nextDigits.join('') : '';

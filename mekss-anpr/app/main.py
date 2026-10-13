@@ -22,7 +22,7 @@ logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
 class Engine(Protocol):
     model_version: str
 
-    def recognize(self, data: bytes) -> dict: ...
+    def recognize(self, data: bytes, mode: str = "live") -> dict: ...
 
     def warmup(self) -> None: ...
 
@@ -91,11 +91,20 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         body = await request.body()
         if len(body) > settings.max_image_bytes:
             raise HTTPException(status_code=413, detail="image too large")
+        mode = "photo" if request.query_params.get("mode") == "photo" else "live"
         async with gate:
             try:
-                return await run_in_threadpool(eng.recognize, body)
+                result = await run_in_threadpool(eng.recognize, body, mode)
             except ImageDecodeError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if logger.isEnabledFor(logging.DEBUG) or mode == "photo":
+            best = (result.get("candidates") or [{}])[0]
+            logger.info(
+                "recognize mode=%s bytes=%d detections=%s best=%s valid=%s conf=%s timings=%s",
+                mode, len(body), result.get("detections"), best.get("plate") or best.get("raw"),
+                best.get("valid"), best.get("confidence"), result.get("timings"),
+            )
+        return result
 
     return app
 

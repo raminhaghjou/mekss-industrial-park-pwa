@@ -14,6 +14,51 @@ export const ENGINE_LABELS = {
   manual: 'دستی',
 };
 
+/** Persian status chip shown on the camera for each mode. */
+export const MODE_STATUS = {
+  socket: { label: 'پردازش سرور', tone: 'ok' },
+  http: { label: 'پردازش سرور (کند)', tone: 'warn' },
+  device: { label: 'پردازش روی گوشی', tone: 'info' },
+  manual: { label: 'سرور در دسترس نیست', tone: 'off' },
+};
+
+/** Why the scanner left the live server mode, in words the guard understands. */
+export const MODE_REASON_LABELS = {
+  offline: 'اینترنت قطع است',
+  'server-unreachable': 'سرور تشخیص پلاک پاسخ نمی‌دهد',
+  'server-no-engine': 'موتور تشخیص پلاک روی سرور آماده نیست',
+  'server-error': 'سرور در خواندن تصاویر خطا می‌دهد',
+  'http-failed': 'ارسال تصویر به سرور مکرراً ناموفق بود',
+  'socket-timeout': 'اتصال زنده برقرار نشد',
+  'socket-failed': 'اتصال زنده برقرار نشد',
+  'device-unavailable': 'مدل تشخیص روی این گوشی بارگذاری نشد',
+  'device-failed': 'پردازش روی گوشی مکرراً ناموفق بود',
+  unauthorized: 'نشست کاربری منقضی شده است',
+  forbidden: 'اجازه استفاده از تشخیص پلاک را ندارید',
+};
+
+/**
+ * Sliding window over the last `size` frame outcomes: trips once `limit` of them failed, so a few
+ * slow or dropped frames never knock the scanner down a mode, but a sustained outage does.
+ */
+export function createFailureWindow({ size = 8, limit = 5 } = {}) {
+  let outcomes = [];
+  return {
+    /** @param {boolean} ok @returns {boolean} true when the failure limit is reached */
+    record(ok) {
+      outcomes.push(Boolean(ok));
+      if (outcomes.length > size) outcomes = outcomes.slice(-size);
+      return outcomes.filter((x) => !x).length >= limit;
+    },
+    get failures() {
+      return outcomes.filter((x) => !x).length;
+    },
+    reset() {
+      outcomes = [];
+    },
+  };
+}
+
 export function nextMode(mode) {
   const i = SCAN_MODES.indexOf(mode);
   return i < 0 || i >= SCAN_MODES.length - 1 ? 'manual' : SCAN_MODES[i + 1];
@@ -29,6 +74,13 @@ export const initialScannerState = {
   error: null,
   frames: 0,
   latencyMs: null,
+  /** 'steady' when frames keep failing the sharpness gate. */
+  hint: null,
+  /** Index into the relaxed sharpness thresholds (0 = strictest). */
+  gateLevel: 0,
+  /** Best partial read of a still photo, used to prefill manual entry. */
+  guess: null,
+  photoBusy: false,
 };
 
 const phaseForMatch = (outcome) => {
@@ -78,9 +130,16 @@ export function scannerReducer(state, action) {
       };
     }
     case 'RESCAN':
-      return { ...state, phase: state.mode === 'manual' ? 'manual' : 'scanning', decision: null, live: null, frames: 0, error: null };
+      return { ...state, phase: state.mode === 'manual' ? 'manual' : 'scanning', decision: null, live: null, frames: 0, error: null, guess: null };
     case 'ERROR':
       return { ...state, error: action.message || 'خطای نامشخص' };
+    case 'HINT':
+      if (state.hint === (action.hint || null) && state.gateLevel === (action.gateLevel ?? state.gateLevel)) return state;
+      return { ...state, hint: action.hint || null, gateLevel: action.gateLevel ?? state.gateLevel };
+    case 'GUESS':
+      return { ...state, guess: action.guess || null };
+    case 'PHOTO':
+      return { ...state, photoBusy: Boolean(action.busy) };
     case 'STOP':
       return { ...initialScannerState };
     default:
@@ -89,10 +148,11 @@ export function scannerReducer(state, action) {
 }
 
 /**
- * On-device fusion (the server fuses for socket/http modes): lock on `agree` consecutive
- * identical valid reads with at least `minConfidence`, else surface a candidate after `maxFrames`.
+ * On-device fusion (the server fuses for socket/http modes), same thresholds as the server:
+ * lock on `agree` consecutive identical valid reads of at least `minConfidence`, or on a single
+ * valid read of at least `certainConfidence`; else surface the best read after `maxFrames`.
  */
-export function createDeviceFusion({ agree = 2, minConfidence = 0.75, maxFrames = 8 } = {}) {
+export function createDeviceFusion({ agree = 2, minConfidence = 0.8, certainConfidence = 0.97, maxFrames = 4 } = {}) {
   let last = null;
   let streak = 0;
   let frames = 0;
@@ -104,9 +164,10 @@ export function createDeviceFusion({ agree = 2, minConfidence = 0.75, maxFrames 
       if (!read?.valid || !read.plate) return { state: 'scanning' };
       frames += 1;
       if (!best || read.confidence > best.confidence) best = read;
-      streak = read.plate === last ? streak + 1 : 1;
+      const strong = read.confidence >= minConfidence;
+      streak = read.plate === last && strong ? streak + 1 : strong ? 1 : 0;
       last = read.plate;
-      if (streak >= agree && read.confidence >= minConfidence) {
+      if (streak >= agree || read.confidence >= certainConfidence) {
         emitted = true;
         return { state: 'locked', read: { ...read, frames } };
       }

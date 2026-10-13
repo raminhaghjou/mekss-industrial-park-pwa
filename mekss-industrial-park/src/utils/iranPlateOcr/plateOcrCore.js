@@ -123,6 +123,10 @@ export function letterboxRgbToYoloTensor(imageData, size = 640) {
   const padX = Math.floor((size - newW) / 2);
   const padY = Math.floor((size - newH) / 2);
 
+  if (typeof OffscreenCanvas === 'undefined') {
+    return { tensor: letterboxTensorJs(imageData, size, newW, newH, padX, padY), gain, padX, padY, srcW, srcH, size };
+  }
+
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = 'rgb(114,114,114)';
@@ -145,6 +149,73 @@ export function letterboxRgbToYoloTensor(imageData, size = 640) {
   }
 
   return { tensor, gain, padX, padY, srcW, srcH, size };
+}
+
+/** Canvas-free letterbox (bilinear) for workers without OffscreenCanvas (older Safari). */
+function letterboxTensorJs({ width: srcW, height: srcH, data }, size, newW, newH, padX, padY) {
+  const plane = size * size;
+  const tensor = new Float32Array(3 * plane).fill(114 / 255);
+  const sx = srcW / newW;
+  const sy = srcH / newH;
+  for (let y = 0; y < newH; y += 1) {
+    const fy = Math.min(srcH - 1, Math.max(0, (y + 0.5) * sy - 0.5));
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(srcH - 1, y0 + 1);
+    const wy = fy - y0;
+    for (let x = 0; x < newW; x += 1) {
+      const fx = Math.min(srcW - 1, Math.max(0, (x + 0.5) * sx - 0.5));
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(srcW - 1, x0 + 1);
+      const wx = fx - x0;
+      const out = (y + padY) * size + (x + padX);
+      for (let c = 0; c < 3; c += 1) {
+        const a = data[(y0 * srcW + x0) * 4 + c];
+        const b = data[(y0 * srcW + x1) * 4 + c];
+        const d = data[(y1 * srcW + x0) * 4 + c];
+        const e = data[(y1 * srcW + x1) * 4 + c];
+        const top = a + (b - a) * wx;
+        const bottom = d + (e - d) * wx;
+        tensor[c * plane + out] = (top + (bottom - top) * wy) / 255;
+      }
+    }
+  }
+  return tensor;
+}
+
+/** Copy a region of RGBA ImageData-like `{ data, width, height }` (no canvas needed). */
+export function cropImageData({ data, width }, box) {
+  const out = new Uint8ClampedArray(box.w * box.h * 4);
+  for (let row = 0; row < box.h; row += 1) {
+    const start = ((box.y + row) * width + box.x) * 4;
+    out.set(data.subarray(start, start + box.w * 4), row * box.w * 4);
+  }
+  return { data: out, width: box.w, height: box.h };
+}
+
+/** 2×2 overlapping windows covering the frame; each spans `fraction` of each side (same as the server). */
+export function tileWindows(width, height, fraction = 0.62) {
+  const tw = Math.round(width * fraction);
+  const th = Math.round(height * fraction);
+  const xs = [0, width - tw];
+  const ys = [0, height - th];
+  return ys.flatMap((y) => xs.map((x) => ({ x, y, w: tw, h: th })));
+}
+
+const boxIou = (a, b) => {
+  const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  const inter = ix * iy;
+  const union = a.w * a.h + b.w * b.h - inter;
+  return union > 0 ? inter / union : 0;
+};
+
+/** Confidence-ordered NMS across scales/tiles. */
+export function mergeBoxes(boxes, iouThreshold = 0.45) {
+  const kept = [];
+  for (const box of [...boxes].sort((a, b) => b.conf - a.conf)) {
+    if (!kept.some((k) => boxIou(k, box) > iouThreshold)) kept.push(box);
+  }
+  return kept;
 }
 
 /**

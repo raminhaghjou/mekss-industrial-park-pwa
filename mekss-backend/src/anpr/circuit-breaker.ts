@@ -38,6 +38,11 @@ export class CircuitBreaker {
     this.stateValue = 'closed';
   }
 
+  /** The call ended without saying anything about the dependency's health (e.g. a slow photo). */
+  release(): void {
+    this.trialInFlight = false;
+  }
+
   recordFailure(): void {
     this.trialInFlight = false;
     this.failures += 1;

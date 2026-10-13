@@ -3,16 +3,25 @@ import { Button, Spinner, Alert, AlertContent, AlertTitle, AlertDescription } fr
 import { Camera, Flashlight, FlashlightOff, ImageUp, RotateCcw, ScanLine, X, ZoomIn } from 'lucide-react';
 import { useLivePlateScanner } from '../../hooks/useLivePlateScanner';
 import { DEFAULT_GUIDE, roiBoxToView } from '../../services/anpr/samplerCore';
-import { ENGINE_LABELS } from '../../services/anpr/scannerMachine';
+import { ENGINE_LABELS, MODE_REASON_LABELS, MODE_STATUS } from '../../services/anpr/scannerMachine';
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 
 const hasLiveCamera = () => typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
-const MODE_BADGE = {
-  socket: { label: 'زنده', className: 'bg-emerald-600' },
-  http: { label: 'HTTP', className: 'bg-amber-600' },
-  device: { label: 'روی دستگاه', className: 'bg-sky-700' },
-  manual: { label: 'دستی', className: 'bg-slate-600' },
+const TONE_CLASS = {
+  ok: 'bg-emerald-600',
+  warn: 'bg-amber-600',
+  info: 'bg-sky-700',
+  off: 'bg-rose-600',
+};
+
+const showDebug = () => {
+  if (import.meta.env.DEV) return true;
+  try {
+    return localStorage.getItem('anpr-debug') === '1';
+  } catch {
+    return false;
+  }
 };
 
 function lockFeedback() {
@@ -47,10 +56,11 @@ function lockFeedback() {
  *
  * @param {{
  *   onDecision?: (decision: object, controls: { rescan: () => void, confirm: Function }) => void,
+ *   onGuess?: (guess: { plate: string, raw: string, confidence: number, source: string }) => void,
  *   onCancel?: () => void,
  * }} props
  */
-export default function IranPlateOcrCamera({ onDecision, onCancel }) {
+export default function IranPlateOcrCamera({ onDecision, onGuess, onCancel }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const trackRef = useRef(null);
@@ -128,6 +138,11 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
     return () => clearTimeout(t);
   }, [state.decision, onDecision, controls]);
 
+  useEffect(() => {
+    if (state.guess) onGuess?.(state.guess);
+  }, [state.guess, onGuess]);
+  const [debug] = useState(showDebug);
+
   const toggleTorch = useCallback(async () => {
     const track = trackRef.current;
     if (!track) return;
@@ -168,17 +183,20 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
   const liveText = state.decision
     ? displayIranLicensePlate(state.decision.plate)
     : live?.fused?.plate ? displayIranLicensePlate(live.fused.plate) : '';
-  const badge = MODE_BADGE[state.mode];
+  const modeStatus = MODE_STATUS[state.mode];
   const engineLabel = state.engine ? ENGINE_LABELS[state.engine] || state.engine : null;
+  const reasonText = state.mode && state.mode !== 'socket' ? MODE_REASON_LABELS[state.modeReason] || '' : '';
 
   const statusText = (() => {
     if (cameraError) return '';
+    if (state.photoBusy) return 'در حال خواندن پلاک از عکس…';
     if (!liveSupported) return 'این مرورگر دوربین زنده ندارد؛ از پلاک عکس بگیرید.';
     if (!cameraReady) return 'باز کردن دوربین…';
     if (state.phase === 'connecting') return 'اتصال به سرور تشخیص پلاک…';
     if (state.decision) return state.decision.requiresConfirmation ? 'پلاک خوانده شد — لطفاً تطبیق را تایید کنید' : 'پلاک قفل شد';
-    if (state.mode === 'manual') return 'تشخیص خودکار در دسترس نیست — پلاک را دستی وارد کنید';
-    if (state.mode === 'device') return 'حالت آفلاین: پردازش روی همین دستگاه';
+    if (state.mode === 'manual') return 'تشخیص خودکار در دسترس نیست — از پلاک عکس بگیرید یا دستی وارد کنید';
+    if (state.hint === 'steady') return 'دوربین را ثابت نگه دارید و کمی به پلاک نزدیک شوید…';
+    if (state.mode === 'device') return 'پردازش روی همین گوشی انجام می‌شود؛ پلاک را داخل کادر نگه دارید…';
     return 'پلاک را داخل کادر نگه دارید…';
   })();
 
@@ -188,9 +206,13 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
         <div className="flex items-center gap-2 text-sm font-bold">
           <ScanLine className="h-4 w-4 text-[var(--color-brand)]" />
           اسکن زنده پلاک
-          {badge && (
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${badge.className}`} data-testid="scan-mode-badge">
-              {badge.label}
+          {modeStatus && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${TONE_CLASS[modeStatus.tone]}`}
+              data-testid="scan-mode-badge"
+              title={reasonText || undefined}
+            >
+              {modeStatus.label}
             </span>
           )}
           {engineLabel && state.mode !== 'manual' && (
@@ -300,8 +322,31 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
         </div>
       )}
 
-      {statusText && <p className="text-center text-xs text-foreground-600" role="status">{statusText}</p>}
+      {statusText && (
+        <p className="flex items-center justify-center gap-2 text-center text-xs text-foreground-600" role="status">
+          {state.photoBusy && <Spinner size="sm" />}
+          {statusText}
+        </p>
+      )}
+      {reasonText && !state.decision && (
+        <p className="text-center text-[11px] text-amber-700" data-testid="scan-mode-reason">علت: {reasonText}</p>
+      )}
       {state.error && <p className="text-center text-xs text-danger">{state.error}</p>}
+      {debug && (
+        <pre className="overflow-x-auto rounded-lg bg-black/80 p-2 text-[10px] leading-4 text-emerald-300" dir="ltr" data-testid="anpr-debug">
+          {JSON.stringify({
+            mode: state.mode,
+            reason: state.modeReason,
+            engine: state.engine,
+            latencyMs: state.latencyMs,
+            frames: state.frames,
+            gateLevel: state.gateLevel,
+            fused: live?.fused ? { plate: live.fused.plate, confidence: Number(live.fused.confidence?.toFixed?.(3) ?? live.fused.confidence) } : null,
+            boxes: (live?.candidates || []).map((c) => ({ plate: c.plate, valid: c.valid, conf: c.confidence, bbox: c.bbox })),
+            guess: state.guess,
+          }, null, 1)}
+        </pre>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {state.decision && (
@@ -319,6 +364,7 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
         <Button
           variant={liveSupported && !cameraError ? 'tertiary' : 'primary'}
           className="flex-1 font-bold"
+          isDisabled={state.photoBusy}
           onPress={() => photoInputRef.current?.click()}
         >
           {liveSupported && !cameraError ? <ImageUp className="h-4 w-4" /> : <Camera className="h-4 w-4" />}

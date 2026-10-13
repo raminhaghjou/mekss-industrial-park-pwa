@@ -28,37 +28,44 @@ function candidate(plate: string, confidence: number, overrides: Partial<EngineC
 }
 
 describe('PlateFusion', () => {
-  it('locks after three agreeing confident frames', () => {
+  it('locks after two agreeing confident frames', () => {
     const fusion = new PlateFusion();
-    expect(fusion.push(candidate('12ب34567', 0.98)).state).toBe('scanning');
-    expect(fusion.push(candidate('12ب34567', 0.98)).state).toBe('scanning');
-    const update = fusion.push(candidate('12ب34567', 0.98));
+    expect(fusion.push(candidate('12ب34567', 0.9)).state).toBe('scanning');
+    const update = fusion.push(candidate('12ب34567', 0.9));
     expect(update.state).toBe('locked');
     expect(update.fused?.plate).toBe('12ب34567');
-    expect(update.fused?.agreeingFrames).toBe(3);
+    expect(update.fused?.agreeingFrames).toBe(2);
   });
 
-  it('locks on agreement even when single frames are below the lock threshold', () => {
+  it('locks on agreement of frames at the 0.80 floor', () => {
     const fusion = new PlateFusion();
-    const first = fusion.push(candidate('12ب34567', 0.95));
-    expect(first.fused?.confidence).toBeLessThan(0.97);
-    fusion.push(candidate('12ب34567', 0.94));
-    const update = fusion.push(candidate('12ب34567', 0.96));
+    const first = fusion.push(candidate('12ب34567', 0.8));
+    expect(first.state).toBe('scanning');
+    const update = fusion.push(candidate('12ب34567', 0.82));
     expect(update.state).toBe('locked');
-    expect(update.fused?.confidence).toBeGreaterThan(0.99);
+    expect(update.fused?.confidence).toBeGreaterThan(0.9);
+  });
+
+  it('locks on a single near-certain, grammar-valid frame', () => {
+    const fusion = new PlateFusion();
+    expect(fusion.push(candidate('12ب34567', 0.98)).state).toBe('locked');
+  });
+
+  it('does not lock a near-certain frame that is not a valid plate', () => {
+    const fusion = new PlateFusion();
+    expect(fusion.push(candidate('12ب3456', 0.99, { valid: false })).state).toBe('scanning');
   });
 
   it('does not lock on agreement between weak frames', () => {
     const fusion = new PlateFusion();
-    for (let i = 0; i < 5; i += 1) expect(fusion.push(candidate('12ب34567', 0.7)).state).toBe('scanning');
+    for (let i = 0; i < 3; i += 1) expect(fusion.push(candidate('12ب34567', 0.7)).state).toBe('scanning');
   });
 
   it('does not let one weak frame veto an otherwise strong agreement', () => {
     const fusion = new PlateFusion();
-    fusion.push(candidate('12ب34567', 0.95));
-    fusion.push(candidate('12ب34567', 0.6));
-    expect(fusion.push(candidate('12ب34567', 0.91)).state).toBe('scanning');
-    expect(fusion.push(candidate('12ب34567', 0.93)).state).toBe('locked');
+    fusion.push(candidate('12ب34567', 0.9));
+    expect(fusion.push(candidate('12ب34567', 0.6)).state).toBe('scanning');
+    expect(fusion.push(candidate('12ب34567', 0.91)).state).toBe('locked');
   });
 
   it('keeps a contested character uncertain', () => {
@@ -74,42 +81,34 @@ describe('PlateFusion', () => {
     expect(update.fused?.positions[2].map((x) => x.c)).toEqual(expect.arrayContaining(['ب', 'پ']));
   });
 
-  it('locks after two near-certain frames', () => {
-    const fusion = new PlateFusion();
-    fusion.push(candidate('12ب34567', 0.995));
-    expect(fusion.push(candidate('12ب34567', 0.995)).state).toBe('locked');
-  });
-
   it('does not let one blurred misread flip a character', () => {
     const fusion = new PlateFusion();
-    fusion.push(candidate('12ب34567', 0.9));
+    fusion.push(candidate('12ب34567', 0.75));
     fusion.push(candidate('12پ34567', 0.4));
-    const update = fusion.push(candidate('12ب34567', 0.9));
+    const update = fusion.push(candidate('12ب34567', 0.75));
     expect(update.fused?.plate).toBe('12ب34567');
   });
 
-  it('ignores invalid reads and emits a candidate after many unlockable frames', () => {
+  it('ignores invalid reads and emits a candidate after four unlockable frames', () => {
     const fusion = new PlateFusion();
     expect(fusion.push(candidate('12ب3456', 0.9, { valid: false })).state).toBe('scanning');
     expect(fusion.push(null).state).toBe('scanning');
-    let state = 'scanning';
-    for (let i = 0; i < 10; i += 1) state = fusion.push(candidate('12ب34567', 0.6)).state;
-    expect(state).toBe('candidate');
+    const states = Array.from({ length: 4 }, () => fusion.push(candidate('12ب34567', 0.6)).state);
+    expect(states).toEqual(['scanning', 'scanning', 'scanning', 'candidate']);
+    expect(fusion.push(candidate('12ب34567', 0.6)).state).toBe('scanning');
   });
 
   it('resets when a different vehicle is seen twice', () => {
     const fusion = new PlateFusion();
-    fusion.push(candidate('12ب34567', 0.9));
-    fusion.push(candidate('12ب34567', 0.9));
-    fusion.push(candidate('98م76543', 0.95));
-    fusion.push(candidate('98م76543', 0.95));
-    const update = fusion.push(candidate('98م76543', 0.95));
+    fusion.push(candidate('12ب34567', 0.7));
+    fusion.push(candidate('12ب34567', 0.7));
+    fusion.push(candidate('98م76543', 0.85));
+    const update = fusion.push(candidate('98م76543', 0.85));
     expect(update.fused?.plate).toBe('98م76543');
   });
 
   it('stays locked until reset', () => {
     const fusion = new PlateFusion();
-    fusion.push(candidate('12ب34567', 0.995));
     fusion.push(candidate('12ب34567', 0.995));
     expect(fusion.push(candidate('98م76543', 0.99)).fused?.plate).toBe('12ب34567');
     fusion.reset();

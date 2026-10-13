@@ -29,9 +29,10 @@ import { AuthenticatedImage } from '../../components/common/AuthenticatedImage';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import JalaliDatePicker from '../../components/common/JalaliDatePicker';
 import { formatFaDateTime } from '../../utils/printHtml';
-import { BANNER_IMAGE_SPECS, bannerImageWarning } from '../../utils/bannerImage';
+import { BANNER_IMAGE_SPECS, bannerImageWarning, optimizeBannerImage } from '../../utils/bannerImage';
 
 const MAX_BANNER_BYTES = 3 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const readImageSize = (file) => new Promise((resolve) => {
@@ -91,19 +92,24 @@ const ImagePicker = ({ kind, fileId, onUploaded, onUploadingChange, disabled }) 
       setError('فقط تصویر JPG، PNG یا WebP مجاز است.');
       return;
     }
-    if (file.size > MAX_BANNER_BYTES) {
-      setError('حجم تصویر بنر حداکثر ۳ مگابایت است.');
+    if (file.size > MAX_SOURCE_BYTES) {
+      setError('حجم تصویر انتخابی حداکثر ۲۰ مگابایت است.');
       return;
     }
-    const { width, height } = await readImageSize(file);
-    setWarning(bannerImageWarning(kind, width, height));
     setUploading(true);
     onUploadingChange?.(kind, true);
     try {
-      const response = await filesApi.upload(file, { domain: 'banner' });
+      const { width, height } = await readImageSize(file);
+      setWarning(bannerImageWarning(kind, width, height));
+      const upload = await optimizeBannerImage(file, kind);
+      if (upload.size > MAX_BANNER_BYTES) {
+        setError('حجم تصویر بنر حداکثر ۳ مگابایت است؛ تصویر را فشرده‌تر یا کوچک‌تر کنید.');
+        return;
+      }
+      const response = await filesApi.upload(upload, { domain: 'banner' });
       const id = response?.data?.id;
       if (!id) throw new Error('شناسه فایل دریافت نشد');
-      setPreview(URL.createObjectURL(file));
+      setPreview(URL.createObjectURL(upload));
       onUploaded(id);
     } catch (uploadError) {
       setError(getErrorMessage(uploadError, 'بارگذاری تصویر ناموفق بود.'));

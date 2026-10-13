@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { daysUntilDue, invoiceDueInfo } from './invoiceDue';
-import { bannerImageWarning } from './bannerImage';
+import { BANNER_OPTIMIZE_THRESHOLD, bannerImageWarning, optimizeBannerImage } from './bannerImage';
 import { backTarget, safeInternalPath } from './navigation';
 import { previewEvenSplit, summarizeImportPreview } from '../components/invoices/invoiceHelpers';
 
@@ -77,6 +77,18 @@ describe('bannerImageWarning', () => {
     expect(bannerImageWarning('desktop', 1080, 540)).toContain('نسبت تصویر');
     expect(bannerImageWarning('mobile', 600, 300)).toContain('وضوح تصویر');
     expect(bannerImageWarning('unknown', 10, 10)).toBe('');
+  });
+});
+
+describe('optimizeBannerImage', () => {
+  it('uploads small images untouched', async () => {
+    const file = new File([new Uint8Array(1024)], 'b.png', { type: 'image/png' });
+    await expect(optimizeBannerImage(file, 'desktop')).resolves.toBe(file);
+  });
+
+  it('keeps the original when the browser cannot decode it', async () => {
+    const file = new File([new Uint8Array(BANNER_OPTIMIZE_THRESHOLD + 1)], 'b.png', { type: 'image/png' });
+    await expect(optimizeBannerImage(file, 'desktop')).resolves.toBe(file);
   });
 });
 

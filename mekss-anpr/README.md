@@ -25,11 +25,20 @@ The service sheds load (`503 busy`) instead of queueing, so the backend fails ov
 
 ## Models
 
-Model files are listed with their checksums in `models/manifest.json`. The detectors are downloaded; the
-recogniser is the Platrix CRNN fine-tuned on IR-LPR, committed under `models/bundled/` and copied from
-there (IR-LPR test split: 81.3% → 92.6% plate accuracy, 99.0% when confidence ≥ 0.9). See
-[`training/README.md`](training/README.md) for the benchmark, the GPL-3.0 dataset licence note, how to
-reproduce it and how to revert to the original weights.
+Model files are listed with their checksums in `models/manifest.json`. All three models are committed under
+`models/bundled/` and copied from there, so a fresh install needs no internet access:
+
+- `plate_yolo.onnx`: Platrix plate detector (MIT). Its input is dynamic, so the same weights run at
+  416/640 for live frames and at 640/960 plus 2×2 overlapping tiles for still photos.
+- `plate_yolo_fallback.onnx`: second Platrix detector, only tried for still photos when the main one
+  finds nothing (it would triple the cost of the many plate-less live frames).
+- `ocr_crnn.onnx`: Platrix CRNN fine-tuned on IR-LPR (IR-LPR test split: 81.3% → 92.6% plate accuracy,
+  99.0% when confidence ≥ 0.9). See [`training/README.md`](training/README.md) for the benchmark, the
+  GPL-3.0 dataset licence note, how to reproduce it and how to revert to the original weights.
+
+The recogniser's alphabet has no `ک`, `گ` or `ف` (no offline MIT/ONNX Iranian plate model with those
+letters was found). Plates with these letters are read with the letter missing or wrong, so the scanner
+prefills the best guess and the guard corrects it in the plate input.
 
 ```bash
 python scripts/download_models.py                      # into ./models (or $ANPR_MODEL_DIR)

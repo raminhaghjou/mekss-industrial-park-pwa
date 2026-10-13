@@ -20,7 +20,7 @@ import { anprApi } from '../../services/api/anpr.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { semanticFilter } from '../../utils/semanticSearch';
-import { displayIranLicensePlate, isCompleteIranLicensePlate, normalizeIranPlate } from '../../utils/iranLicensePlate';
+import { displayIranLicensePlate, isCompleteIranLicensePlate, normalizeIranPlate, partialIranLicensePlate } from '../../utils/iranLicensePlate';
 import IranPlateOcrCamera from '../../components/gate-pass/IranPlateOcrCamera';
 import IranLicensePlateInput from '../../components/common/IranLicensePlateInput';
 import GatePassQuickVerifyCard from '../../components/gate-pass/GatePassQuickVerifyCard';
@@ -42,6 +42,7 @@ export const ScanQrPage = () => {
   const [plateCameraOpen, setPlateCameraOpen] = useState(false);
   const [plateCode, setPlateCode] = useState('');
   const [plateFilledByScan, setPlateFilledByScan] = useState(false);
+  const [plateDraft, setPlateDraft] = useState(null);
   const [decision, setDecision] = useState(null);
   const [selectedPassId, setSelectedPassId] = useState(null);
   const scanControlsRef = useRef(null);
@@ -108,10 +109,26 @@ export const ScanQrPage = () => {
     else showNotification(`پلاک ${label} خوانده شد؛ برگ خروج بازی یافت نشد`, 'error');
   }, [applyDecision, showNotification]);
 
+  /** Incomplete photo read: prefill the segments that were read so the guard only fixes the rest. */
+  const onScanGuess = useCallback((guess) => {
+    const source = guess?.plate || guess?.raw || '';
+    if (isCompleteIranLicensePlate(source)) {
+      setPlateCode(canonicalizePlate(source));
+      setPlateFilledByScan(true);
+      return;
+    }
+    const parts = partialIranLicensePlate(source);
+    if (!parts.series && !parts.letter && !parts.middle && !parts.region) return;
+    setPlateCode('');
+    setPlateDraft({ ...parts, key: `${Date.now()}` });
+    setPlateFilledByScan(true);
+  }, []);
+
   const scanNext = () => {
     setDecision(null);
     setSelectedPassId(null);
     setPlateCode('');
+    setPlateDraft(null);
     setPlateFilledByScan(false);
     scanControlsRef.current?.rescan();
   };
@@ -373,7 +390,7 @@ export const ScanQrPage = () => {
                 شروع اسکن زنده پلاک
               </Button>
             ) : (
-              <IranPlateOcrCamera onCancel={() => setPlateCameraOpen(false)} onDecision={onScanDecision} />
+              <IranPlateOcrCamera onCancel={() => setPlateCameraOpen(false)} onDecision={onScanDecision} onGuess={onScanGuess} />
             )}
 
             <form
@@ -393,6 +410,7 @@ export const ScanQrPage = () => {
               <IranLicensePlateInput
                 label={plateFilledByScan ? 'پلاک خوانده‌شده (قابل اصلاح)' : 'ورود / اصلاح دستی پلاک'}
                 value={plateCode}
+                draft={plateDraft}
                 highlight={plateFilledByScan}
                 onChange={(next) => {
                   setPlateCode(next);

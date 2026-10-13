@@ -164,6 +164,9 @@ export const getErrorMessage = (error, fallback) => {
   if (error?.request && !error?.response) {
     return 'ارتباط با سرور برقرار نشد. اتصال اینترنت یا وضعیت سامانه را بررسی کنید.';
   }
+  if (error?.response?.status === 413) {
+    return 'حجم فایل بیش از حد مجاز سرور است؛ فایل کوچک‌تری انتخاب کنید.';
+  }
 
   return fallback;
 };

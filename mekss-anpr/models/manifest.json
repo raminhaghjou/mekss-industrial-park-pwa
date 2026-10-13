@@ -5,7 +5,8 @@
   "files": {
     "plate_yolo.onnx": {
       "required": true,
-      "sha256": "a54e475c402e6036bb5c70f1a6ff75179e76098a5c8039bb5d148c0b6421f5c6"
+      "sha256": "a54e475c402e6036bb5c70f1a6ff75179e76098a5c8039bb5d148c0b6421f5c6",
+      "bundled": "bundled/plate_yolo.onnx"
     },
     "plate_yolo_fallback.onnx": {
       "required": false,

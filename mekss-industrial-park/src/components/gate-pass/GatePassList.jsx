@@ -11,7 +11,7 @@ import {
   CardContent,
 } from '@heroui/react';
 import { ResponsiveTable } from '../common/ResponsiveTable';
-import { cargoTypeLabels, labelFor } from '../../constants/persianLabels';
+import { cargoTypeLabels, gatePassStatusLabels as statusLabels, labelFor } from '../../constants/persianLabels';
 
 const statusColors = {
   PENDING: 'warning',
@@ -19,14 +19,6 @@ const statusColors = {
   REJECTED: 'danger',
   COMPLETED: 'accent',
   EXPIRED: 'default',
-};
-
-const statusLabels = {
-  PENDING: 'در انتظار',
-  APPROVED: 'تایید شده',
-  REJECTED: 'رد شده',
-  COMPLETED: 'تکمیل شده',
-  EXPIRED: 'منقضی شده',
 };
 
 const GatePassList = ({ passes }) => {

@@ -80,7 +80,7 @@ const ManageUsersPage = () => {
 
   const createMutation = useMutation({
     mutationFn: (/** @type {typeof emptyForm} */ payload) => userApi.createUser(payload),
-    onSuccess: () => { showNotification('کاربر ایجاد شد و نام کاربری و رمز عبور برایش پیامک شد.', 'success'); closeForm(); invalidate(); },
+    onSuccess: () => { showNotification('کاربر ایجاد شد و نام کاربری برایش پیامک شد؛ رمز عبور را خودتان به او اعلام کنید.', 'success'); closeForm(); invalidate(); },
     onError: (err) => showNotification(getErrorMessage(err, 'ایجاد کاربر ناموفق بود.'), 'error'),
   });
 

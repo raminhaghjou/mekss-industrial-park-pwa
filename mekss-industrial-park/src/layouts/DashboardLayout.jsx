@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,136 +9,33 @@ import {
   DropdownPopover,
   DropdownMenu,
   DropdownItem,
-  Separator,
 } from '@heroui/react';
-import {
-  LayoutDashboard,
-  Building2,
-  FileText,
-  Receipt,
-  Ticket,
-  MessageSquare,
-  Bell,
-  Megaphone,
-  AlertTriangle,
-  Settings,
-  User,
-  LogOut,
-  Menu,
-  ShieldCheck,
-  Users,
-  MapPin,
-  ChevronLeft,
-  MoreHorizontal,
-  Wallet,
-  UserPlus,
-  LineChart,
-  ScanLine,
-  Factory,
-  UserCheck,
-  GalleryHorizontal,
-} from 'lucide-react';
+import { Bell, Settings, User, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../providers/AuthProvider';
 import { useActiveFactory } from '../providers/ActiveFactoryProvider';
 import { useNotification } from '../providers/NotificationProvider';
 import { messageApi } from '../services/api/message.api';
 import { roleLabels } from '../constants/persianLabels';
+import { pageTitleForPath, tabsForRole } from '../constants/appServices';
 import { AuthenticatedImage } from '../components/common/AuthenticatedImage';
 import { BackButton } from '../components/common/BackButton';
-import { useGatePassWallet } from '../hooks/useGatePassWallet';
-
-const navigationItems = [
-  { path: '/dashboard', text: 'داشبورد', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
-  { path: '/admin/factories', text: 'واحدهای صنعتی', icon: Building2, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/admin/registrations', text: 'تایید ثبت‌نام‌ها', icon: UserCheck, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
-  { path: '/admin/park-staff', text: 'پرسنل شهرک', icon: UserPlus, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/factory/register', text: 'ثبت واحد صنعتی', icon: Factory, roles: ['FACTORY_OWNER'] },
-  { path: '/factory/staff', text: 'پرسنل واحد', icon: UserPlus, roles: ['FACTORY_OWNER'] },
-  { path: '/factory/wallet', text: 'کیف پول', icon: Wallet, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
-  { path: '/admin/finance', text: 'حسابداری و مالی', icon: Receipt, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/invoices', text: 'قبض‌های من', icon: Receipt, roles: ['FACTORY_OWNER', 'PARK_MANAGER'] },
-  { path: '/admin/gate-passes', text: 'برگ‌های خروج', icon: Ticket, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/gate-passes', text: 'برگ‌های خروج من', icon: Ticket, roles: ['FACTORY_OWNER'] },
-  { path: '/guard/gate-passes', text: 'تایید خروج', icon: ShieldCheck, roles: ['SECURITY_GUARD'] },
-  { path: '/guard/scan', text: 'اسکن QR', icon: ScanLine, roles: ['SUPER_ADMIN', 'SECURITY_GUARD'] },
-  { path: '/admin/requests', text: 'درخواست‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/requests', text: 'درخواست‌های من', icon: FileText, roles: ['FACTORY_OWNER', 'EMPLOYEE'] },
-  { path: '/messages', text: 'پیام‌ها', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'] },
-  { path: '/market-rates', text: 'نرخ بازار', icon: LineChart, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL'] },
-  { path: '/admin/announcements', text: 'مدیریت اطلاعیه‌ها', icon: Bell, roles: ['SUPER_ADMIN', 'PARK_MANAGER'] },
-  { path: '/announcements', text: 'اطلاعیه‌ها', icon: Bell, roles: ['FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'SECURITY_GUARD', 'EMPLOYEE'] },
-  { path: '/advertisements', text: 'آگهی‌ها', icon: Megaphone, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'] },
-  { path: '/emergency', text: 'هشدار اضطراری', icon: AlertTriangle, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'EMPLOYEE'] },
-  { path: '/ads', text: 'دیوار آگهی', icon: Megaphone, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'EMPLOYEE', 'GOVERNMENT_OFFICIAL'] },
-  { path: '/feedback', text: 'انتقادات و پیشنهادات', icon: MessageSquare, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECURITY_GUARD', 'EMPLOYEE', 'GOVERNMENT_OFFICIAL'] },
-  { path: '/superadmin/parks', text: 'شهرک‌ها', icon: MapPin, roles: ['SUPER_ADMIN'] },
-  { path: '/superadmin/users', text: 'کاربران', icon: Users, roles: ['SUPER_ADMIN'] },
-  { path: '/superadmin/banners', text: 'بنرهای داشبورد', icon: GalleryHorizontal, roles: ['SUPER_ADMIN'] },
-  { path: '/admin/reports', text: 'گزارش‌ها', icon: FileText, roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'GOVERNMENT_OFFICIAL'] },
-];
-
-const bottomNavPathsByRole = {
-  SUPER_ADMIN: ['/dashboard', '/superadmin/parks', '/superadmin/users', '/admin/reports'],
-  PARK_MANAGER: ['/dashboard', '/admin/factories', '/admin/requests', '/admin/finance'],
-  FACTORY_OWNER: ['/dashboard', '/invoices', '/requests', '/gate-passes'],
-  SECURITY_GUARD: ['/dashboard', '/guard/gate-passes', '/guard/scan', '/emergency'],
-  GOVERNMENT_OFFICIAL: ['/dashboard', '/admin/reports', '/announcements', '/messages'],
-  EMPLOYEE: ['/dashboard', '/requests', '/messages', '/announcements'],
-};
-
-const bottomShortLabels = {
-  '/dashboard': 'خانه',
-  '/invoices': 'قبض',
-  '/requests': 'درخواست',
-  '/gate-passes': 'خروج',
-  '/admin/factories': 'واحدها',
-  '/admin/requests': 'درخواست',
-  '/admin/finance': 'مالی',
-  '/admin/invoices': 'قبض',
-  '/admin/announcements': 'اطلاعیه',
-  '/announcements': 'اطلاعیه',
-  '/guard/gate-passes': 'خروج',
-  '/guard/scan': 'اسکن',
-  '/emergency': 'اضطراری',
-  '/superadmin/parks': 'شهرک',
-  '/superadmin/users': 'کاربر',
-  '/admin/reports': 'گزارش',
-  '/messages': 'پیام',
-  '/profile': 'پروفایل',
-};
-
-const profileShortcut = { path: '/profile', text: 'پروفایل', icon: User, roles: ['EMPLOYEE'] };
-
-const SidebarBrand = () => (
-  <div className="flex items-center gap-2 px-4 py-6">
-    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-brand)] text-lg font-bold text-white">
-      M
-    </div>
-    <div className="flex flex-col">
-      <span className="text-sm font-bold text-foreground">MEKSS</span>
-      <span className="text-xs text-foreground-500">مدیریت شهرک صنعتی</span>
-    </div>
-  </div>
-);
-
-const NavButton = ({ item, isActive, onPress, badge }) => (
-  <Button
-    variant={isActive ? 'secondary' : 'ghost'}
-    className={`w-full justify-start gap-2 ${isActive ? 'bg-primary/10 font-medium text-primary' : ''}`}
-    onPress={onPress}
-  >
-    <item.icon className="h-5 w-5 shrink-0" />
-    <span className="flex-1 text-start">{item.text}</span>
-    {badge > 0 && (
-      <span className="rounded-full bg-[var(--color-brand)] px-1.5 py-0.5 text-[10px] font-bold text-white">
-        {badge > 99 ? '99+' : badge}
-      </span>
-    )}
-  </Button>
-);
 
 const isPathActive = (pathname, path) => (
   pathname === path || (path !== '/dashboard' && pathname.startsWith(`${path}/`))
+);
+
+const formatBadge = (count) => (count > 9 ? '۹+' : count.toLocaleString('fa-IR'));
+
+const BrandMark = () => (
+  <div className="flex items-center gap-2">
+    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-brand)] text-lg font-black text-white shadow-[0_6px_14px_-8px_var(--color-brand)]">
+      M
+    </div>
+    <div className="flex flex-col leading-tight">
+      <span className="text-sm font-black tracking-wide text-foreground">MEKSS</span>
+      <span className="text-[11px] text-foreground-500">سامانه شهرک صنعتی</span>
+    </div>
+  </div>
 );
 
 export const DashboardLayout = () => {
@@ -148,7 +45,6 @@ export const DashboardLayout = () => {
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
   const { factories, activeFactory, setActiveFactoryId } = useActiveFactory();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: unreadData } = useQuery({
     queryKey: ['messages', 'unread-count'],
@@ -183,24 +79,10 @@ export const DashboardLayout = () => {
       .catch(() => {});
   }, [unreadNotifications, showNotification, queryClient]);
 
-  const { showWalletUi } = useGatePassWallet(user?.role);
-
-  const filteredNavItems = useMemo(() => {
-    return navigationItems.filter((item) => item.roles.includes(user?.role)
-      && (item.path !== '/factory/wallet' || showWalletUi));
-  }, [user?.role, showWalletUi]);
-
-  const bottomItems = useMemo(() => {
-    const paths = bottomNavPathsByRole[user?.role] || ['/dashboard'];
-    return paths.map((path) => {
-      if (path === '/profile') return profileShortcut;
-      return filteredNavItems.find((item) => item.path === path);
-    }).filter(Boolean);
-  }, [filteredNavItems, user?.role]);
-
-  const activeItem = [...filteredNavItems]
-    .reverse()
-    .find((item) => isPathActive(location.pathname, item.path));
+  const tabs = useMemo(() => tabsForRole(user?.role), [user?.role]);
+  const tabBadge = (tab) => (tab.badgeKey === 'unreadMessages' ? unreadCount : 0);
+  const isHome = location.pathname === '/dashboard';
+  const pageTitle = pageTitleForPath(location.pathname) || 'سامانه مدیریت شهرک صنعتی';
 
   const handleLogout = async () => {
     await logout();
@@ -208,97 +90,60 @@ export const DashboardLayout = () => {
     navigate('/login');
   };
 
-  const navigateTo = (path) => {
-    navigate(path);
-    setSidebarOpen(false);
-  };
-
   const showFactorySwitcher = user?.role === 'FACTORY_OWNER' && factories.length > 1;
 
   return (
-    <div className="flex min-h-dvh bg-background">
-      <aside className="hidden w-64 shrink-0 flex-col border-e border-default-200 bg-background lg:flex">
-        <SidebarBrand />
-        <Separator />
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-          <p className="px-3 py-2 text-xs font-semibold text-foreground-500">منوی اصلی</p>
-          {filteredNavItems.map((item) => (
-            <NavButton
-              key={item.path}
-              item={item}
-              isActive={isPathActive(location.pathname, item.path)}
-              onPress={() => navigate(item.path)}
-              badge={item.path === '/messages' ? unreadCount : 0}
-            />
-          ))}
-        </nav>
-      </aside>
-
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute inset-y-0 right-0 flex h-full w-[min(20rem,88vw)] flex-col bg-background pb-safe shadow-2xl">
-            <div className="flex items-center justify-between border-b border-default-200 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
-              <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-brand)] text-lg font-bold text-white">
-                  M
-                </div>
-                <div>
-                  <p className="font-bold">MEKSS</p>
-                  <p className="text-xs text-foreground-500">{roleLabels[user?.role] || user?.role}</p>
-                </div>
-              </div>
-              <Button variant="ghost" isIconOnly className="touch-target" onPress={() => setSidebarOpen(false)} aria-label="بستن منو">
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-            </div>
-            <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-              {filteredNavItems.map((item) => (
-                <NavButton
-                  key={item.path}
-                  item={item}
-                  isActive={isPathActive(location.pathname, item.path)}
-                  onPress={() => navigateTo(item.path)}
-                  badge={item.path === '/messages' ? unreadCount : 0}
-                />
-              ))}
-            </nav>
-            <div className="space-y-1 border-t border-default-200 p-2">
-              <NavButton item={{ path: '/profile', text: 'پروفایل', icon: User }} isActive={location.pathname === '/profile'} onPress={() => navigateTo('/profile')} />
-              <NavButton item={{ path: '/settings', text: 'تنظیمات', icon: Settings }} isActive={location.pathname === '/settings'} onPress={() => navigateTo('/settings')} />
-              <Button variant="ghost" className="w-full justify-start gap-2 text-danger" onPress={handleLogout}>
-                <LogOut className="h-5 w-5 shrink-0" />
-                خروج از حساب
-              </Button>
-            </div>
-          </aside>
-        </div>
-      )}
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-default-200 bg-background/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] shadow-sm backdrop-blur lg:h-16 lg:px-4 lg:py-0 lg:pt-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              isIconOnly
-              className="touch-target lg:hidden"
-              onPress={() => setSidebarOpen(true)}
-              aria-label="باز کردن منو"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <BackButton />
-            <h1 className="truncate text-base font-bold text-foreground lg:text-lg">
-              {activeItem?.text || 'سامانه مدیریت شهرک صنعتی'}
-            </h1>
+    <div className="flex min-h-dvh flex-col bg-background">
+      <header className="sticky top-0 z-40 border-b border-default-200/70 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/75 dark:border-white/10">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-3 sm:px-4 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            {isHome ? (
+              <BrandMark />
+            ) : (
+              <>
+                <BackButton />
+                <h1 className="truncate text-base font-bold text-foreground lg:text-lg">{pageTitle}</h1>
+              </>
+            )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <nav aria-label="ناوبری اصلی" className="hidden items-center gap-1 rounded-2xl bg-default-100/80 p-1 lg:flex dark:bg-white/5">
+            {tabs.map((tab) => {
+              const active = isPathActive(location.pathname, tab.path);
+              const badge = tabBadge(tab);
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => navigate(tab.path)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] ${
+                    active
+                      ? 'bg-content1 text-[var(--color-brand)] shadow-[0_2px_8px_-4px_rgba(15,23,42,0.3)]'
+                      : tab.tone === 'danger'
+                        ? 'text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10'
+                        : 'text-foreground-600 hover:bg-content1/70 hover:text-foreground'
+                  }`}
+                >
+                  <tab.icon className="h-[1.1rem] w-[1.1rem]" aria-hidden="true" />
+                  {tab.title}
+                  {badge > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white tabular-nums">
+                      {formatBadge(badge)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="flex flex-1 shrink-0 items-center justify-end gap-1.5">
             {showFactorySwitcher && (
               <Dropdown>
                 <DropdownTrigger>
-                  <Button variant="tertiary" size="sm" className="max-w-[10rem] truncate text-xs">
+                  <Button variant="tertiary" size="sm" className="max-w-[10rem] truncate rounded-xl text-xs">
                     {activeFactory?.name || 'انتخاب واحد'}
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
                   </Button>
                 </DropdownTrigger>
                 <DropdownPopover placement="bottom end">
@@ -320,21 +165,24 @@ export const DashboardLayout = () => {
             <Button
               variant="ghost"
               isIconOnly
-              aria-label="پیام‌ها"
-              className="relative"
+              aria-label={unreadCount > 0 ? `پیام‌ها — ${unreadCount.toLocaleString('fa-IR')} خوانده‌نشده` : 'پیام‌ها'}
+              className="relative rounded-xl"
               onPress={() => navigate('/messages')}
             >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
-                <span className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-brand)] px-1 text-[9px] font-bold text-white">
-                  {unreadCount > 9 ? '۹+' : unreadCount.toLocaleString('fa-IR')}
+                <span className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-bold text-white">
+                  {formatBadge(unreadCount)}
                 </span>
               )}
             </Button>
 
             <Dropdown>
               <DropdownTrigger>
-                <div className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1.5 hover:bg-default-100">
+                <div
+                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-1.5 hover:bg-default-100"
+                  aria-label="حساب کاربری"
+                >
                   <Avatar size="sm" className="overflow-hidden bg-[var(--color-brand)] text-white">
                     {user?.avatar ? (
                       <AuthenticatedImage
@@ -378,55 +226,59 @@ export const DashboardLayout = () => {
                     onPress={handleLogout}
                   >
                     <LogOut className="h-4 w-4" />
-                    خروج
+                    خروج از حساب
                   </DropdownItem>
                 </DropdownMenu>
               </DropdownPopover>
             </Dropdown>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-3 pb-app sm:p-4 md:p-6 lg:p-8 lg:pb-8">
-          <div className="mx-auto max-w-7xl animate-fade-in">
-            <Outlet />
-          </div>
-        </main>
+      <main className="flex-1 overflow-x-hidden p-3 pb-app sm:p-4 md:p-6 lg:p-8 lg:pb-8">
+        <div className="mx-auto max-w-7xl animate-fade-in">
+          <Outlet />
+        </div>
+      </main>
 
-        <nav
-          aria-label="ناوبری موبایل"
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-default-200 bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90 lg:hidden"
-        >
-          <div className="grid grid-cols-5">
-            {bottomItems.map((item) => {
-              const active = isPathActive(location.pathname, item.path);
-              return (
-                <button
-                  key={item.path}
-                  type="button"
-                  onClick={() => navigate(item.path)}
-                  className={`relative flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium transition ${
-                    active ? 'text-[var(--color-brand)]' : 'text-foreground-500'
+      <nav
+        aria-label="ناوبری موبایل"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-default-200/70 bg-background/90 pb-safe backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 lg:hidden dark:border-white/10"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-4 px-2">
+          {tabs.map((tab) => {
+            const active = isPathActive(location.pathname, tab.path);
+            const badge = tabBadge(tab);
+            const danger = tab.tone === 'danger';
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => navigate(tab.path)}
+                aria-current={active ? 'page' : undefined}
+                data-testid={`tab-${tab.id}`}
+                className={`group relative flex min-h-[4rem] flex-col items-center justify-center gap-1 text-[11px] font-semibold outline-none transition active:scale-95 motion-reduce:transform-none ${
+                  active ? 'text-[var(--color-brand)]' : danger ? 'text-rose-600 dark:text-rose-300' : 'text-foreground-500'
+                }`}
+              >
+                <span
+                  className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-[var(--color-brand)] ${
+                    active ? 'bg-[var(--color-brand-soft)]' : danger ? 'bg-rose-50 dark:bg-rose-500/10' : ''
                   }`}
                 >
-                  <item.icon className={`h-5 w-5 ${active ? 'stroke-[2.25]' : ''}`} />
-                  <span className="max-w-full truncate">{bottomShortLabels[item.path] || item.text}</span>
-                  {item.path === '/messages' && unreadCount > 0 && (
-                    <span className="absolute end-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--color-brand)]" />
+                  <tab.icon className={`h-5 w-5 ${active ? 'stroke-[2.3]' : ''}`} aria-hidden="true" />
+                  {badge > 0 && (
+                    <span className="absolute -top-1 end-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-bold text-white ring-2 ring-background">
+                      {formatBadge(badge)}
+                    </span>
                   )}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="flex min-h-[3.75rem] flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium text-foreground-500"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-              <span>منو</span>
-            </button>
-          </div>
-        </nav>
-      </div>
+                </span>
+                <span>{tab.title}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 };

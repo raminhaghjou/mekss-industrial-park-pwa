@@ -1649,7 +1649,7 @@ describe('ManagementService park staff contract', () => {
     expect(smsPhone).toBe('09123334455');
     expect(smsText).toContain('شهرک آزمون');
     expect(smsText).toContain('نام کاربری: 09123334455');
-    expect(smsText).toContain('رمز عبور: Password1234');
+    expect(smsText).not.toContain('Password1234');
 
     expect(user.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
@@ -1687,7 +1687,7 @@ describe('ManagementService park staff contract', () => {
     expect(sms.sendText).toHaveBeenCalledWith('09124445566', expect.stringContaining('واحد صنعتی «فولاد آزمون»'));
     const text = sms.sendText.mock.calls[0][1];
     expect(text).toContain('نام کاربری: 09124445566');
-    expect(text).toContain('رمز عبور: Staff12345x');
+    expect(text).not.toContain('Staff12345x');
   });
 
   it('rejects creating park staff for an unmanaged park', async () => {
@@ -1755,9 +1755,10 @@ describe('ManagementService wallet top-up via payment gateway', () => {
     referenceId: null,
     factory: { id: 'factory-1', name: 'واحد آزمون' },
     initiatedBy: { id: 'owner-1', phoneNumber: '09121112233' },
+    createdAt: new Date(),
   };
-  const serviceFor = (prisma: any, sms?: any) => {
-    const service = new ManagementService(prisma, { record: jest.fn() } as any, config, sms);
+  const serviceFor = (prisma: any, sms?: any, serviceConfig: any = config) => {
+    const service = new ManagementService(prisma, { record: jest.fn() } as any, serviceConfig, sms);
     jest.spyOn(service as any, 'assertFactoryAccess').mockResolvedValue(undefined);
     return service;
   };
@@ -1829,5 +1830,26 @@ describe('ManagementService wallet top-up via payment gateway', () => {
     }));
     expect(prisma.factory.update).not.toHaveBeenCalled();
     expect(target).toBe('http://localhost:5173/factory/wallet?topup=failed&amount=500000&factoryId=factory-1');
+  });
+
+  it('refuses to settle a mock top-up once mock payments are disabled in production', async () => {
+    const prisma = walletPrisma(pendingTopUp);
+    const productionConfig = { get: jest.fn((key: string, fallback?: string) => (key === 'NODE_ENV' ? 'production' : fallback)) } as any;
+    const result = await serviceFor(prisma, undefined, productionConfig).verifyWalletTopUp('auth-1', 'OK');
+
+    expect(result).toEqual(expect.objectContaining({ status: 'failed' }));
+    expect(prisma.walletTopUp.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'topup-1', status: 'INITIATED' },
+      data: expect.objectContaining({ status: 'FAILED' }),
+    }));
+    expect(prisma.factory.update).not.toHaveBeenCalled();
+  });
+
+  it('does not credit an expired payment session', async () => {
+    const prisma = walletPrisma({ ...pendingTopUp, createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) });
+    const result = await serviceFor(prisma).verifyWalletTopUp('auth-1', 'OK');
+
+    expect(result).toEqual(expect.objectContaining({ status: 'failed' }));
+    expect(prisma.factory.update).not.toHaveBeenCalled();
   });
 });

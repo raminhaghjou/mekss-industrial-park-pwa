@@ -23,9 +23,10 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Large ONNX weights (download via npm run models:iran-plate)
-mekss-industrial-park/public/models/iran-plate/*.onnx
-!mekss-industrial-park/public/models/iran-plate/ocr_crnn.labels.json
+# ONNX plate models are committed under mekss-anpr/models/bundled and
+# mekss-industrial-park/public/models/iran-plate (servers in Iran often cannot reach HuggingFace).
+# The backend copy is filled from the shared Docker volume or copied locally.
+mekss-backend/models/iran-plate/
 
 *.suo
 *.ntvs*

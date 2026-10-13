@@ -44,7 +44,8 @@ export class SmsGateway {
   async sendText(phoneNumber: string, message: string): Promise<void> {
     const provider = this.config.get<string>('SMS_PROVIDER', 'mock').toLowerCase();
     if (provider === 'mock') {
-      this.logger.log(`Mock SMS to ${this.mask(phoneNumber)}: ${message.slice(0, 80)}`);
+      this.logger.log(`Mock SMS to ${this.mask(phoneNumber)} (${message.length} chars).`);
+      if (this.config.get<string>('NODE_ENV') !== 'production') this.logger.debug(`Mock SMS text: ${message}`);
       return;
     }
 

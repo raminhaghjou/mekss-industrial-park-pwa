@@ -62,7 +62,7 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
   const [zoom, setZoom] = useState(null);
   const [flash, setFlash] = useState(false);
 
-  const { state, rescan, confirm, submitPhoto } = useLivePlateScanner({
+  const { state, rescan, reconnect, confirm, submitPhoto } = useLivePlateScanner({
     videoRef,
     enabled: liveSupported && cameraReady,
     guide: DEFAULT_GUIDE,
@@ -308,6 +308,12 @@ export default function IranPlateOcrCamera({ onDecision, onCancel }) {
           <Button variant="secondary" className="flex-1 font-bold" onPress={handleRescan}>
             <RotateCcw className="h-4 w-4" />
             اسکن خودروی بعدی
+          </Button>
+        )}
+        {!state.decision && state.mode === 'manual' && liveSupported && !cameraError && (
+          <Button variant="secondary" className="flex-1 font-bold" onPress={reconnect}>
+            <RotateCcw className="h-4 w-4" />
+            تلاش دوباره برای اتصال
           </Button>
         )}
         <Button

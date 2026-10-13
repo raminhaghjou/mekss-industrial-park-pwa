@@ -81,7 +81,7 @@ export const ParkStaffPage = () => {
   const createMutation = useMutation({
     mutationFn: (payload) => parkStaffApi.create(payload),
     onSuccess: (_, payload) => {
-      showNotification(`کارمند شهرک ثبت شد و نام کاربری و رمز عبور به ${payload.phoneNumber} پیامک شد.`, 'success');
+      showNotification(`کارمند شهرک ثبت شد و نام کاربری به ${payload.phoneNumber} پیامک شد؛ رمز عبور را خودتان به او اعلام کنید.`, 'success');
       setForm(emptyForm);
       setShowErrors(false);
       invalidate();
@@ -93,7 +93,7 @@ export const ParkStaffPage = () => {
     mutationFn: ({ id, payload }) => parkStaffApi.update(id, payload),
     onSuccess: (_, { payload }) => {
       showNotification(
-        payload.password ? 'اطلاعات کارمند به‌روز شد و رمز جدید برای او پیامک شد.' : 'اطلاعات کارمند به‌روز شد',
+        payload.password ? 'اطلاعات کارمند به‌روز شد و بازنشانی رمز به او پیامک شد؛ رمز جدید را خودتان به او اعلام کنید.' : 'اطلاعات کارمند به‌روز شد',
         'success',
       );
       setEditing(null);
@@ -333,7 +333,7 @@ export const ParkStaffPage = () => {
           {!editing && (
             <p className="flex items-center gap-1.5 rounded-xl bg-default-50 px-3 py-2 text-[11px] text-foreground-500 dark:bg-white/5">
               <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
-              پس از ثبت، نام کاربری و رمز عبور اولیه برای کارمند پیامک می‌شود و در اولین ورود باید رمز خود را تغییر دهد.
+              پس از ثبت، نام کاربری برای کارمند پیامک می‌شود (رمز عبور پیامک نمی‌شود؛ آن را خودتان اعلام کنید یا کارمند از «فراموشی رمز عبور» رمز موقت بگیرد) و در اولین ورود باید رمز خود را تغییر دهد.
             </p>
           )}
 

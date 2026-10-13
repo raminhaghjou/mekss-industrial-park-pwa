@@ -13,6 +13,7 @@ const MODE_TIMING = {
 };
 const SOCKET_CONNECT_TIMEOUT_MS = 4000;
 const HTTP_FAILURES_BEFORE_DEVICE = 3;
+const SOCKET_FAILURES_BEFORE_HTTP = 3;
 
 const newSessionId = () => {
   const random = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -67,6 +68,7 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
   const metaRef = useRef(new Map());
   const sessionRef = useRef(newSessionId());
   const httpFailuresRef = useRef(0);
+  const socketFailuresRef = useRef(0);
   const deviceFusionRef = useRef(createDeviceFusion());
   const deviceOcrRef = useRef(null);
   const timerRef = useRef(null);
@@ -127,6 +129,7 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
         if (!aliveRef.current) return;
         if (status === 'connected') {
           settled = true;
+          socketFailuresRef.current = 0;
           setMode('socket', null);
         } else if ((status === 'disconnected' || status === 'failed') && modeRef.current === 'socket') {
           enterHttp(detail || status);
@@ -206,7 +209,15 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
         metaRef.current.set(seq, { roi, encoded });
         if (metaRef.current.size > 16) metaRef.current.delete(metaRef.current.keys().next().value);
         const ack = await connRef.current.sendFrame(seq, sample.image);
-        if (!ack.ok && ack.status && ack.status >= 500) enterHttp('server-error');
+        if (ack.ok) {
+          socketFailuresRef.current = 0;
+        } else if (ack.status && ack.status >= 500) {
+          socketFailuresRef.current += 1;
+          if (socketFailuresRef.current >= SOCKET_FAILURES_BEFORE_HTTP && modeRef.current === 'socket') {
+            socketFailuresRef.current = 0;
+            enterHttp('server-error');
+          }
+        }
         return;
       }
 
@@ -304,6 +315,16 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
     dispatch({ type: 'RESCAN' });
   }, []);
 
+  /** Climb back up the cascade after it fell to manual (e.g. the server was briefly down). */
+  const reconnect = useCallback(() => {
+    if (!aliveRef.current) return;
+    httpFailuresRef.current = 0;
+    socketFailuresRef.current = 0;
+    dispatch({ type: 'START', mode: 'socket' });
+    modeRef.current = null;
+    connectSocket();
+  }, [connectSocket]);
+
   /** Record what the guard finally accepted (labelled data for evaluation / fine-tuning). */
   const confirm = useCallback(async ({ plate, gatePassId } = {}) => {
     const readId = stateRef.current.decision?.readId;
@@ -344,7 +365,7 @@ export function useLivePlateScanner({ videoRef, enabled, guide = DEFAULT_GUIDE }
     }
   }, [decideFromDevice, recognizeOnDevice]);
 
-  return { state, rescan, confirm, submitPhoto, sessionId: sessionRef.current };
+  return { state, rescan, reconnect, confirm, submitPhoto, sessionId: sessionRef.current };
 }
 
 export default useLivePlateScanner;

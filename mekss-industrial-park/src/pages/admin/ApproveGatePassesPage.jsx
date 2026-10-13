@@ -178,7 +178,7 @@ export const ApproveGatePassesPage = () => {
     queryKey: ['gate-passes', 'managed', fromDate, toDate, nationalId, plate],
     queryFn: () => gatePassApi.getGatePasses({
       fromDate: fromDate || undefined,
-      toDate: toDate ? `${toDate}T23:59:59.999` : undefined,
+      toDate: toDate || undefined,
       driverNationalId: nationalId || undefined,
       licensePlate: plate || undefined,
     }).then((res) => res.data),

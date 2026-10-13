@@ -255,7 +255,7 @@ const NewAdvertisementPage = () => {
                     <SelectPopover>
                       <ListBox>
                         {(scope?.parks || []).map((park) => (
-                          <ListBoxItem key={park.id} id={park.id}>{`${park.name} (${park.code})`}</ListBoxItem>
+                          <ListBoxItem key={park.id} id={park.id}>{park.city ? `${park.name} — ${park.city}` : park.name}</ListBoxItem>
                         ))}
                       </ListBox>
                     </SelectPopover>

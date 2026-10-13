@@ -56,13 +56,13 @@ export const ApproveRequestsPage = () => {
           <div className="flex gap-2 border-b border-default-200 p-2">
             <button
               onClick={() => setTab('pending')}
-              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'pending' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'pending' ? 'bg-[var(--color-brand-soft)] text-slate-900 font-bold ring-1 ring-[var(--color-brand)] dark:text-white' : 'text-foreground-500 hover:bg-default-100'}`}
             >
               در انتظار تایید
             </button>
             <button
               onClick={() => setTab('history')}
-              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'history' ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === 'history' ? 'bg-[var(--color-brand-soft)] text-slate-900 font-bold ring-1 ring-[var(--color-brand)] dark:text-white' : 'text-foreground-500 hover:bg-default-100'}`}
             >
               تاریخچه
             </button>

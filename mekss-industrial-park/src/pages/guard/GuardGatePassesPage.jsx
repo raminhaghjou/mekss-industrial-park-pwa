@@ -31,6 +31,7 @@ import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
 import { semanticFilter } from '../../utils/semanticSearch';
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
+import IranLicensePlateBadge from '../../components/common/IranLicensePlateBadge';
 import { gatePassStatusLabels as statusLabels } from '../../constants/persianLabels';
 
 const TABS = [
@@ -181,12 +182,12 @@ const GuardGatePassesPage = () => {
               onClick={() => setTab(item.id)}
               className={`rounded-2xl border px-3 py-3 text-start transition ${
                 active
-                  ? 'border-primary bg-primary text-white shadow-md shadow-primary/20'
+                  ? 'border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-slate-900 shadow-md ring-1 ring-[var(--color-brand)] dark:text-white'
                   : 'border-default-200 bg-background text-foreground hover:bg-default-50 dark:border-white/10'
               }`}
             >
-              <p className={`text-xs font-medium ${active ? 'text-white/80' : 'text-foreground-500'}`}>{item.label}</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">{count.toLocaleString('fa-IR')}</p>
+              <p className={`text-xs ${active ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-foreground-500'}`}>{item.label}</p>
+              <p className={`mt-1 text-xl font-bold tabular-nums ${active ? 'text-slate-900 dark:text-white' : 'text-foreground'}`}>{count.toLocaleString('fa-IR')}</p>
             </button>
           );
         })}
@@ -268,9 +269,11 @@ const GuardGatePassesPage = () => {
                           <Car className="mt-0.5 h-4 w-4 shrink-0 text-foreground-400" />
                           <div className="min-w-0">
                             <p className="text-[11px] text-foreground-500">پلاک</p>
-                            <p className="truncate font-mono text-sm font-semibold text-foreground" dir="ltr">
-                              {displayIranLicensePlate(pass.licensePlate)}
-                            </p>
+                            {pass.licensePlate ? (
+                              <IranLicensePlateBadge value={pass.licensePlate} size="sm" className="mt-0.5" />
+                            ) : (
+                              <p className="text-sm font-semibold text-foreground">—</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-start gap-2 rounded-xl bg-default-50 px-3 py-2.5 dark:bg-white/5">

@@ -10,12 +10,19 @@ import { EmptyState } from '../../components/common/EmptyState';
 import IranProvinceCityFields from '../../components/common/IranProvinceCityFields';
 import { toPersistedLocation } from '../../utils/iranLocations';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
+import { digitsOnly } from '../../utils/digits';
+import { validateParkForm } from '../../utils/parkForm';
+
+const EMPTY_FORM = { name: '', province: '', city: '', address: '', phoneNumber: '', guardPhone: '' };
+
+const FieldError = ({ message }) => (message ? <span className="text-[11px] font-medium text-danger">{message}</span> : null);
 
 export const ManageParksPage = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [formData, setFormData] = useState({ code: '', name: '', province: '', city: '', address: '', phoneNumber: '' });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [showErrors, setShowErrors] = useState(false);
   const { showNotification } = useNotification();
   const queryClient = useQueryClient();
 
@@ -59,26 +66,44 @@ export const ManageParksPage = () => {
   const parks = Array.isArray(data) ? data : data?.items || [];
 
   const resetForm = () => {
-    setFormData({ code: '', name: '', province: '', city: '', address: '', phoneNumber: '' });
+    setFormData(EMPTY_FORM);
     setEditTarget(null);
+    setShowErrors(false);
   };
 
   const startEdit = (park) => {
     setFormData({
-      code: park.code || '',
       name: park.name || '',
       province: park.province || '',
       city: park.city || '',
       address: park.address || '',
-      phoneNumber: park.phoneNumber || '',
+      phoneNumber: digitsOnly(park.phoneNumber, 20),
+      guardPhone: park.guardPhone && park.guardPhone !== park.phoneNumber ? digitsOnly(park.guardPhone, 20) : '',
     });
     setEditTarget(park.id);
+    setShowErrors(false);
     setFormOpen(true);
   };
 
+  const formErrors = validateParkForm(formData);
+  const visibleErrors = showErrors ? formErrors : {};
+  const setField = (field, value) => setFormData((current) => ({ ...current, [field]: value }));
+
   const handleSubmit = () => {
+    if (Object.keys(formErrors).length > 0) {
+      setShowErrors(true);
+      showNotification(Object.values(formErrors)[0], 'error');
+      return;
+    }
     const location = toPersistedLocation(formData.province, formData.city);
-    const payload = { ...formData, province: location.province, city: location.city };
+    const payload = {
+      name: formData.name.trim(),
+      province: location.province,
+      city: location.city,
+      address: formData.address.trim(),
+      phoneNumber: formData.phoneNumber,
+      guardPhone: formData.guardPhone || formData.phoneNumber,
+    };
     if (editTarget) {
       updateMutation.mutate({ id: editTarget, data: payload });
     } else {
@@ -124,18 +149,18 @@ export const ManageParksPage = () => {
             <Table>
               <TableContent aria-label="شهرک‌های صنعتی">
               <TableHeader>
-                <TableColumn isRowHeader>کد</TableColumn>
-                <TableColumn>نام شهرک</TableColumn>
+                <TableColumn isRowHeader>نام شهرک</TableColumn>
                 <TableColumn>موقعیت</TableColumn>
+                <TableColumn>تلفن</TableColumn>
                 <TableColumn>وضعیت</TableColumn>
                 <TableColumn>عملیات</TableColumn>
               </TableHeader>
               <TableBody>
                 {parks.map((park) => (
                   <TableRow key={park.id} id={park.id}>
-                    <TableCell>{park.code}</TableCell>
                     <TableCell>{park.name}</TableCell>
                     <TableCell>{park.province} - {park.city}</TableCell>
+                    <TableCell><span dir="ltr">{park.phoneNumber || '—'}</span></TableCell>
                     <TableCell>
                       <Chip color={park.status === 'ACTIVE' ? 'success' : 'default'} size="sm" variant="soft">
                         {park.status === 'ACTIVE' ? 'فعال' : 'غیرفعال'}
@@ -167,30 +192,46 @@ export const ManageParksPage = () => {
             <ModalDialog className="max-h-[min(92dvh,44rem)] overflow-y-auto rounded-2xl border border-default-200 bg-background p-4 sm:p-6 dark:border-white/10">
               <ModalHeader className="text-lg font-bold">{editTarget ? 'ویرایش شهرک صنعتی' : 'افزودن شهرک صنعتی جدید'}</ModalHeader>
               <ModalBody>
-                <div className="flex flex-col gap-4">
+                <form
+                  noValidate
+                  className="flex flex-col gap-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!saving) handleSubmit();
+                  }}
+                >
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">کد شهرک</label>
-                    <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} variant="primary" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">نام شهرک</label>
-                    <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} variant="primary" required />
+                    <label htmlFor="park-name" className="text-xs font-medium text-foreground-600">نام شهرک<span className="ms-0.5 text-danger" aria-hidden="true">*</span></label>
+                    <Input id="park-name" value={formData.name} onChange={(e) => setField('name', e.target.value)} variant="primary" maxLength={160} placeholder="مثلاً شهرک صنعتی شمس‌آباد" aria-invalid={visibleErrors.name ? true : undefined} />
+                    <FieldError message={visibleErrors.name} />
                   </div>
                   <IranProvinceCityFields
                     province={formData.province}
                     city={formData.city}
-                    onProvinceChange={(province) => setFormData((current) => ({ ...current, province }))}
-                    onCityChange={(city) => setFormData((current) => ({ ...current, city }))}
+                    provinceError={visibleErrors.province}
+                    cityError={visibleErrors.city}
+                    onProvinceChange={(province) => setField('province', province)}
+                    onCityChange={(city) => setField('city', city)}
                   />
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">آدرس</label>
-                    <Input value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} variant="primary" />
+                    <label htmlFor="park-address" className="text-xs font-medium text-foreground-600">آدرس<span className="ms-0.5 text-danger" aria-hidden="true">*</span></label>
+                    <Input id="park-address" value={formData.address} onChange={(e) => setField('address', e.target.value)} variant="primary" maxLength={240} placeholder="کیلومتر ...، جاده ..." aria-invalid={visibleErrors.address ? true : undefined} />
+                    <FieldError message={visibleErrors.address} />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-foreground-600">شماره تماس</label>
-                    <Input value={formData.phoneNumber} onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })} variant="primary" dir="ltr" />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="park-phone" className="text-xs font-medium text-foreground-600">شماره تماس شهرک<span className="ms-0.5 text-danger" aria-hidden="true">*</span></label>
+                      <Input id="park-phone" value={formData.phoneNumber} onChange={(e) => setField('phoneNumber', digitsOnly(e.target.value, 20))} variant="primary" dir="ltr" inputMode="tel" placeholder="02112345678" aria-invalid={visibleErrors.phoneNumber ? true : undefined} />
+                      <FieldError message={visibleErrors.phoneNumber} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="park-guard-phone" className="text-xs font-medium text-foreground-600">تلفن نگهبانی (اختیاری)</label>
+                      <Input id="park-guard-phone" value={formData.guardPhone} onChange={(e) => setField('guardPhone', digitsOnly(e.target.value, 20))} variant="primary" dir="ltr" inputMode="tel" placeholder="همان شماره شهرک" aria-invalid={visibleErrors.guardPhone ? true : undefined} />
+                      <FieldError message={visibleErrors.guardPhone} />
+                    </div>
                   </div>
-                </div>
+                  <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+                </form>
               </ModalBody>
               <ModalFooter className="mt-4">
                 <Button variant="tertiary" onPress={() => setFormOpen(false)} isDisabled={saving}>انصراف</Button>

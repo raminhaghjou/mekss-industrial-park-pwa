@@ -69,6 +69,10 @@ const SERVER_MESSAGE_FA = {
     'ثبت دلیل الزامی است.',
   'a rejection reason is required':
     'ثبت دلیل رد الزامی است.',
+  'a park with this code already exists':
+    'شهرکی با این مشخصات قبلاً ثبت شده است.',
+  'could not allocate a unique park code; try again':
+    'ثبت شهرک موقتاً ممکن نشد؛ دوباره تلاش کنید.',
 };
 
 /** Default class-validator messages (`<field> must ...`) mapped by field. */
@@ -82,6 +86,9 @@ const VALIDATION_PATTERNS_FA = [
   [/^amount must not be greater than/, 'مبلغ بیشتر از سقف مجاز است.'],
   [/^amount must be a number/, 'مبلغ معتبر نیست.'],
   [/^code must (match|be longer|be shorter)/, 'کد QR یا شماره برگ خروج معتبر نیست.'],
+  [/^address must be (longer|shorter)/, 'آدرس باید بین ۲ تا ۲۴۰ کاراکتر باشد.'],
+  [/^(province|city) must be (longer|shorter)/, 'استان و شهر را از فهرست انتخاب کنید.'],
+  [/^(phonenumber|guardphone) must be (longer|shorter)/, 'شماره تلفن باید بین ۶ تا ۲۰ رقم باشد.'],
 ];
 
 const localizeOne = (message) => {

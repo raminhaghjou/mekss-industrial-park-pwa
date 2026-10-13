@@ -540,16 +540,23 @@ export class ManagementService {
   }
 
   async createPark(actor: AuthenticatedUser, input: CreateParkDto) {
-    const code = this.normalizedRequiredText(input.code, 'code');
+    const requestedCode = input.code ? this.normalizedRequiredText(input.code, 'code') : null;
+    const phoneNumber = this.normalizedRequiredText(input.phoneNumber, 'phoneNumber');
+    const guardPhone = input.guardPhone ? this.normalizedRequiredText(input.guardPhone, 'guardPhone') : phoneNumber;
     const managerIds = input.managerIds ?? [];
     return this.auditedTransaction(actor, {
       action: 'PARK_CREATED',
       entity: 'IndustrialPark',
       entityId: (park: { id: string }) => park.id,
-      changes: { code, status: input.status ?? ParkStatus.ACTIVE, managerIds },
+      changes: { code: requestedCode ?? 'auto', status: input.status ?? ParkStatus.ACTIVE, managerIds },
     }, async (tx) => {
-      const existing = await tx.industrialPark.findUnique({ where: { code } });
-      if (existing) throw new ConflictException('A park with this code already exists');
+      let code = requestedCode;
+      if (code) {
+        const existing = await tx.industrialPark.findUnique({ where: { code } });
+        if (existing) throw new ConflictException('A park with this code already exists');
+      } else {
+        code = await this.generateParkCode(tx);
+      }
       await this.assertManagersValid(managerIds, tx);
       const created = await tx.industrialPark.create({
         data: {
@@ -558,9 +565,9 @@ export class ManagementService {
           province: this.normalizedRequiredText(input.province, 'province'),
           city: this.normalizedRequiredText(input.city, 'city'),
           address: this.normalizedRequiredText(input.address, 'address'),
-          phoneNumber: this.normalizedRequiredText(input.phoneNumber, 'phoneNumber'),
+          phoneNumber,
           email: input.email === undefined ? undefined : this.normalizedNullableText(input.email),
-          guardPhone: this.normalizedRequiredText(input.guardPhone, 'guardPhone'),
+          guardPhone,
           totalArea: input.totalArea,
           establishedDate: input.establishedDate ? new Date(input.establishedDate) : input.establishedDate,
           description: input.description === undefined ? undefined : this.normalizedNullableText(input.description),
@@ -571,6 +578,16 @@ export class ManagementService {
       });
       return tx.industrialPark.findUniqueOrThrow({ where: { id: created.id }, include: this.parkInclude() });
     });
+  }
+
+  /** Opaque unique park code; parks are identified by id in the UI, so the code is never typed by users. */
+  private async generateParkCode(tx: Prisma.TransactionClient): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = `PARK-${randomBytes(4).toString('hex').toUpperCase()}`;
+      const existing = await tx.industrialPark.findUnique({ where: { code: candidate }, select: { id: true } });
+      if (!existing) return candidate;
+    }
+    throw new ConflictException('Could not allocate a unique park code; try again');
   }
 
   async updatePark(actor: AuthenticatedUser, id: string, input: UpdateParkDto) {

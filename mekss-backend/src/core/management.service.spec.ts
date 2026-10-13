@@ -400,6 +400,30 @@ describe('ManagementService industrial-park CRUD contract', () => {
     expect(audit.record).toHaveBeenCalledTimes(1);
   });
 
+  it('generates a unique internal code and defaults the guard phone when the form omits them', async () => {
+    const representation = { id: 'park-2', code: 'PARK-AUTO', managers: [], _count: emptyCounts() };
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      user: { count: jest.fn().mockResolvedValue(0) },
+      industrialPark: {
+        findUnique: jest.fn().mockResolvedValueOnce({ id: 'taken' }).mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'park-2' }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(representation),
+      },
+    } as any;
+    const audit = { record: jest.fn().mockResolvedValue(undefined) } as any;
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.createPark(actor(Role.SUPER_ADMIN), {
+      name: 'Park two', province: 'Province', city: 'City', address: 'Address', phoneNumber: '02112345678',
+    })).resolves.toEqual(representation);
+    expect(tx.industrialPark.findUnique).toHaveBeenCalledTimes(2);
+    const data = tx.industrialPark.create.mock.calls[0][0].data;
+    expect(data.code).toMatch(/^PARK-[0-9A-F]{8}$/);
+    expect(data.guardPhone).toBe('02112345678');
+  });
+
   it('updates mutable code, nullable values, and manager assignments before re-reading', async () => {
     const representation = { id: 'park-1', code: 'PARK-2', email: null, managers: [], _count: emptyCounts() };
     const tx = {

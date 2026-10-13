@@ -39,6 +39,7 @@ import { invoiceDueInfo } from '../../utils/invoiceDue';
 import { useGatePassWallet } from '../../hooks/useGatePassWallet';
 import { roleLabels } from '../../constants/persianLabels';
 import { featuredServicesForRole, searchServices, serviceTones, servicesForRole } from '../../constants/appServices';
+import { compactFaAmount } from '../../utils/compactAmount';
 
 const FIRE_ROLES = ['FACTORY_OWNER', 'PARK_MANAGER', 'SECURITY_GUARD'];
 
@@ -50,11 +51,22 @@ const statTone = {
   secondary: serviceTones.slate,
 };
 
+/** Shrinks the headline as the figure grows so long amounts never spill out of the card. */
+const valueSizeClass = (text) => {
+  const length = String(text).length;
+  if (length <= 7) return 'text-2xl leading-8';
+  if (length <= 10) return 'text-xl leading-7';
+  if (length <= 13) return 'text-lg leading-7';
+  return 'text-base leading-6';
+};
+
 /** Gradient status card, same visual language as the featured shortcuts at the top of the page. */
-const StatCard = ({ icon, label, value, color = 'primary', onClick, badge = null }) => {
+const StatCard = ({ icon, label, value, color = 'primary', onClick, badge = null, compact = false }) => {
   const Icon = icon;
   const tone = statTone[color] || statTone.primary;
-  const displayValue = typeof value === 'number' ? value.toLocaleString('fa-IR') : (value ?? '—');
+  const fullValue = typeof value === 'number' ? value.toLocaleString('fa-IR') : (value ?? '—');
+  const compactValue = compact && typeof value === 'number' && fullValue.length > 9 ? compactFaAmount(value) : null;
+  const displayValue = compactValue || fullValue;
 
   return (
     <button
@@ -78,8 +90,16 @@ const StatCard = ({ icon, label, value, color = 'primary', onClick, badge = null
           </span>
         )}
       </span>
-      <span className="mt-3 flex flex-col">
-        <span className="text-2xl font-extrabold leading-8 tracking-tight tabular-nums">{displayValue}</span>
+      <span className="mt-3 flex min-w-0 flex-col">
+        <span
+          className={`truncate font-extrabold tracking-tight tabular-nums ${valueSizeClass(displayValue)}`}
+          title={compactValue ? `${fullValue} ${label}` : undefined}
+        >
+          {displayValue}
+        </span>
+        {compactValue ? (
+          <span className="truncate text-[11px] font-semibold text-white/80 tabular-nums">{fullValue}</span>
+        ) : null}
         <span className="truncate text-xs font-medium text-white/85">{label}</span>
       </span>
     </button>
@@ -111,7 +131,8 @@ const buildRoleStats = (role, data, navigate) => {
       {
         icon: Receipt,
         label: 'بدهی واحدها (ریال)',
-        value: Number(data?.unitsUnpaidInvoiceTotal || 0).toLocaleString('fa-IR'),
+        value: Number(data?.unitsUnpaidInvoiceTotal || 0),
+        compact: true,
         color: 'danger',
         badge: pendingLabel(Number(data?.unitsWithDebtCount || 0), 'واحد بدهکار'),
         onClick: () => navigate('/admin/finance'),

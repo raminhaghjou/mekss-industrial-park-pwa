@@ -29,6 +29,7 @@ import {
 } from '@heroui/react';
 import { Download, Pencil, Plus, Printer, Ticket } from 'lucide-react';
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
+import IranLicensePlateBadge from '../../components/common/IranLicensePlateBadge';
 import { semanticFilter } from '../../utils/semanticSearch';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -220,7 +221,7 @@ export const GatePassesPage = () => {
                       return (
                         <TableRow key={pass.id} id={pass.id}>
                           <TableCell>{pass.driverName}</TableCell>
-                          <TableCell dir="ltr">{displayIranLicensePlate(pass.licensePlate)}</TableCell>
+                          <TableCell>{pass.licensePlate ? <IranLicensePlateBadge value={pass.licensePlate} size="sm" /> : '—'}</TableCell>
                           <TableCell>{new Date(pass.exitDate).toLocaleDateString('fa-IR-u-ca-persian')}</TableCell>
                           <TableCell>{pass.createdBy?.name || '—'}</TableCell>
                           <TableCell>

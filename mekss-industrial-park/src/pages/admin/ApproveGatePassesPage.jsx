@@ -24,6 +24,8 @@ import { saveBlob } from '../../services/api/files.api';
 import { csvLine } from '../../utils/csv';
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 import JalaliDatePicker from '../../components/common/JalaliDatePicker';
+import IranLicensePlateInput from '../../components/common/IranLicensePlateInput';
+import IranLicensePlateBadge from '../../components/common/IranLicensePlateBadge';
 import { digitsOnly } from '../../utils/digits';
 
 const TABS = [
@@ -258,7 +260,7 @@ export const ApproveGatePassesPage = () => {
       </div>
 
       <Card className="rounded-2xl border border-default-200 dark:border-white/10">
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">از تاریخ خروج</Label>
             <JalaliDatePicker compact value={fromDate} onChange={setFromDate} />
@@ -271,9 +273,20 @@ export const ApproveGatePassesPage = () => {
             <Label className="text-xs">کد ملی راننده</Label>
             <Input dir="ltr" value={nationalId} onChange={(e) => setNationalId(digitsOnly(e.target.value, 10))} className="rounded-xl" />
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">پلاک</Label>
-            <Input dir="ltr" value={plate} onChange={(e) => setPlate(e.target.value)} className="rounded-xl" />
+          <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
+            <div className="w-full max-w-xl">
+              <IranLicensePlateInput label="جستجو با پلاک" value={plate} onChange={(next) => setPlate(next || '')} />
+            </div>
+            {plate ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-foreground-500">
+                <span>فیلتر پلاک: <span dir="ltr" className="font-bold text-foreground">{displayIranLicensePlate(plate)}</span></span>
+                <button type="button" className="font-medium text-[var(--color-brand)]" onClick={() => setPlate('')}>
+                  حذف فیلتر پلاک
+                </button>
+              </div>
+            ) : (
+              <span className="text-[11px] text-foreground-400">پس از کامل شدن همه بخش‌های پلاک، فهرست فیلتر می‌شود.</span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -289,13 +302,13 @@ export const ApproveGatePassesPage = () => {
               onClick={() => setTab(item.id)}
               className={`relative rounded-2xl border px-3 py-3 text-start transition ${
                 active
-                  ? 'border-primary bg-primary text-white shadow-md shadow-primary/20'
+                  ? 'border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-slate-900 shadow-md ring-1 ring-[var(--color-brand)] dark:text-white'
                   : 'border-default-200 bg-background text-foreground hover:bg-default-50 dark:border-white/10'
               }`}
             >
-              {urgent && !active ? <span className="absolute left-3 top-3 h-2.5 w-2.5 animate-pulse rounded-full bg-warning-500" /> : null}
-              <p className={`text-xs font-medium ${active ? 'text-white/80' : 'text-foreground-500'}`}>{item.label}</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">{(counts[item.id] || 0).toLocaleString('fa-IR')}</p>
+              {urgent ? <span className="absolute left-3 top-3 h-2.5 w-2.5 animate-pulse rounded-full bg-warning-500" /> : null}
+              <p className={`text-xs ${active ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-foreground-500'}`}>{item.label}</p>
+              <p className={`mt-1 text-xl font-bold tabular-nums ${active ? 'text-slate-900 dark:text-white' : 'text-foreground'}`}>{(counts[item.id] || 0).toLocaleString('fa-IR')}</p>
             </button>
           );
         })}
@@ -358,7 +371,7 @@ export const ApproveGatePassesPage = () => {
                         <Detail icon={User} label="نام راننده">{pass.driverName}</Detail>
                         <Detail icon={IdCard} label="کد ملی راننده" mono>{pass.driverNationalId}</Detail>
                         <Detail icon={Phone} label="تلفن راننده" mono>{pass.driverPhone}</Detail>
-                        <Detail icon={Car} label="پلاک" mono>{displayIranLicensePlate(pass.licensePlate)}</Detail>
+                        <Detail icon={Car} label="پلاک">{pass.licensePlate ? <IranLicensePlateBadge value={pass.licensePlate} size="sm" className="mt-0.5" /> : null}</Detail>
                         <Detail icon={Truck} label="نوع خودرو">{labelFor(vehicleTypeLabels, pass.vehicleType)}</Detail>
                         <Detail icon={Package} label="نوع بار">{labelFor(cargoTypeLabels, pass.cargoType)}</Detail>
                         <Detail icon={CalendarClock} label="تاریخ خروج">{formatDate(pass.exitDate)}</Detail>

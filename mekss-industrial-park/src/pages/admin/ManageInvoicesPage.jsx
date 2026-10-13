@@ -111,7 +111,7 @@ export const ManageInvoicesPage = () => {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === item.id ? 'bg-primary text-white font-bold' : 'text-foreground-500 hover:bg-default-100'}`}
+                className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${tab === item.id ? 'bg-[var(--color-brand-soft)] text-slate-900 font-bold ring-1 ring-[var(--color-brand)] dark:text-white' : 'text-foreground-500 hover:bg-default-100'}`}
               >
                 {item.label}
               </button>

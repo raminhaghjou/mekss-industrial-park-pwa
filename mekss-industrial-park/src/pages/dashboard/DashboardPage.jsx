@@ -38,35 +38,49 @@ import { publicApi } from '../../services/api/public.api';
 import { invoiceDueInfo } from '../../utils/invoiceDue';
 import { useGatePassWallet } from '../../hooks/useGatePassWallet';
 import { roleLabels } from '../../constants/persianLabels';
-import { featuredServicesForRole, searchServices, servicesForRole } from '../../constants/appServices';
+import { featuredServicesForRole, searchServices, serviceTones, servicesForRole } from '../../constants/appServices';
 
 const FIRE_ROLES = ['FACTORY_OWNER', 'PARK_MANAGER', 'SECURITY_GUARD'];
 
-const colorMap = {
-  primary: 'bg-[var(--color-brand-soft)] text-[var(--color-brand)]',
-  success: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',
-  warning: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300',
-  danger: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300',
-  secondary: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300',
+const statTone = {
+  primary: serviceTones.sky,
+  success: serviceTones.emerald,
+  warning: serviceTones.amber,
+  danger: serviceTones.rose,
+  secondary: serviceTones.slate,
 };
 
+/** Gradient status card, same visual language as the featured shortcuts at the top of the page. */
 const StatCard = ({ icon, label, value, color = 'primary', onClick, badge = null }) => {
   const Icon = icon;
+  const tone = statTone[color] || statTone.primary;
   const displayValue = typeof value === 'number' ? value.toLocaleString('fa-IR') : (value ?? '—');
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex min-w-[10.5rem] snap-start items-center gap-3 rounded-2xl bg-content1 p-3 text-start ring-1 ring-default-200/70 transition hover:ring-[var(--color-brand)]/40 active:scale-[0.98] motion-reduce:transform-none sm:min-w-0 dark:ring-white/10"
+      className={`group relative isolate flex min-h-[7.25rem] min-w-[10.5rem] snap-start flex-col justify-between overflow-hidden rounded-3xl bg-gradient-to-br p-4 text-start text-white shadow-[0_14px_30px_-18px_rgba(15,23,42,0.65)] outline-none transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_20px_36px_-18px_rgba(15,23,42,0.7)] focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none sm:min-w-0 ${tone.solid}`}
     >
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${colorMap[color]}`}>
-        <Icon className="h-5 w-5" aria-hidden="true" />
+      <Icon
+        className="pointer-events-none absolute -bottom-5 -start-4 -z-10 h-24 w-24 text-white/15 transition duration-300 ease-out group-hover:scale-110 motion-reduce:transform-none"
+        strokeWidth={1.5}
+        aria-hidden="true"
+      />
+      <span className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-gradient-to-b from-white/15 to-transparent" aria-hidden="true" />
+      <span className="flex items-start justify-between gap-2">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/25 backdrop-blur-sm">
+          <Icon className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
+        </span>
+        {badge && (
+          <span className="max-w-[60%] truncate rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-900 shadow-sm">
+            {badge}
+          </span>
+        )}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-lg font-bold leading-6 text-foreground tabular-nums">{displayValue}</span>
-        <span className="truncate text-xs text-foreground-500">{label}</span>
-        {badge && <span className="mt-0.5 truncate text-[11px] font-medium text-amber-600 dark:text-amber-300">{badge}</span>}
+      <span className="mt-3 flex flex-col">
+        <span className="text-2xl font-extrabold leading-8 tracking-tight tabular-nums">{displayValue}</span>
+        <span className="truncate text-xs font-medium text-white/85">{label}</span>
       </span>
     </button>
   );
@@ -213,7 +227,10 @@ export const DashboardPage = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-24 w-full rounded-3xl" />
+        <Skeleton className="h-14 w-2/3 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[7.25rem] rounded-3xl" />)}
+        </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28 rounded-3xl" />)}
         </div>
@@ -296,6 +313,21 @@ export const DashboardPage = () => {
           </button>
         )}
       </header>
+
+      <section aria-labelledby="dashboard-stats-title" className="flex flex-col gap-2.5">
+        <div className="flex items-center px-1">
+          <h2 id="dashboard-stats-title" className="flex items-center gap-2 text-[15px] font-bold tracking-tight text-foreground">
+            <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60 motion-reduce:animate-none" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            وضعیت امروز
+          </h2>
+        </div>
+        <div className="-mx-3 flex snap-x gap-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {stats.map((stat) => <StatCard key={stat.label} {...stat} />)}
+        </div>
+      </section>
 
       {suspendedFactories.length > 0 && (
         <div
@@ -392,13 +424,6 @@ export const DashboardPage = () => {
 
       {!searching && (
         <>
-          <section aria-labelledby="dashboard-stats-title" className="flex flex-col gap-2">
-            <h2 id="dashboard-stats-title" className="px-1 text-sm font-bold text-foreground">وضعیت امروز</h2>
-            <div className="-mx-3 flex snap-x gap-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {stats.map((stat) => <StatCard key={stat.label} {...stat} />)}
-            </div>
-          </section>
-
           <BannerCarousel />
 
           {showAds && <HomeFeedSlider items={feedItems} />}

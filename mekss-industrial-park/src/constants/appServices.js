@@ -35,46 +35,75 @@ export const ALL_ROLES = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'SECUR
 
 /**
  * Visual tones for service icons. Class strings are spelled out in full so Tailwind can see them.
- * `soft` is the icon tile, `solid` the featured-card gradient.
+ * `soft` is a tinted icon square, `solid` the gradient (featured cards and app-style icons),
+ * `glow` the coloured icon shadow, `tint` the category card wash and `text` the accent text colour.
  */
 export const serviceTones = {
   emerald: {
     soft: 'bg-emerald-50 text-emerald-600 ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/20',
-    solid: 'from-emerald-500 to-teal-600',
+    solid: 'from-emerald-400 to-teal-600',
+    glow: 'shadow-emerald-500/35',
+    tint: 'from-emerald-50/90 via-white/70 to-white/40 dark:from-emerald-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-emerald-700 dark:text-emerald-300',
   },
   amber: {
     soft: 'bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/20',
-    solid: 'from-amber-500 to-orange-600',
+    solid: 'from-amber-400 to-orange-600',
+    glow: 'shadow-orange-500/35',
+    tint: 'from-amber-50/90 via-white/70 to-white/40 dark:from-amber-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-amber-700 dark:text-amber-300',
   },
   sky: {
     soft: 'bg-sky-50 text-sky-600 ring-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-400/20',
-    solid: 'from-sky-500 to-blue-600',
+    solid: 'from-sky-400 to-blue-600',
+    glow: 'shadow-sky-500/35',
+    tint: 'from-sky-50/90 via-white/70 to-white/40 dark:from-sky-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-sky-700 dark:text-sky-300',
   },
   violet: {
     soft: 'bg-violet-50 text-violet-600 ring-violet-100 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-400/20',
-    solid: 'from-violet-500 to-purple-600',
+    solid: 'from-violet-400 to-purple-600',
+    glow: 'shadow-violet-500/35',
+    tint: 'from-violet-50/90 via-white/70 to-white/40 dark:from-violet-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-violet-700 dark:text-violet-300',
   },
   indigo: {
     soft: 'bg-indigo-50 text-indigo-600 ring-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-400/20',
-    solid: 'from-indigo-500 to-blue-700',
+    solid: 'from-indigo-400 to-blue-700',
+    glow: 'shadow-indigo-500/35',
+    tint: 'from-indigo-50/90 via-white/70 to-white/40 dark:from-indigo-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-indigo-700 dark:text-indigo-300',
   },
   teal: {
     soft: 'bg-teal-50 text-teal-600 ring-teal-100 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-400/20',
-    solid: 'from-teal-500 to-cyan-600',
+    solid: 'from-teal-400 to-cyan-600',
+    glow: 'shadow-teal-500/35',
+    tint: 'from-teal-50/90 via-white/70 to-white/40 dark:from-teal-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-teal-700 dark:text-teal-300',
   },
   rose: {
     soft: 'bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-400/20',
     solid: 'from-rose-500 to-red-600',
+    glow: 'shadow-rose-500/35',
+    tint: 'from-rose-50/90 via-white/70 to-white/40 dark:from-rose-500/[0.12] dark:via-white/[0.03] dark:to-transparent',
+    text: 'text-rose-700 dark:text-rose-300',
+  },
+  slate: {
+    soft: 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10',
+    solid: 'from-slate-500 to-slate-800',
+    glow: 'shadow-slate-500/35',
+    tint: 'from-slate-50/90 via-white/70 to-white/40 dark:from-white/[0.06] dark:via-white/[0.02] dark:to-transparent',
+    text: 'text-slate-700 dark:text-slate-300',
   },
 };
 
 export const serviceGroups = [
-  { id: 'traffic', title: 'تردد و برگ خروج', tone: 'emerald' },
-  { id: 'finance', title: 'مالی و پرداخت', tone: 'amber' },
-  { id: 'units', title: 'واحدها و پرسنل', tone: 'sky' },
-  { id: 'comms', title: 'درخواست و ارتباطات', tone: 'violet' },
-  { id: 'admin', title: 'مدیریت و گزارش', tone: 'indigo' },
-  { id: 'tools', title: 'ابزارها', tone: 'teal' },
+  { id: 'traffic', title: 'تردد و برگ خروج', subtitle: 'صدور، تایید و کنترل خروج بار', tone: 'emerald', icon: Truck },
+  { id: 'finance', title: 'مالی و پرداخت', subtitle: 'قبض، بدهی و کیف پول', tone: 'amber', icon: Wallet },
+  { id: 'units', title: 'واحدها و پرسنل', subtitle: 'واحدهای صنعتی و کارکنان', tone: 'sky', icon: Building2 },
+  { id: 'comms', title: 'درخواست و ارتباطات', subtitle: 'درخواست، پیام و اطلاعیه', tone: 'violet', icon: MessageCircle },
+  { id: 'admin', title: 'مدیریت و گزارش', subtitle: 'تنظیمات سامانه و آمار', tone: 'indigo', icon: ChartColumn },
+  { id: 'tools', title: 'ابزارها', subtitle: 'بازار، آگهی و امداد', tone: 'teal', icon: Lightbulb },
 ];
 
 /**

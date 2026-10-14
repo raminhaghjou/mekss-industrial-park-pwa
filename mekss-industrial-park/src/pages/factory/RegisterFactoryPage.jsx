@@ -22,6 +22,7 @@ import { factoryApi } from '../../services/api/factory.api';
 import { publicApi } from '../../services/api/public.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { digitsOnly } from '../../utils/digits';
 
 const emptyForm = {
   name: '',
@@ -166,7 +167,7 @@ export const RegisterFactoryPage = () => {
                 <Input value={form.licenseNumber} onChange={(e) => update('licenseNumber', e.target.value)} required className="rounded-xl" />
               </Field>
               <Field label="شناسه ملی" required>
-                <Input dir="ltr" value={form.nationalId} onChange={(e) => update('nationalId', e.target.value.replace(/\D/g, '').slice(0, 11))} required className="rounded-xl" />
+                <Input dir="ltr" value={form.nationalId} onChange={(e) => update('nationalId', digitsOnly(e.target.value, 11))} required className="rounded-xl" />
               </Field>
               <Field label="نوع فعالیت" required>
                 <Input value={form.activityType} onChange={(e) => update('activityType', e.target.value)} required className="rounded-xl" />

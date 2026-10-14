@@ -87,7 +87,7 @@
     "docker": {
       "services": ["postgres", "redis", "minio", "migrate", "backend", "frontend"],
       "composeTokens": [
-        "postgres:15-alpine", "redis:7-alpine", "minio/minio:", "npx prisma migrate deploy",
+        "postgres:15-alpine", "redis:7-alpine", "pgsty/minio:", "npx prisma migrate deploy",
         "DATABASE_URL:", "REDIS_HOST: redis", "MINIO_ENDPOINT: minio", "condition: service_healthy",
         "condition: service_completed_successfully", "postgres-data:", "redis-data:", "minio-data:"
       ],

@@ -28,7 +28,7 @@ export const ManageParksPage = () => {
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['parks'],
-    queryFn: () => parkApi.getParks().then((res) => res.data),
+    queryFn: () => parkApi.getParks({ pageSize: 100 }).then((res) => res.data),
   });
 
   const createMutation = useMutation({

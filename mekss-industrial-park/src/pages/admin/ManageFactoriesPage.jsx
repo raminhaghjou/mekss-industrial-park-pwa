@@ -50,6 +50,7 @@ import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { getErrorMessage } from '../../utils/apiError';
+import { toAsciiDigits } from '../../utils/digits';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { useAuth } from '../../providers/AuthProvider';
@@ -91,6 +92,9 @@ const emptyForm = {
 
 const factoryError = (error, fallback) => {
   const status = error?.response?.status;
+  if (status === 409 && error?.response?.data?.code === 'UNIQUE_CONFLICT') {
+    return 'واحد صنعتی دیگری با همین شناسه ملی یا شماره پروانه ثبت شده است.';
+  }
   if (status === 409) return 'اطلاعات این واحد صنعتی هم‌زمان تغییر کرده است. داده‌های معتبر دوباره دریافت شد؛ لطفاً بررسی و دوباره تلاش کنید.';
   if (status === 404) return 'واحد صنعتی پیدا نشد یا دیگر در محدوده دسترسی شما نیست. فهرست دوباره دریافت شد.';
   if (status === 403) return 'اجازه انجام این عملیات برای واحد صنعتی یا شهرک انتخاب‌شده را ندارید.';
@@ -100,7 +104,7 @@ const factoryError = (error, fallback) => {
 const compactPayload = (form, fields) => fields.reduce((payload, field) => {
   const value = form[field];
   if (field === 'employees') {
-    if (value !== '') payload.employees = Number(value);
+    if (String(value).trim() !== '') payload.employees = Number(toAsciiDigits(value).trim());
   } else if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed) payload[field] = trimmed;
@@ -111,7 +115,7 @@ const compactPayload = (form, fields) => fields.reduce((payload, field) => {
 const profilePayload = (form) => ({
   ...requiredProfileFields.reduce((payload, field) => ({ ...payload, [field]: form[field].trim() }), {}),
   ...optionalTextFields.reduce((payload, field) => ({ ...payload, [field]: form[field].trim() || null }), {}),
-  employees: form.employees === '' ? 0 : Number(form.employees),
+  employees: String(form.employees).trim() === '' ? 0 : Number(toAsciiDigits(form.employees).trim()),
 });
 
 const toForm = (factory) => profileFields.reduce((form, field) => ({

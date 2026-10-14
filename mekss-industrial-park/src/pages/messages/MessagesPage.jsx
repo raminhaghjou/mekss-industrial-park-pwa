@@ -94,6 +94,8 @@ export const MessagesPage = () => {
   }), [messageSearch, messageFromDate, messageToDate]);
 
   const audienceOptions = audienceOptionsByRole[user?.role] || audienceOptionsByRole.EMPLOYEE;
+  /** Guards and government officials are receive-only on the server (POST /messages is role-gated). */
+  const canSendMessages = Boolean(audienceOptionsByRole[user?.role]);
   const [tabBootstrapped, setTabBootstrapped] = useState(false);
 
   const unreadQuery = useQuery({
@@ -302,10 +304,12 @@ export const MessagesPage = () => {
               پیام به همه کارمندان
             </Button>
           )}
-          <Button variant="primary" className="gap-2 font-bold" onPress={() => startCompose('DIRECT')}>
-            <PenSquare className="h-4 w-4" />
-            پیام جدید
-          </Button>
+          {canSendMessages && (
+            <Button variant="primary" className="gap-2 font-bold" onPress={() => startCompose('DIRECT')}>
+              <PenSquare className="h-4 w-4" />
+              پیام جدید
+            </Button>
+          )}
         </div>
       </div>
 
@@ -684,10 +688,12 @@ export const MessagesPage = () => {
                       {new Date(selectedMessage.createdAt).toLocaleString('fa-IR-u-ca-persian')}
                     </p>
                   </div>
-                  <Button size="sm" variant="tertiary" className="gap-1.5" onPress={startReply}>
-                    <Reply className="h-4 w-4" />
-                    پاسخ
-                  </Button>
+                  {canSendMessages && (
+                    <Button size="sm" variant="tertiary" className="gap-1.5" onPress={startReply}>
+                      <Reply className="h-4 w-4" />
+                      پاسخ
+                    </Button>
+                  )}
                 </div>
                 <div className="whitespace-pre-wrap rounded-xl bg-default-50 p-4 text-sm leading-7 text-foreground">
                   {selectedMessage.body || selectedMessage.content}

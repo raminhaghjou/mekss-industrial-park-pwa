@@ -21,16 +21,19 @@ import {
   Spinner,
   Label,
 } from '@heroui/react';
-import { Megaphone, RotateCw } from 'lucide-react';
+import { Megaphone, RotateCw, X } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import IranProvinceCityFields from '../../components/common/IranProvinceCityFields';
 import { FileUploader } from '../../components/common/FileUploader';
 import { toPersistedLocation } from '../../utils/iranLocations';
+import { AuthenticatedImage } from '../../components/common/AuthenticatedImage';
+import { advertisementImageIds } from '../../utils/advertisementImages';
+import { toAsciiDigits } from '../../utils/digits';
 
 const emptyForm = {
-  title: '', category: 'OTHER', province: '', city: '', address: '', content: '', contact: '', parkId: '', images: [],
+  title: '', category: '', province: '', city: '', address: '', content: '', contact: '', parkId: '', images: [],
 };
 
 const NewAdvertisementPage = () => {
@@ -46,9 +49,19 @@ const NewAdvertisementPage = () => {
     queryKey: ['advertisement-categories'],
     queryFn: () => advertisementApi.getCategories().then((response) => response.data),
   });
-  const categories = categoriesQuery.data?.length
-    ? categoriesQuery.data.map((cat) => ({ value: cat.key, label: cat.label }))
-    : [{ value: 'OTHER', label: 'سایر' }];
+  const categories = React.useMemo(
+    () => (categoriesQuery.data || []).map((cat) => ({ value: cat.key, label: cat.label })),
+    [categoriesQuery.data],
+  );
+
+  React.useEffect(() => {
+    if (!categories.length) return;
+    setForm((current) => (
+      categories.some((option) => option.value === current.category)
+        ? current
+        : { ...current, category: categories[0].value }
+    ));
+  }, [categories]);
 
   const scopeQuery = useQuery({
     queryKey: ['advertisements', 'creation-scope'],
@@ -79,7 +92,7 @@ const NewAdvertisementPage = () => {
     const contact = ad.contactInfo?.phone || ad.contactInfo?.phoneNumber || '';
     setForm({
       title: ad.title || '',
-      category: ad.category?.key || 'OTHER',
+      category: ad.category?.key || '',
       province: ad.province || '',
       city: ad.city || '',
       content: ad.content || '',
@@ -115,7 +128,7 @@ const NewAdvertisementPage = () => {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    const required = [form.title, form.content, form.contact, form.province, form.city];
+    const required = [form.title, form.category, form.content, form.contact, form.province, form.city];
     if (!isEdit) required.push(form.parkId);
     if (required.some((value) => !String(value || '').trim())) {
       showNotification('لطفاً همه فیلدهای الزامی را تکمیل کنید.', 'error');
@@ -128,9 +141,9 @@ const NewAdvertisementPage = () => {
       province: location.province,
       city: location.city,
       content: form.content,
-      address: form.address || undefined,
-      images: (form.images || []).map((file) => file?.id).filter(Boolean),
-      contactInfo: { phone: form.contact },
+      address: form.address.trim() || undefined,
+      images: advertisementImageIds(form.images),
+      contactInfo: { phone: toAsciiDigits(form.contact).trim() },
     };
     if (!isEdit) payload.parkId = form.parkId;
     saveMutation.mutate(payload);
@@ -217,7 +230,8 @@ const NewAdvertisementPage = () => {
                 <Label className="text-xs font-medium text-foreground-600">دسته‌بندی</Label>
                 <Select
                   value={form.category}
-                  onChange={(val) => update('category', val || 'OTHER')}
+                  onChange={(val) => update('category', String(val || ''))}
+                  placeholder={categoriesQuery.isLoading ? 'در حال دریافت دسته‌بندی‌ها...' : 'دسته‌بندی را انتخاب کنید'}
                   variant="primary"
                   isRequired
                   className="rounded-xl"
@@ -283,18 +297,44 @@ const NewAdvertisementPage = () => {
 
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-medium text-foreground-600">تصاویر (حداکثر ۱۰)</Label>
+                {(form.images || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {form.images.map((image, index) => {
+                      const imageId = typeof image === 'string' ? image : image?.id;
+                      return (
+                        <div key={`${imageId}-${index}`} className="relative h-20 w-20 overflow-hidden rounded-xl border border-default-200 bg-default-100 dark:border-white/10">
+                          <AuthenticatedImage
+                            fileId={imageId}
+                            alt={`تصویر ${index + 1}`}
+                            className="h-full w-full object-cover"
+                            fallback={<div className="flex h-full w-full items-center justify-center text-[10px] text-foreground-500">تصویر {index + 1}</div>}
+                          />
+                          <button
+                            type="button"
+                            aria-label={`حذف تصویر ${index + 1}`}
+                            onClick={() => update('images', form.images.filter((_, i) => i !== index))}
+                            className="absolute top-1 left-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 <FileUploader
                   domain="advertisement"
+                  parkId={form.parkId || undefined}
                   label="افزودن تصویر"
-                  disabled={(form.images?.length || 0) >= 10}
+                  preview={false}
+                  disabled={(form.images?.length || 0) >= 10 || (!isEdit && !form.parkId)}
+                  hint={!isEdit && !form.parkId ? 'ابتدا شهرک صنعتی را انتخاب کنید.' : undefined}
                   onUploaded={(file) => {
-                    if ((form.images?.length || 0) >= 10) return;
-                    update('images', [...(form.images || []), file]);
+                    setForm((current) => (
+                      (current.images?.length || 0) >= 10 ? current : { ...current, images: [...(current.images || []), file] }
+                    ));
                   }}
                 />
-                {(form.images || []).length > 0 && (
-                  <p className="text-xs text-foreground-500">{form.images.length} تصویر پیوست شده</p>
-                )}
               </div>
 
               <div className="flex flex-col gap-1">

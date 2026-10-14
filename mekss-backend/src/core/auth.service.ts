@@ -347,24 +347,24 @@ export class AuthService {
     const consumedUser = await this.consumeOtp(phoneNumber, code, OtpPurpose.PASSWORD_RESET);
     const tempPassword = this.generateTempPassword();
     const password = await bcrypt.hash(tempPassword, this.bcryptRounds());
-    let usernameLabel = '';
     await this.prisma.$transaction(async (tx) => {
       await this.lockUser(tx, consumedUser.id);
       const user = await tx.user.findUnique({ where: { id: consumedUser.id } });
       if (!user || user.phoneNumber !== phoneNumber) throw new UnauthorizedException('Invalid credentials');
       this.assertCanAuthenticate(user);
-      usernameLabel = user.username || user.phoneNumber;
+      const usernameLabel = user.username || user.phoneNumber;
       await tx.user.update({
         where: { id: user.id },
         data: { password, mustChangePassword: true, sessionVersion: { increment: 1 } },
       });
       await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
       await this.audit.record({ userId: user.id, action: 'PASSWORD_RESET_TEMP', entity: 'User', entityId: user.id }, tx);
-    });
-    await this.sms.sendText(
-      phoneNumber,
-      `MEKSS بازیابی رمز: نام کاربری شما ${usernameLabel} و رمز موقت ${tempPassword} است. پس از ورود حتماً رمز دلخواه خود را از پنل تغییر دهید.`,
-    );
+      // Sent before commit: if the SMS fails the reset rolls back and the old password keeps working.
+      await this.sms.sendText(
+        phoneNumber,
+        `MEKSS بازیابی رمز: نام کاربری شما ${usernameLabel} و رمز موقت ${tempPassword} است. پس از ورود حتماً رمز دلخواه خود را از پنل تغییر دهید.`,
+      );
+    }, { timeout: 20_000 });
     return { delivered: true };
   }
 
@@ -376,18 +376,29 @@ export class AuthService {
     return `${out}a1`;
   }
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+  /**
+   * Revokes every existing session, then issues a fresh pair for the caller's device so the
+   * user who just changed the password is not bounced to the login page.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    metadata: { ipAddress?: string; userAgent?: string } = {},
+  ): Promise<ReturnType<AuthService['issueTokens']>> {
     const password = await bcrypt.hash(newPassword, this.bcryptRounds());
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       await this.lockUser(tx, userId);
       const user = await tx.user.findUnique({ where: { id: userId } });
-      if (!user || !(await bcrypt.compare(currentPassword, user.password))) throw new UnauthorizedException('Current password is invalid');
-      await tx.user.update({
+      // 400 rather than 401: a wrong current password must not look like an expired session.
+      if (!user || !(await bcrypt.compare(currentPassword, user.password))) throw new BadRequestException('رمز عبور فعلی نادرست است');
+      const updated = await tx.user.update({
         where: { id: userId },
         data: { password, mustChangePassword: false, sessionVersion: { increment: 1 } },
       });
       await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
       await this.audit.record({ userId, action: 'PASSWORD_CHANGED', entity: 'User', entityId: userId }, tx);
+      return this.issueTokens(updated, metadata, tx);
     });
   }
 
@@ -433,7 +444,7 @@ export class AuthService {
     return this.publicUser(user);
   }
 
-  async updateProfile(userId: string, input: { name?: string; email?: string; avatar?: string; username?: string; messagingRestricted?: boolean }): Promise<PublicUser> {
+  async updateProfile(userId: string, input: { name?: string; email?: string | null; avatar?: string; username?: string | null; messagingRestricted?: boolean }): Promise<PublicUser> {
     if (input.avatar) {
       const asset = await this.prisma.mediaAsset.findFirst({
         where: { id: input.avatar, uploadedById: userId, domain: 'avatar' },

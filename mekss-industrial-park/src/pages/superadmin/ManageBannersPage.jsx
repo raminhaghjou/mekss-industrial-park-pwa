@@ -181,7 +181,7 @@ const ManageBannersPage = () => {
   });
   const parksQuery = useQuery({
     queryKey: ['parks', 'all'],
-    queryFn: () => parkApi.getParks().then((response) => response.data),
+    queryFn: () => parkApi.getParks({ pageSize: 100 }).then((response) => response.data),
   });
   const parks = Array.isArray(parksQuery.data) ? parksQuery.data : parksQuery.data?.items || [];
   const banners = Array.isArray(bannersQuery.data) ? bannersQuery.data : [];

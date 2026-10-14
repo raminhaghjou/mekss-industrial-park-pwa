@@ -525,9 +525,9 @@ describe('ManagementService industrial-park CRUD contract', () => {
 
 describe('ManagementService user protected-delete matrix', () => {
   const protectedModels = [
-    'factory', 'industrialPark', 'gatePass', 'invoice', 'message', 'request', 'announcement', 'advertisement',
-    'advertisementFavorite', 'securityGuard', 'notification', 'emergencyAlert', 'paymentTransaction',
-    'scopedFile', 'feedback', 'marketRate',
+    'factory', 'industrialPark', 'gatePass', 'invoice', 'invoiceAdjustment', 'invoiceImportBatch', 'message',
+    'request', 'announcement', 'advertisement', 'dashboardBanner', 'securityGuard', 'emergencyAlert',
+    'paymentTransaction', 'scopedFile', 'mediaAsset', 'feedback',
   ] as const;
 
   it.each(protectedModels)('rejects deletion when the %s business relation exists', async (blockedModel) => {
@@ -550,6 +550,28 @@ describe('ManagementService user protected-delete matrix', () => {
     await expect(service.deleteUser(actor(Role.SUPER_ADMIN), 'target-1')).rejects.toBeInstanceOf(ConflictException);
     expect(tx.user.delete).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('deletes a user whose only data cascades (notifications, favorites, sessions)', async () => {
+    const tx: any = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'locked' }]),
+      user: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ id: 'actor-1', role: Role.SUPER_ADMIN, isActive: true, isApproved: true })
+          .mockResolvedValueOnce({ id: 'target-1', role: Role.EMPLOYEE, isActive: true, isApproved: true }),
+        delete: jest.fn().mockResolvedValue({ id: 'target-1' }),
+      },
+      notification: { count: jest.fn().mockResolvedValue(25) },
+      advertisementFavorite: { count: jest.fn().mockResolvedValue(3) },
+    };
+    for (const model of protectedModels) tx[model] = { count: jest.fn().mockResolvedValue(0) };
+    const audit = { record: jest.fn() } as any;
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) } as any;
+    const service = new ManagementService(prisma, audit, config);
+
+    await expect(service.deleteUser(actor(Role.SUPER_ADMIN), 'target-1')).resolves.toEqual({ id: 'target-1', deleted: true });
+    expect(tx.user.delete).toHaveBeenCalledWith({ where: { id: 'target-1' } });
+    expect(tx.notification.count).not.toHaveBeenCalled();
   });
 });
 
@@ -1726,27 +1748,6 @@ describe('ManagementService park staff contract', () => {
       parkId: 'park-other',
     } as any)).rejects.toBeInstanceOf(ForbiddenException);
     expect(user.create).not.toHaveBeenCalled();
-  });
-});
-
-describe('ManagementService SMS health contract', () => {
-  it('never returns the raw sender or API key, only a masked sender and a presence flag', async () => {
-    const sms = { get: jest.fn((key: string, fallback?: string) => {
-      if (key === 'SMS_PROVIDER') return 'kavenegar';
-      if (key === 'SMS_SENDER') return '10008663';
-      if (key === 'KAVEH_NEGAR_API_KEY') return 'super-secret-api-key';
-      return fallback;
-    }) } as any;
-    const service = new ManagementService({} as any, { record: jest.fn() } as any, sms);
-
-    await expect(service.smsHealth()).resolves.toEqual({ provider: 'kavenegar', configured: true, maskedSender: '1000***63' });
-  });
-
-  it('reports not configured when no provider key is present and mock provider is always considered configured', async () => {
-    const sms = { get: jest.fn((key: string, fallback?: string) => (key === 'SMS_PROVIDER' ? 'mock' : fallback)) } as any;
-    const service = new ManagementService({} as any, { record: jest.fn() } as any, sms);
-
-    await expect(service.smsHealth()).resolves.toEqual({ provider: 'mock', configured: true, maskedSender: null });
   });
 });
 

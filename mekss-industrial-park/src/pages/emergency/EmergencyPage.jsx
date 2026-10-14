@@ -92,9 +92,11 @@ export const EmergencyPage = () => {
     queryKey: isSuperAdmin ? queryKeys.parks.all() : queryKeys.factories.managementScope(),
     queryFn: () => (
       isSuperAdmin
-        ? parkApi.getParks().then((res) => res.data)
-        : factoryApi.getManagementScope().then((res) => res.data?.parks || [])
+        ? parkApi.getParks({ pageSize: 100 }).then((res) => res.data)
+        : factoryApi.getManagementScope().then((res) => res.data)
     ),
+    // The management-scope cache entry is shared with ManageFactoriesPage, so keep the full payload.
+    select: (data) => (isSuperAdmin ? data : data?.parks || []),
     enabled: canCreate && (isSuperAdmin || user?.role === 'PARK_MANAGER'),
   });
   const parks = Array.isArray(parksData) ? parksData : parksData?.items || [];
@@ -102,6 +104,7 @@ export const EmergencyPage = () => {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['emergency-alerts'] });
     queryClient.invalidateQueries({ queryKey: ['emergency', 'active'] });
+    queryClient.invalidateQueries({ queryKey: ['emergencies'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
@@ -110,6 +113,7 @@ export const EmergencyPage = () => {
     onSuccess: () => {
       showNotification('هشدار اضطراری برای همه افراد شهرک ارسال شد', 'success');
       setForm(emptyForm);
+      setGeoLocation(null);
       setConfirmOpen(false);
       invalidate();
     },
@@ -157,7 +161,7 @@ export const EmergencyPage = () => {
       showNotification('عنوان و توضیحات هشدار الزامی است', 'error');
       return;
     }
-    if (isSuperAdmin && !form.parkId) {
+    if ((isSuperAdmin || parks.length > 1) && !form.parkId) {
       showNotification('انتخاب شهرک صنعتی الزامی است', 'error');
       return;
     }

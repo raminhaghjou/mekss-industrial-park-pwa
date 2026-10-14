@@ -301,7 +301,9 @@ export class ManagementService {
           nationalId: input.nationalId ?? null,
           email: input.email ?? null,
           role: input.role,
-          isApproved: input.isApproved ?? false,
+          // Created by a super admin, so already vetted; unapproved accounts cannot sign in and
+          // only self-registrations appear in the approval queue.
+          isApproved: input.isApproved ?? true,
           mustChangePassword: true,
           ...(managedParkIds.length ? { managedParks: { connect: managedParkIds.map((id) => ({ id })) } } : {}),
           ...(managedFactoryIds.length ? { managedFactories: { connect: managedFactoryIds.map((id) => ({ id })) } } : {}),
@@ -315,7 +317,7 @@ export class ManagementService {
           action: 'USER_CREATED',
           changes: {
             role: input.role,
-            isApproved: input.isApproved ?? false,
+            isApproved: input.isApproved ?? true,
             managedParkIds,
             managedFactoryIds,
             employeeOfFactoryId: input.employeeOfFactoryId ?? null,
@@ -466,12 +468,12 @@ export class ManagementService {
         if (!target) throw new NotFoundException('User not found');
         if (this.isActiveApprovedSuperAdmin(target)) await this.assertAnotherActiveSuperAdmin(tx, id);
         const blockers = await this.userDeleteBlockers(tx, id);
-        if (blockers.length) throw new ConflictException('User has protected business relations and cannot be deleted');
+        if (blockers.length) throw this.userDeleteConflict(blockers);
         await tx.user.delete({ where: { id } });
         return { result: { id, deleted: true }, audit: { action: 'USER_DELETED' } };
       });
     } catch (error) {
-      if (this.prismaErrorCode(error) === 'P2003') throw new ConflictException('User has protected business relations and cannot be deleted');
+      if (this.prismaErrorCode(error) === 'P2003') throw this.userDeleteConflict([]);
       throw error;
     }
   }
@@ -3237,6 +3239,7 @@ export class ManagementService {
         const category = await tx.advertisementCategoryDef.findUnique({ where: { key: input.category.trim() } });
         if (!category?.isActive) throw new BadRequestException('Advertisement category is invalid or inactive');
         const parkId = await this.resolveAdvertisementParkId(actor, input.parkId, tx);
+        await this.assertAdvertisementImages(tx, actor, input.images);
         const created = await tx.advertisement.create({
           data: {
             title: input.title.trim(),
@@ -3257,6 +3260,28 @@ export class ManagementService {
         return this.safeAdvertisement(created);
       },
     );
+  }
+
+  /**
+   * Approved ad images are served publicly, so newly attached ones must be advertisement uploads
+   * by the author; references already on the ad (including legacy URLs) may be kept.
+   */
+  private async assertAdvertisementImages(
+    tx: Prisma.TransactionClient,
+    actor: AuthenticatedUser,
+    images: string[] | undefined,
+    existing: string[] = [],
+  ) {
+    const added = [...new Set(images ?? [])].filter((image) => !existing.includes(image));
+    if (!added.length) return;
+    const owned = await tx.mediaAsset.count({
+      where: {
+        id: { in: added },
+        domain: 'advertisement',
+        ...(actor.role === Role.SUPER_ADMIN ? {} : { uploadedById: actor.id }),
+      },
+    });
+    if (owned !== added.length) throw new BadRequestException('تصاویر آگهی معتبر نیستند؛ ابتدا تصویر را بارگذاری کنید');
   }
 
   async myAdvertisements(actor: AuthenticatedUser) {
@@ -3285,7 +3310,7 @@ export class ManagementService {
       async (tx) => {
         const existing = await tx.advertisement.findFirst({
           where: { id, createdById: actor.id },
-          select: { id: true, status: true },
+          select: { id: true, status: true, images: true },
         });
         if (!existing) throw new NotFoundException('Advertisement not found');
         if (existing.status !== AdvertisementStatus.PENDING) {
@@ -3293,6 +3318,7 @@ export class ManagementService {
         }
         const category = await tx.advertisementCategoryDef.findUnique({ where: { key: input.category.trim() } });
         if (!category?.isActive) throw new BadRequestException('Advertisement category is invalid or inactive');
+        await this.assertAdvertisementImages(tx, actor, input.images, existing.images ?? []);
         const updated = await tx.advertisement.update({
           where: { id },
           data: {
@@ -4779,7 +4805,12 @@ export class ManagementService {
       return { id: userId, deleted: false, deactivated: true };
     }
 
-    await this.prisma.user.delete({ where: { id: userId } });
+    try {
+      await this.prisma.user.delete({ where: { id: userId } });
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2003') throw this.userDeleteConflict([]);
+      throw error;
+    }
     await this.audit.record({
       userId: actor.id,
       action: 'PARK_STAFF_DELETED',
@@ -5094,14 +5125,21 @@ export class ManagementService {
     return Math.round(value).toLocaleString('en-US');
   }
 
+  private staleMarketRefresh: Promise<unknown> | null = null;
+  private staleMarketRefreshAt = 0;
+
   async listMarketRates() {
     await this.ensureMarketRatesSeeded();
-    // Best-effort live refresh when rates are stale (> 30 minutes).
+    // Best-effort live refresh when rates are stale (> 30 minutes). The endpoint is public, so
+    // attempts are single-flight and spaced out even when the providers keep failing.
     try {
       const newest = await this.prisma.marketRate.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } });
-      if (!newest || Date.now() - newest.updatedAt.getTime() > 30 * 60_000) {
-        await this.refreshMarketRatesFromProviders();
+      const stale = !newest || Date.now() - newest.updatedAt.getTime() > 30 * 60_000;
+      if (stale && !this.staleMarketRefresh && Date.now() - this.staleMarketRefreshAt > 5 * 60_000) {
+        this.staleMarketRefreshAt = Date.now();
+        this.staleMarketRefresh = this.refreshMarketRatesFromProviders().finally(() => { this.staleMarketRefresh = null; });
       }
+      if (this.staleMarketRefresh) await this.staleMarketRefresh;
     } catch {
       /* keep seeded/cached values */
     }
@@ -5423,13 +5461,6 @@ export class ManagementService {
     };
   }
 
-  async smsHealth() {
-    const provider = this.config.get<string>('SMS_PROVIDER', 'mock').toLowerCase();
-    const sender = this.config.get<string>('SMS_SENDER');
-    const configured = provider === 'mock' || Boolean(this.config.get<string>('KAVEH_NEGAR_API_KEY'));
-    return { provider, configured, maskedSender: sender ? `${sender.slice(0, 4)}***${sender.slice(-2)}` : null };
-  }
-
   private async userLifecycleTransaction<T>(
     actor: AuthenticatedUser,
     targetId: string | undefined,
@@ -5530,31 +5561,37 @@ export class ManagementService {
     if (remaining < 1) throw new ForbiddenException('Cannot remove the final active approved super administrator');
   }
 
+  /**
+   * Business history that must survive the user (Restrict FKs plus audit-relevant records).
+   * Personal cascade data (notifications, favorites, sessions) never blocks deletion.
+   */
   private async userDeleteBlockers(tx: Prisma.TransactionClient, userId: string): Promise<string[]> {
-    const names = [
-      'managedFactories', 'managedParks', 'gatePasses', 'invoices', 'messages', 'requests',
-      'announcements', 'advertisements', 'favorites', 'securityShifts', 'notifications',
-      'emergencies', 'paymentAttempts', 'uploadedFiles', 'feedback', 'marketRateUpdates',
+    const checks: Array<[string, Promise<number>]> = [
+      ['واحد صنعتی تحت مدیریت', tx.factory.count({ where: { managerId: userId } })],
+      ['شهرک تحت مدیریت', tx.industrialPark.count({ where: { managers: { some: { id: userId } } } })],
+      ['مجوز تردد', tx.gatePass.count({ where: { OR: [{ createdById: userId }, { approvedById: userId }, { verifiedById: userId }] } })],
+      ['صورتحساب', tx.invoice.count({ where: { OR: [{ createdById: userId }, { paidById: userId }] } })],
+      ['اصلاحیه صورتحساب', tx.invoiceAdjustment.count({ where: { actorId: userId } })],
+      ['ورود گروهی صورتحساب', tx.invoiceImportBatch.count({ where: { createdById: userId } })],
+      ['پیام', tx.message.count({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } })],
+      ['درخواست', tx.request.count({ where: { OR: [{ creatorId: userId }, { approverId: userId }] } })],
+      ['اطلاعیه', tx.announcement.count({ where: { createdById: userId } })],
+      ['آگهی', tx.advertisement.count({ where: { createdById: userId } })],
+      ['بنر', tx.dashboardBanner.count({ where: { createdById: userId } })],
+      ['شیفت نگهبانی', tx.securityGuard.count({ where: { userId } })],
+      ['هشدار اضطراری', tx.emergencyAlert.count({ where: { createdById: userId } })],
+      ['تراکنش پرداخت', tx.paymentTransaction.count({ where: { initiatedById: userId } })],
+      ['فایل بارگذاری‌شده', tx.scopedFile.count({ where: { uploadedById: userId } })],
+      ['فایل رسانه', tx.mediaAsset.count({ where: { uploadedById: userId } })],
+      ['بازخورد', tx.feedback.count({ where: { senderId: userId } })],
     ];
-    const counts = await Promise.all([
-      tx.factory.count({ where: { managerId: userId } }),
-      tx.industrialPark.count({ where: { managers: { some: { id: userId } } } }),
-      tx.gatePass.count({ where: { OR: [{ createdById: userId }, { approvedById: userId }, { verifiedById: userId }] } }),
-      tx.invoice.count({ where: { OR: [{ createdById: userId }, { paidById: userId }] } }),
-      tx.message.count({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } }),
-      tx.request.count({ where: { OR: [{ creatorId: userId }, { approverId: userId }] } }),
-      tx.announcement.count({ where: { createdById: userId } }),
-      tx.advertisement.count({ where: { OR: [{ createdById: userId }, { moderatedById: userId }] } }),
-      tx.advertisementFavorite.count({ where: { userId } }),
-      tx.securityGuard.count({ where: { userId } }),
-      tx.notification.count({ where: { userId } }),
-      tx.emergencyAlert.count({ where: { createdById: userId } }),
-      tx.paymentTransaction.count({ where: { initiatedById: userId } }),
-      tx.scopedFile.count({ where: { uploadedById: userId } }),
-      tx.feedback.count({ where: { senderId: userId } }),
-      tx.marketRate.count({ where: { updatedById: userId } }),
-    ]);
-    return names.filter((_name, index) => counts[index] > 0);
+    const counts = await Promise.all(checks.map(([, count]) => count));
+    return checks.filter((_check, index) => counts[index] > 0).map(([label]) => label);
+  }
+
+  private userDeleteConflict(blockers: string[]) {
+    const detail = blockers.length ? ` (${blockers.join('، ')})` : '';
+    return new ConflictException(`این کاربر سوابق کاری دارد${detail} و قابل حذف نیست؛ به‌جای حذف، حساب را غیرفعال کنید.`);
   }
 
   private prismaErrorCode(error: unknown): string | undefined {

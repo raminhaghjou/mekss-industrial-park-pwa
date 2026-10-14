@@ -26,6 +26,7 @@ export const ConfirmDialog = ({
   disabled = false,
   onConfirm,
   onClose,
+  children = null,
 }) => {
   const [reason, setReason] = useState('');
 
@@ -53,6 +54,7 @@ export const ConfirmDialog = ({
           </ModalHeader>
           <ModalBody className="gap-3">
             {description && <p className="text-sm text-foreground-500">{description}</p>}
+            {children}
             {requireReason && (
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-medium text-foreground-600">{reasonLabel}</Label>

@@ -79,6 +79,13 @@ apiClient.interceptors.request.use(
   }
 );
 
+/**
+ * Credential endpoints answer 401 for a wrong password/OTP; that is a form error for the
+ * caller to show, not an expired session to refresh (or a reason to reload /login).
+ */
+const SESSIONLESS_AUTH_PATH = /\/auth\/(login|register|refresh|logout|check-phone|otp\/|password\/)/;
+export const isSessionlessAuthRequest = (url) => SESSIONLESS_AUTH_PATH.test(String(url || ''));
+
 // Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
@@ -88,7 +95,12 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    if (
+      error.response?.status === 401
+      && originalRequest
+      && !originalRequest._retry
+      && !isSessionlessAuthRequest(originalRequest.url)
+    ) {
       originalRequest._retry = true;
 
       try {

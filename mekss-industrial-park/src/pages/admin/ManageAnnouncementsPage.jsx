@@ -83,9 +83,11 @@ const ManageAnnouncementsPage = () => {
     queryKey: isSuperAdmin ? queryKeys.parks.all() : queryKeys.factories.managementScope(),
     queryFn: () => (
       isSuperAdmin
-        ? parkApi.getParks().then((res) => res.data)
-        : factoryApi.getManagementScope().then((res) => res.data?.parks || [])
+        ? parkApi.getParks({ pageSize: 100 }).then((res) => res.data)
+        : factoryApi.getManagementScope().then((res) => res.data)
     ),
+    // The management-scope cache entry is shared with ManageFactoriesPage, so keep the full payload.
+    select: (data) => (isSuperAdmin ? data : data?.parks || []),
     enabled: showForm && (isSuperAdmin || isParkManager),
   });
   const parks = Array.isArray(parksData) ? parksData : parksData?.items || [];
@@ -163,7 +165,8 @@ const ManageAnnouncementsPage = () => {
       expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined,
     };
     if (editing) {
-      updateMutation.mutate({ id: editing.id, payload: basePayload });
+      // null clears a previously set expiry; omitting the field would keep it.
+      updateMutation.mutate({ id: editing.id, payload: { ...basePayload, expiresAt: basePayload.expiresAt ?? null } });
       return;
     }
 

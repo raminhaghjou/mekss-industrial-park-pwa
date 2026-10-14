@@ -73,7 +73,7 @@ const CreateInvoicePage = () => {
 
   const { data: parks, isLoading: loadingParks, isError: parksError } = useQuery({
     queryKey: ['parks', 'all'],
-    queryFn: () => parkApi.getParks().then((res) => res.data),
+    queryFn: () => parkApi.getParks({ pageSize: 100 }).then((res) => res.data),
     enabled: isSuperAdmin && targetType === 'PARK',
   });
   const parkList = Array.isArray(parks) ? parks : parks?.items || [];

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { AdvertisementStatus, Role } from '@prisma/client';
 import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { FILE_UPLOAD_CONFIG } from '../shared/constants';
@@ -266,6 +266,23 @@ export class FilesService {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('فایل یافت نشد');
     if (!(await this.canRead(actor, asset))) throw new ForbiddenException('دسترسی به این فایل ندارید');
+    const buffer = await this.storage.getObjectBuffer(asset.bucket, asset.objectKey);
+    return {
+      buffer,
+      contentType: asset.contentType,
+      originalName: asset.originalName,
+      byteSize: asset.byteSize,
+    };
+  }
+
+  /** Guests browse the ads wall, so images of approved ads (and only those) are served without a session. */
+  async getPublicAdvertisementImage(id: string) {
+    const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
+    if (!asset || asset.domain !== 'advertisement') throw new NotFoundException('فایل یافت نشد');
+    const published = await this.prisma.advertisement.count({
+      where: { status: AdvertisementStatus.APPROVED, images: { has: id } },
+    });
+    if (!published) throw new NotFoundException('فایل یافت نشد');
     const buffer = await this.storage.getObjectBuffer(asset.bucket, asset.objectKey);
     return {
       buffer,

@@ -28,8 +28,10 @@ services:
       retries: 12
       start_period: 5s
 
+  # minio/minio is no longer pullable from Docker Hub (the vendor stopped publishing community images).
+  # pgsty/minio is a maintained community build with the same entrypoint, /data layout and curl.
   minio:
-    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    image: ${MEKSS_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -107,7 +109,15 @@ services:
       MINIO_USE_SSL: "false"
       FRONTEND_URL: http://localhost:5173
       CORS_ORIGINS: http://localhost:5173
-      KAVEH_NEGAR_API_KEY: ""
+      # SMS: Melipayamak by default, configured in the admin panel (Settings). These are only fallbacks.
+      SMS_PROVIDER: ${MEKSS_SMS_PROVIDER:-}
+      MELIPAYAMAK_USERNAME: ${MEKSS_MELIPAYAMAK_USERNAME:-}
+      MELIPAYAMAK_PASSWORD: ${MEKSS_MELIPAYAMAK_PASSWORD:-}
+      MELIPAYAMAK_SENDER: ${MEKSS_MELIPAYAMAK_SENDER:-}
+      MELIPAYAMAK_OTP_BODY_ID: ${MEKSS_MELIPAYAMAK_OTP_BODY_ID:-}
+      # Encrypts secrets saved from the admin panel; changing it means re-entering them.
+      SETTINGS_ENCRYPTION_KEY: ${MEKSS_SETTINGS_ENCRYPTION_KEY:-}
+      KAVEH_NEGAR_API_KEY: ${MEKSS_KAVEH_NEGAR_API_KEY:-}
       SMS_SENDER: ${MEKSS_LOCAL_SMS_SENDER:-1000596446}
       ZARINPAL_MERCHANT_ID: ""
       ZARINPAL_CALLBACK_URL: http://localhost:3000/api/v1/invoices/payment/verify

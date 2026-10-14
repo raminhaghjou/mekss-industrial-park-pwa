@@ -39,6 +39,7 @@ import {
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { AuthenticatedImage } from '../common/AuthenticatedImage';
 import { getErrorMessage } from '../../utils/apiError';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
@@ -439,11 +440,10 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
                     {detailQuery.data.images?.length > 0 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {detailQuery.data.images.map((image, index) => (
-                          <img
+                          <AuthenticatedImage
                             key={`${image}-${index}`}
-                            src={image}
+                            fileId={image}
                             alt={`تصویر ${index + 1} آگهی ${detailQuery.data.title}`}
-                            loading="lazy"
                             className="w-full h-48 object-cover rounded-xl border border-default-200"
                           />
                         ))}
@@ -474,16 +474,6 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
         </ModalBackdrop>
       )}
 
-      {approveTarget && (
-        <label className="mx-4 mb-2 flex items-center gap-2 text-sm text-foreground-600">
-          <input
-            type="checkbox"
-            checked={promoteFeatured}
-            onChange={(e) => setPromoteFeatured(e.target.checked)}
-          />
-          پس از تایید در اسلایدر «آگهی ویژه» قرار گیرد (سقف ماهانه)
-        </label>
-      )}
       <ConfirmDialog
         open={Boolean(approveTarget)}
         title="تایید آگهی"
@@ -495,7 +485,17 @@ export const AdvertisementModerationBoard = ({ showParkFilter = false }) => {
           if (online && approveTarget) approveMutation.mutate(approveTarget.id);
         }}
         onClose={() => { if (!decisionPending) { setApproveTarget(null); setPromoteFeatured(false); } }}
-      />
+      >
+        <label className="flex items-center gap-2 text-sm text-foreground-600">
+          <input
+            type="checkbox"
+            checked={promoteFeatured}
+            disabled={decisionPending}
+            onChange={(e) => setPromoteFeatured(e.target.checked)}
+          />
+          پس از تایید در اسلایدر «آگهی ویژه» قرار گیرد (سقف ماهانه)
+        </label>
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(rejectTarget)}
         title="رد آگهی"

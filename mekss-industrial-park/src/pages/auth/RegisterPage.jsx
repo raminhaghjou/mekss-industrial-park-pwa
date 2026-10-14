@@ -7,6 +7,7 @@ import { useNotification } from '../../providers/NotificationProvider';
 import { publicApi } from '../../services/api/public.api';
 import { authApi } from '../../services/api/auth.api';
 import { getErrorMessage } from '../../utils/apiError';
+import { digitsOnly } from '../../utils/digits';
 import {
   AuthBrand,
   AuthPanel,
@@ -36,13 +37,11 @@ const emptyForm = {
   fax: '',
   description: '',
   ceoName: '',
-  logo: '',
   latitude: '',
   longitude: '',
   socialInstagram: '',
   socialTelegram: '',
   socialWebsite: '',
-  licenseNumber: '',
 };
 
 export const RegisterPage = () => {
@@ -68,7 +67,7 @@ export const RegisterPage = () => {
 
   const checkPhone = async (e) => {
     e.preventDefault();
-    const phone = formData.phoneNumber.replace(/\D/g, '').slice(0, 11);
+    const phone = digitsOnly(formData.phoneNumber, 11);
     if (!/^09\d{9}$/.test(phone)) {
       const msg = 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود';
       setFormError(msg);
@@ -159,8 +158,6 @@ export const RegisterPage = () => {
             fax: formData.fax.trim() || undefined,
             description: formData.description.trim() || undefined,
             ceoName: formData.ceoName.trim() || undefined,
-            logo: formData.logo.trim() || undefined,
-            licenseNumber: formData.licenseNumber.trim() || undefined,
             latitude: formData.latitude !== '' ? Number(formData.latitude) : undefined,
             longitude: formData.longitude !== '' ? Number(formData.longitude) : undefined,
             ...(Object.keys(socialMedia).length ? { socialMedia } : {}),
@@ -212,7 +209,7 @@ export const RegisterPage = () => {
                   required
                   placeholder="09123456789"
                   value={formData.phoneNumber}
-                  onChange={(e) => update('phoneNumber', e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  onChange={(e) => update('phoneNumber', digitsOnly(e.target.value, 11))}
                   className={`${authFieldClass} text-left`}
                 />
               </span>
@@ -362,11 +359,11 @@ export const RegisterPage = () => {
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className={authLabelClass}>شناسه ملی</span>
-                  <input required dir="ltr" value={formData.nationalId} onChange={(e) => update('nationalId', e.target.value.replace(/\D/g, '').slice(0, 11))} className={authFieldClass} />
+                  <input required dir="ltr" value={formData.nationalId} onChange={(e) => update('nationalId', digitsOnly(e.target.value, 11))} className={authFieldClass} />
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className={authLabelClass}>شماره همراه ۲</span>
-                  <input dir="ltr" value={formData.phoneNumber2} onChange={(e) => update('phoneNumber2', e.target.value.replace(/\D/g, '').slice(0, 11))} className={authFieldClass} />
+                  <input dir="ltr" value={formData.phoneNumber2} onChange={(e) => update('phoneNumber2', digitsOnly(e.target.value, 11))} className={authFieldClass} />
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className={authLabelClass}>تلفن ثابت</span>
@@ -412,10 +409,6 @@ export const RegisterPage = () => {
                 <label className="flex flex-col gap-1.5">
                   <span className={authLabelClass}>وب‌سایت</span>
                   <input dir="ltr" value={formData.socialWebsite} onChange={(e) => update('socialWebsite', e.target.value)} className={authFieldClass} />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className={authLabelClass}>شناسه فایل آرم (اختیاری)</span>
-                  <input dir="ltr" value={formData.logo} onChange={(e) => update('logo', e.target.value)} className={authFieldClass} />
                 </label>
               </>
             ) : (

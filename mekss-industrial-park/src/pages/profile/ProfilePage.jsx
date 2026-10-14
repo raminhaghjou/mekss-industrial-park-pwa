@@ -10,8 +10,12 @@ import { FileUploader } from '../../components/common/FileUploader';
 import { PasswordInput } from '../../components/common/PasswordInput';
 import { AuthenticatedImage } from '../../components/common/AuthenticatedImage';
 
+/** Mirrors the server's ChangePasswordDto rule. */
+const PASSWORD_RULE = /^(?=.*[A-Za-zÀ-ÿآ-ی])(?=.*\d).{8,128}$/;
+const PASSWORD_HINT = 'رمز عبور جدید باید حداقل ۸ کاراکتر و شامل حرف و عدد (لاتین) باشد';
+
 export const ProfilePage = () => {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, changePassword } = useAuth();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -48,8 +52,8 @@ export const ProfilePage = () => {
     try {
       await authApi.updateProfile({
         name: formData.name.trim(),
-        email: formData.email.trim() || undefined,
-        username: formData.username.trim().toLowerCase() || undefined,
+        email: formData.email.trim() || null,
+        username: formData.username.trim().toLowerCase() || null,
         ...(avatarFile?.id ? { avatar: avatarFile.id } : {}),
         ...(user?.role === 'PARK_MANAGER' ? { messagingRestricted: formData.messagingRestricted } : {}),
       });
@@ -68,18 +72,17 @@ export const ProfilePage = () => {
       showNotification('تکرار رمز عبور مطابقت ندارد', 'error');
       return;
     }
-    if (passwordForm.newPassword.length < 6) {
-      showNotification('رمز عبور باید حداقل ۶ کاراکتر باشد', 'error');
+    if (!PASSWORD_RULE.test(passwordForm.newPassword)) {
+      showNotification(PASSWORD_HINT, 'error');
       return;
     }
     setPasswordLoading(true);
     try {
-      await authApi.changePassword({
+      await changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      await refreshProfile();
       if (searchParams.get('changePassword')) {
         searchParams.delete('changePassword');
         setSearchParams(searchParams, { replace: true });
@@ -263,7 +266,7 @@ export const ProfilePage = () => {
               <Label className="text-xs font-medium text-foreground-600">رمز عبور جدید</Label>
               <PasswordInput
                 required
-                minLength={6}
+                minLength={8}
                 value={passwordForm.newPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                 variant="primary"
@@ -275,7 +278,7 @@ export const ProfilePage = () => {
               <Label className="text-xs font-medium text-foreground-600">تکرار رمز عبور جدید</Label>
               <PasswordInput
                 required
-                minLength={6}
+                minLength={8}
                 value={passwordForm.confirmPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                 variant="primary"

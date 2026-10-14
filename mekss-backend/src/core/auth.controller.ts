@@ -11,14 +11,26 @@ import { AuthenticatedUser, JwtAuthGuard } from './auth.guard';
 const iranianPhone = /^09\d{9}$/;
 const opaqueId = /^[A-Za-z0-9_-]{1,128}$/;
 const usernamePattern = /^[a-z0-9._-]{3,64}$/;
+const toAsciiDigits = (value: string) =>
+  value
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
 const canonicalEmail = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value;
+/** Profile edits: an empty string clears the optional field instead of failing validation. */
+const nullableEmail = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length ? normalized : null;
+};
 const normalizeIranianPhone = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;
-  const digits = value.trim().replace(/\D/g, '');
+  const digits = toAsciiDigits(value.trim()).replace(/\D/g, '');
   if (digits.startsWith('0098')) return `0${digits.slice(4)}`;
-  if (digits.startsWith('98')) return `0${digits.slice(2)}`;
+  if (digits.startsWith('98') && digits.length === 12) return `0${digits.slice(2)}`;
+  if (digits.length === 10 && digits.startsWith('9')) return `0${digits}`;
   return digits;
 };
+const asciiDigits = ({ value }: { value: unknown }) => (typeof value === 'string' ? toAsciiDigits(value.trim()) : value);
 const trimString = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const lowercaseUsername = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().toLowerCase() : value);
 
@@ -46,7 +58,7 @@ class RegisterDto {
   @ValidateIf((body: RegisterDto) => body.role === Role.FACTORY_OWNER)
   @Transform(trimString) @IsString() @Length(2, 160) factoryName!: string;
   @ValidateIf((body: RegisterDto) => body.role === Role.FACTORY_OWNER)
-  @Transform(trimString) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
+  @Transform(asciiDigits) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
   @ValidateIf((body: RegisterDto) => body.role === Role.FACTORY_OWNER)
   @Transform(trimString) @IsString() @Length(2, 120) activityType!: string;
   @ValidateIf((body: RegisterDto) => body.role === Role.FACTORY_OWNER)
@@ -75,7 +87,7 @@ class LoginDto {
 class SendOtpDto { @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string; }
 class VerifyOtpDto {
   @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
-  @Matches(/^\d{6}$/) otp!: string;
+  @Transform(asciiDigits) @Matches(/^\d{6}$/) otp!: string;
 }
 class RefreshDto { @IsString() @MinLength(32) refreshToken!: string; }
 /** After OTP, system generates a temporary password and SMS it — client only sends phone + otp. */
@@ -86,10 +98,10 @@ class ChangePasswordDto {
 }
 class UpdateProfileDto {
   @IsOptional() @IsString() @Length(2, 120) name?: string;
-  @Transform(canonicalEmail) @IsOptional() @IsEmail() email?: string;
+  @Transform(nullableEmail) @IsOptional() @IsEmail() email?: string | null;
   @IsOptional() @IsString() avatar?: string;
-  @IsOptional() @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
-  @Matches(/^[a-z0-9._-]{3,64}$/) username?: string;
+  @IsOptional() @Transform(nullableEmail)
+  @Matches(/^[a-z0-9._-]{3,64}$/) username?: string | null;
   /** Park managers may restrict unsolicited factory-to-manager messages. */
   @IsOptional() @IsBoolean() messagingRestricted?: boolean;
 }
@@ -169,7 +181,10 @@ export class AuthController {
   @Post('change-password')
   @HttpCode(200)
   @ApiBearerAuth()
-  async changePassword(@Req() request: { user: AuthenticatedUser }, @Body() body: ChangePasswordDto) { await this.auth.changePassword(request.user.id, body.currentPassword, body.newPassword); return { message: 'Password changed successfully' }; }
+  async changePassword(@Req() request: any, @Body() body: ChangePasswordDto) {
+    const session = await this.auth.changePassword((request as { user: AuthenticatedUser }).user.id, body.currentPassword, body.newPassword, this.metadata(request));
+    return { message: 'Password changed successfully', ...session };
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')

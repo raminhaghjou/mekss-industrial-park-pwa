@@ -98,6 +98,15 @@ export const AuthProvider = ({ children }) => {
     setUser(response.data);
     return response.data;
   }, []);
+  /** The server revokes every session on a password change and returns a fresh pair for this device. */
+  const changePassword = async (payload) => {
+    const { data } = await authApi.changePassword(payload);
+    if (data?.accessToken && data?.refreshToken) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
+    }
+    return refreshProfile();
+  };
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout, refreshAccessToken, sendOtp, verifyOtp, refreshProfile, hasRole: (role) => user?.role === role, checkAuth }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, register, logout, refreshAccessToken, sendOtp, verifyOtp, refreshProfile, changePassword, hasRole: (role) => user?.role === role, checkAuth }}>{children}</AuthContext.Provider>;
 };

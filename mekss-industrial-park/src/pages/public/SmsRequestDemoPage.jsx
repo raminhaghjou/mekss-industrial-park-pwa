@@ -6,6 +6,7 @@ import { PublicShell } from '../../components/public/PublicShell';
 import { publicApi } from '../../services/api/public.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { digitsOnly } from '../../utils/digits';
 
 const codes = [
   { code: '1', title: 'سفارش خدمات', desc: 'درخواست خدمات عمومی شهرک (نظافت، باربری و ...)' },
@@ -94,7 +95,7 @@ export const SmsRequestDemoPage = () => {
               dir="ltr"
               required
               value={form.phoneNumber}
-              onChange={(e) => setForm((prev) => ({ ...prev, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+              onChange={(e) => setForm((prev) => ({ ...prev, phoneNumber: digitsOnly(e.target.value, 11) }))}
               placeholder="09123456789"
               className="h-12 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-soft)] px-4 text-sm outline-none transition focus:border-[var(--color-brand)] focus:bg-white focus:ring-2 focus:ring-[var(--color-brand-soft)]"
             />

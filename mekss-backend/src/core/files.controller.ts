@@ -16,8 +16,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { AuthenticatedUser, JwtAuthGuard } from './auth.guard';
+import { AuthenticatedUser, JwtAuthGuard, Public } from './auth.guard';
 import { FilesService, MEDIA_DOMAINS } from './files.service';
+import { OpaqueIdParamDto } from './management.dto';
 import { FILE_UPLOAD_CONFIG } from '../shared/constants';
 
 @ApiTags('Files')
@@ -62,6 +63,17 @@ export class FilesController {
     if (!file) throw new BadRequestException('فایل ارسال نشده است');
     if (!domain) throw new BadRequestException('domain الزامی است');
     return this.files.upload(request.user, file, { domain, parkId, factoryId });
+  }
+
+  @Public()
+  @Get('public/advertisement-images/:id')
+  async publicAdvertisementImage(@Param() params: OpaqueIdParamDto, @Res() res: Response) {
+    const payload = await this.files.getPublicAdvertisementImage(params.id);
+    res.setHeader('Content-Type', payload.contentType);
+    res.setHeader('Content-Length', String(payload.byteSize));
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(payload.buffer);
   }
 
   @Get(':id')

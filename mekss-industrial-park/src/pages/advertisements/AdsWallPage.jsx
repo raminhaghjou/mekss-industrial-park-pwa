@@ -24,6 +24,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { EmptyState } from '../../components/common/EmptyState';
+import { publicAdvertisementImageUrl } from '../../utils/advertisementImages';
 
 const viewTabs = [
   { id: 'all', label: 'همه' },
@@ -187,7 +188,7 @@ export const AdsWallPage = () => {
               return (
                 <article key={ad.id} className="flex flex-col rounded-[var(--radius-md)] bg-white p-4 shadow-[var(--shadow-card)]">
                   {ad.images?.[0] && (
-                    <img src={ad.images[0]} alt="" className="mb-3 h-32 w-full rounded-lg object-cover" />
+                    <img src={publicAdvertisementImageUrl(ad.images[0])} alt="" loading="lazy" className="mb-3 h-32 w-full rounded-lg object-cover" />
                   )}
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-bold text-[var(--color-ink)]">{ad.title}</h3>

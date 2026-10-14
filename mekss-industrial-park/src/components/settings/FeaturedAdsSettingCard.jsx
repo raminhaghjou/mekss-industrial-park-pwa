@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { advertisementApi } from '../../services/api/advertisement.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { toAsciiDigits } from '../../utils/digits';
 
 export const FeaturedAdsSettingCard = () => {
   const { showNotification } = useNotification();
@@ -13,19 +14,29 @@ export const FeaturedAdsSettingCard = () => {
     queryKey: ['settings', 'advertisement-featured'],
     queryFn: () => advertisementApi.getFeaturedSettings().then((res) => res.data),
   });
-  const [cap, setCap] = useState('');
+  /** null = untouched, so the saved value is shown and re-sent as-is. */
+  const [cap, setCap] = useState(null);
 
   const saveMutation = useMutation({
-    mutationFn: () => advertisementApi.updateFeaturedSettings(Number(cap)),
+    mutationFn: (/** @type {number} */ value) => advertisementApi.updateFeaturedSettings(value),
     onSuccess: () => {
       showNotification('سقف ماهانه آگهی ویژه ذخیره شد', 'success');
+      setCap(null);
       queryClient.invalidateQueries({ queryKey: ['settings', 'advertisement-featured'] });
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ذخیره تنظیمات ناموفق بود'), 'error'),
   });
 
   const current = data?.monthlyCap ?? 5;
-  const displayCap = cap || String(current);
+  const displayCap = cap ?? String(current);
+  const save = () => {
+    const value = Number(toAsciiDigits(displayCap).trim());
+    if (!Number.isInteger(value) || value < 1 || value > 100) {
+      showNotification('سقف باید عددی صحیح بین ۱ تا ۱۰۰ باشد', 'error');
+      return;
+    }
+    saveMutation.mutate(value);
+  };
 
   return (
     <Card className="rounded-2xl border border-default-200">
@@ -56,7 +67,7 @@ export const FeaturedAdsSettingCard = () => {
               size="sm"
               className="font-bold"
               isDisabled={saveMutation.isPending}
-              onPress={() => saveMutation.mutate()}
+              onPress={save}
             >
               ذخیره
             </Button>

@@ -4,6 +4,7 @@ import { Spinner } from '@heroui/react';
 import { Eye, EyeOff, Phone, Lock, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useNotification } from '../../providers/NotificationProvider';
+import { digitsOnly, toAsciiDigits } from '../../utils/digits';
 import {
   AuthBrand,
   AuthPanel,
@@ -30,16 +31,15 @@ export const LoginPage = () => {
   const [formError, setFormError] = useState('');
 
   const resolveCredentials = () => {
-    const raw = formData.identifier.trim();
-    if (/^09\d{9}$/.test(raw.replace(/\D/g, '')) || raw.startsWith('09')) {
-      const phone = raw.replace(/\D/g, '').slice(0, 11);
-      return { phoneNumber: phone, password: formData.password };
+    const raw = toAsciiDigits(formData.identifier.trim());
+    if (/^09\d{9}$/.test(digitsOnly(raw)) || raw.startsWith('09')) {
+      return { phoneNumber: digitsOnly(raw, 11), password: formData.password };
     }
     return { username: raw.toLowerCase(), password: formData.password };
   };
 
   const handleSendOtp = async () => {
-    const phone = formData.identifier.replace(/\D/g, '').slice(0, 11);
+    const phone = digitsOnly(formData.identifier, 11);
     if (!/^09\d{9}$/.test(phone)) {
       setFormError('برای ورود با کد یک‌بارمصرف شماره موبایل ۱۱ رقمی وارد کنید');
       showNotification('برای ورود با کد یک‌بارمصرف شماره موبایل ۱۱ رقمی وارد کنید', 'error');
@@ -61,7 +61,7 @@ export const LoginPage = () => {
   };
 
   const handleOtpLogin = async () => {
-    const phone = formData.identifier.replace(/\D/g, '').slice(0, 11);
+    const phone = digitsOnly(formData.identifier, 11);
     if (!otpCode || otpCode.length !== 6) {
       setFormError('لطفاً کد تایید ۶ رقمی را وارد کنید');
       showNotification('لطفاً کد تایید ۶ رقمی را وارد کنید', 'error');
@@ -219,7 +219,7 @@ export const LoginPage = () => {
                     maxLength={6}
                     placeholder="۶ رقمی"
                     value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
+                    onChange={(e) => setOtpCode(digitsOnly(e.target.value, 6))}
                     className={`${authFieldClass} px-4 text-center font-mono text-lg tracking-[0.4em]`}
                   />
                 </label>

@@ -9,6 +9,7 @@ import { HealthController } from './health.controller';
 import { JwtAuthGuard, RolesGuard } from './auth.guard';
 import { PrismaService } from './prisma.service';
 import { SmsGateway } from './sms.gateway';
+import { SmsSettingsService } from './sms/sms-settings.service';
 import { ManagementController, PaymentCallbackController, WalletPaymentCallbackController } from './management.controller';
 import { ManagementService } from './management.service';
 import { ApiExceptionFilter } from './api-exception.filter';
@@ -31,11 +32,12 @@ import { GatePassEvents } from './gate-pass-events';
       },
     }),
   ],
-  controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController, FilesController],
+  controllers: [AuthController, HealthController, ManagementController, PaymentCallbackController, WalletPaymentCallbackController, FilesController],
   providers: [
     PrismaService,
     AuditService,
     AuthService,
+    SmsSettingsService,
     SmsGateway,
     ManagementService,
     StorageService,

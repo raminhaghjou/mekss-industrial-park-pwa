@@ -6,7 +6,11 @@ import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { AuthenticatedUser, JwtAuthGuard, Public, Roles, RolesGuard } from './auth.guard';
 import { IMPORT_MAX_FILE_BYTES } from './invoice-import';
+import { SmsGateway } from './sms.gateway';
+import { SmsSettingsService } from './sms/sms-settings.service';
 import {
+  SmsTestDto,
+  UpdateSmsSettingsDto,
   CreateBannerDto,
   InvoiceDiscountDto,
   InvoiceExtendDueDto,
@@ -75,7 +79,11 @@ const currentUser = (request: AuthenticatedRequest) => request.user;
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/v1')
 export class ManagementController {
-  constructor(private readonly management: ManagementService) {}
+  constructor(
+    private readonly management: ManagementService,
+    private readonly sms: SmsGateway,
+    private readonly smsConfig: SmsSettingsService,
+  ) {}
 
   @Get('users/pending-registrations') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') pendingRegistrations(@Req() req: AuthenticatedRequest) { return this.management.pendingRegistrations(currentUser(req)); }
   @Post('users/:id/approve-registration') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') approveRegistration(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ApproveRegistrationDto) { return this.management.decideRegistration(currentUser(req), params.id, true, undefined, body.canApproveRequestTypes); }
@@ -201,6 +209,7 @@ export class ManagementController {
   @Post('advertisements/:id/favorite') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.GOVERNMENT_OFFICIAL) @ApiTags('Advertisements') addAdvertisementFavorite(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.addAdvertisementFavorite(currentUser(req), params.id); }
   @Delete('advertisements/:id/favorite') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.GOVERNMENT_OFFICIAL) @ApiTags('Advertisements') removeAdvertisementFavorite(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.removeAdvertisementFavorite(currentUser(req), params.id); }
   @Post('advertisements/mine/:id/featured-request') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Advertisements') requestFeaturedAdvertisement(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.requestFeaturedAdvertisementPaymentStub(currentUser(req), params.id); }
+  @Public()
   @Get('advertisement-categories') @ApiTags('Advertisements') advertisementCategories() { return this.management.listAdvertisementCategories(false); }
   @Get('advertisement-categories/managed') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') managedAdvertisementCategories() { return this.management.listAdvertisementCategories(true); }
   @Post('advertisement-categories') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') createAdvertisementCategory(@Req() req: AuthenticatedRequest, @Body() body: CreateAdvertisementCategoryDto) { return this.management.createAdvertisementCategory(currentUser(req), body); }
@@ -224,6 +233,7 @@ export class ManagementController {
   @Post('notifications/read-all') @ApiTags('Notifications') markAllNotificationsRead(@Req() req: AuthenticatedRequest) { return this.management.markAllNotificationsRead(currentUser(req)); }
   @Post('notifications/:id/read') @ApiTags('Notifications') markNotificationRead(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.markNotificationRead(currentUser(req), params.id); }
 
+  @Public()
   @Get('market-rates') @ApiTags('Market rates') marketRates() { return this.management.listMarketRates(); }
   @Get('market-rates/history') @ApiTags('Market rates') marketRateHistory(@Query('days') days?: string) { return this.management.marketRateHistory(Number(days) || 14); }
   @Post('market-rates/refresh') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Market rates') refreshMarketRates(@Req() req: AuthenticatedRequest) { return this.management.refreshMarketRates(currentUser(req)); }
@@ -246,7 +256,11 @@ export class ManagementController {
 
   @Get('reports') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Reports') report(@Req() req: AuthenticatedRequest, @Query() query: ReportQueryDto) { return this.management.report(currentUser(req), query.type as 'financial' | 'gatepass' | 'requests', query.from, query.to); }
 
-  @Get('sms/health') @Roles(Role.SUPER_ADMIN) @ApiTags('SMS') smsHealth() { return this.management.smsHealth(); }
+  @Get('sms/health') @Roles(Role.SUPER_ADMIN) @ApiTags('SMS') smsHealth() { return this.smsConfig.health(); }
+  @Get('sms/settings') @Roles(Role.SUPER_ADMIN) @ApiTags('SMS') smsSettings() { return this.smsConfig.view(); }
+  @Put('sms/settings') @Roles(Role.SUPER_ADMIN) @ApiTags('SMS') updateSmsSettings(@Req() req: AuthenticatedRequest, @Body() body: UpdateSmsSettingsDto) { return this.smsConfig.update(currentUser(req).id, body); }
+  @Post('sms/test') @Roles(Role.SUPER_ADMIN) @ApiTags('SMS') testSms(@Body() body: SmsTestDto) { return this.sms.test(body.phoneNumber, body.kind); }
+  @Get('sms/credit') @Roles(Role.SUPER_ADMIN) @ApiTags('SMS') smsCredit() { return this.sms.credit(); }
 
   @Get('emergency') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Emergency') emergencies(@Req() req: AuthenticatedRequest) { return this.management.emergencies(currentUser(req)); }
   @Get('emergency/active') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL, Role.EMPLOYEE) @ApiTags('Emergency') activeEmergencies(@Req() req: AuthenticatedRequest) { return this.management.activeEmergencies(currentUser(req)); }

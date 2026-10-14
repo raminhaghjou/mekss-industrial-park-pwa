@@ -5,6 +5,7 @@ import { Phone, ArrowLeft, ShieldCheck, KeyRound } from 'lucide-react';
 import { authApi } from '../../services/api/auth.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { digitsOnly } from '../../utils/digits';
 import {
   AuthBrand,
   AuthPanel,
@@ -117,7 +118,7 @@ export const ForgotPasswordPage = () => {
                   required
                   placeholder="09123456789"
                   value={form.phoneNumber}
-                  onChange={(e) => update('phoneNumber', e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  onChange={(e) => update('phoneNumber', digitsOnly(e.target.value, 11))}
                   className={authFieldClass}
                 />
               </span>
@@ -141,7 +142,7 @@ export const ForgotPasswordPage = () => {
                   maxLength={6}
                   placeholder="۶ رقمی"
                   value={form.otp}
-                  onChange={(e) => update('otp', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => update('otp', digitsOnly(e.target.value, 6))}
                   className={`${authFieldClass} px-10 text-center font-mono text-lg tracking-[0.35em]`}
                 />
               </span>

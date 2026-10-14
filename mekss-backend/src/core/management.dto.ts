@@ -53,6 +53,11 @@ const normalizeIranianPhone = ({ value }: TransformFnParams) => {
   if (digits.length === 10 && digits.startsWith('9')) return `0${digits}`;
   return digits;
 };
+const asciiDigitsTrimmed = ({ value }: TransformFnParams) => (typeof value === 'string' ? toAsciiDigits(value.trim()) : value);
+const asciiDigitsNullable = ({ value }: TransformFnParams) => {
+  const trimmed = trimNullableString({ value } as TransformFnParams);
+  return typeof trimmed === 'string' ? toAsciiDigits(trimmed) : trimmed;
+};
 const normalizeNationalId = ({ value }: TransformFnParams) => {
   if (typeof value !== 'string') return value;
   return toAsciiDigits(value.trim()).replace(/\D/g, '');
@@ -120,7 +125,7 @@ export class CreateManagedUserDto {
   @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password!: string;
   @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @Matches(usernamePattern) username?: string | null;
-  @Transform(trimNullableString) @IsOptional() @Matches(/^\d{10}$/) nationalId?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @Matches(/^\d{10}$/) nationalId?: string | null;
   @IsEnum(Role) role!: Role;
   @IsOptional() @IsBoolean() isApproved?: boolean;
   @IsOptional() @IsArray() @ArrayMaxSize(100) @ArrayUnique() @Matches(opaqueId, { each: true }) managedParkIds?: string[];
@@ -133,7 +138,7 @@ export class UpdateManagedUserDto {
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) name?: string;
   @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @Matches(usernamePattern) username?: string | null;
-  @Transform(trimNullableString) @IsOptional() @Matches(/^\d{10}$/) nationalId?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @Matches(/^\d{10}$/) nationalId?: string | null;
   @IsOptional() @IsEnum(Role) role?: Role;
   @IsOptional() @IsBoolean() isApproved?: boolean;
   @IsOptional() @IsBoolean() isActive?: boolean;
@@ -158,13 +163,13 @@ export class FactoryAdminQueryDto {
 export class CreateFactoryDto {
   @Transform(trimString) @IsString() @Length(2, 160) name!: string;
   @Transform(trimString) @IsString() @Length(2, 80) licenseNumber!: string;
-  @Transform(trimString) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
+  @Transform(asciiDigitsTrimmed) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
   @Transform(trimString) @IsString() @Length(2, 120) activityType!: string;
   @Transform(trimString) @IsString() @Length(2, 240) address!: string;
-  @Transform(trimString) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber!: string;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
+  @Transform(asciiDigitsTrimmed) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber!: string;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
@@ -184,13 +189,13 @@ export class CreateFactoryDto {
 export class RegisterFactoryDto {
   @Transform(trimString) @IsString() @Length(2, 160) name!: string;
   @Transform(trimString) @IsString() @Length(2, 80) licenseNumber!: string;
-  @Transform(trimString) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
+  @Transform(asciiDigitsTrimmed) @IsString() @Matches(/^\d{10,11}$/) nationalId!: string;
   @Transform(trimString) @IsString() @Length(2, 120) activityType!: string;
   @Transform(trimString) @IsString() @Length(2, 240) address!: string;
-  @Transform(trimString) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber!: string;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
+  @Transform(asciiDigitsTrimmed) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber!: string;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
@@ -209,13 +214,13 @@ export class RegisterFactoryDto {
 export class UpdateFactoryDto {
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 160) name?: string;
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 80) licenseNumber?: string;
-  @Transform(trimString) @IsOptional() @IsString() @Matches(/^\d{10,11}$/) nationalId?: string;
+  @Transform(asciiDigitsTrimmed) @IsOptional() @IsString() @Matches(/^\d{10,11}$/) nationalId?: string;
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) activityType?: string;
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 240) address?: string;
-  @Transform(trimString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber?: string;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
-  @Transform(trimNullableString) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
+  @Transform(asciiDigitsTrimmed) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber?: string;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber2?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) landline?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) fax?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsUrl({ require_protocol: true }) @MaxLength(300) website?: string | null;
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
@@ -247,7 +252,7 @@ export class CreateParkStaffDto {
   @Transform(trimString) @IsString() @Length(2, 120) name!: string;
   @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password!: string;
   @Transform(lowercaseNullableString) @IsOptional() @Matches(usernamePattern) username?: string | null;
-  @Transform(trimNullableString) @IsOptional() @Matches(nationalIdPattern) nationalId?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @Matches(nationalIdPattern) nationalId?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @IsEmail() @MaxLength(254) email?: string | null;
   @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
 }
@@ -257,7 +262,7 @@ export class UpdateParkStaffDto {
   @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) name?: string;
   @IsOptional() @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password?: string;
   @Transform(lowercaseNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(usernamePattern) username?: string | null;
-  @Transform(trimNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(nationalIdPattern) nationalId?: string | null;
+  @Transform(asciiDigitsNullable) @IsOptional() @ValidateIf((_, v) => v !== null) @Matches(nationalIdPattern) nationalId?: string | null;
   @Transform(lowercaseNullableString) @IsOptional() @ValidateIf((_, v) => v !== null) @IsEmail() @MaxLength(254) email?: string | null;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
@@ -509,9 +514,9 @@ export class CreateAnnouncementDto {
 
 export class AdvertisementContactInfoDto {
   @ValidateIf((value: AdvertisementContactInfoDto) => value.phone !== undefined || value.phoneNumber === undefined)
-  @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phone?: string;
+  @Transform(asciiDigitsTrimmed) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phone?: string;
   @ValidateIf((value: AdvertisementContactInfoDto) => value.phoneNumber !== undefined)
-  @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber?: string;
+  @Transform(asciiDigitsTrimmed) @IsString() @Length(6, 20) @Matches(/^[+0-9 ()-]+$/) phoneNumber?: string;
   @IsOptional() @IsEmail() @MaxLength(254) email?: string;
 }
 
@@ -581,6 +586,28 @@ export class UpdateAdvertisementFeaturedSettingDto {
   @Type(() => Number) @IsInt() @Min(1) @Max(100) monthlyCap!: number;
 }
 
+/** Empty strings clear a field (falls back to `.env`); omitted fields keep their stored value. */
+export class UpdateSmsSettingsDto {
+  @IsIn(['melipayamak', 'kavenegar', 'mock']) provider!: 'melipayamak' | 'kavenegar' | 'mock';
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(100) @Matches(/^\S+$/, { message: 'نام کاربری نباید فاصله داشته باشد' }) melipayamakUsername?: string | null;
+  /** Write-only: never returned by the API. Omitted or empty keeps the stored key. */
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(200) melipayamakPassword?: string | null;
+  @IsOptional() @IsBoolean() clearMelipayamakPassword?: boolean;
+  @Transform(({ value }: TransformFnParams) => {
+    const trimmed = trimNullableString({ value } as TransformFnParams);
+    return typeof trimmed === 'string' ? toAsciiDigits(trimmed).replace(/[\s-]/g, '') : trimmed;
+  }) @IsOptional() @IsString() @Matches(/^\+?\d{4,20}$/, { message: 'شماره فرستنده باید فقط شامل رقم باشد' }) melipayamakSender?: string | null;
+  @Transform(({ value }: TransformFnParams) => {
+    const trimmed = trimNullableString({ value: typeof value === 'number' ? String(value) : value } as TransformFnParams);
+    return typeof trimmed === 'string' ? toAsciiDigits(trimmed) : trimmed;
+  }) @IsOptional() @IsString() @Matches(/^\d{1,10}$/, { message: 'کد پترن باید عدد باشد' }) melipayamakOtpBodyId?: string | null;
+}
+
+export class SmsTestDto {
+  @Transform(normalizeIranianPhone) @Matches(iranianPhone, { message: 'شماره موبایل معتبر نیست' }) phoneNumber!: string;
+  @IsIn(['text', 'otp']) kind!: 'text' | 'otp';
+}
+
 export class CreateFeedbackDto {
   @Transform(trimString) @IsString() @Length(2, 200) subject!: string;
   @Transform(trimString) @IsString() @Length(2, 8000) body!: string;
@@ -593,7 +620,8 @@ export class UpdateAnnouncementDto {
   @IsOptional() @IsBoolean() isGlobal?: boolean;
   @IsOptional() @IsBoolean() isPinned?: boolean;
   @IsOptional() @IsInt() priority?: number;
-  @IsOptional() @IsDateString() expiresAt?: string;
+  /** null clears the expiry. */
+  @IsOptional() @IsDateString() expiresAt?: string | null;
 }
 
 export class SendMessageDto {

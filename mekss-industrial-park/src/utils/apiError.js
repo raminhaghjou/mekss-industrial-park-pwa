@@ -73,6 +73,26 @@ const SERVER_MESSAGE_FA = {
     'شهرکی با این مشخصات قبلاً ثبت شده است.',
   'could not allocate a unique park code; try again':
     'ثبت شهرک موقتاً ممکن نشد؛ دوباره تلاش کنید.',
+  'factory not found':
+    'واحد صنعتی یافت نشد.',
+  'staff user not found':
+    'این کارمند در واحد شما یافت نشد.',
+  'you cannot delete your own account':
+    'حساب کاربری خودتان را نمی‌توانید حذف کنید.',
+  'invoice not found':
+    'قبض یافت نشد.',
+  'paid invoices cannot be changed':
+    'قبض پرداخت‌شده قابل تغییر نیست.',
+  'cancelled invoices cannot be changed':
+    'قبض لغوشده قابل تغییر نیست.',
+  'this invoice has a payment awaiting confirmation':
+    'پرداخت این قبض در انتظار تایید است و فعلاً قابل تغییر نیست.',
+  'this invoice was split into installments; manage the installments instead':
+    'این قبض تقسیط شده است؛ عملیات را روی اقساط انجام دهید.',
+  'an online payment for this invoice is in progress; try again in a few minutes':
+    'پرداخت آنلاین این قبض در جریان است؛ چند دقیقه دیگر دوباره تلاش کنید.',
+  'you cannot manage this invoice':
+    'اجازه مدیریت این قبض را ندارید.',
 };
 
 /** Default class-validator messages (`<field> must ...`) mapped by field. */

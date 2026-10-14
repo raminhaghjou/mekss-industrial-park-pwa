@@ -11,4 +11,5 @@ export const gatePassApi = {
   rejectGatePass: (id, data) => apiClient.post(`/gate-passes/${id}/reject`, data),
   verifyGatePass: (id) => apiClient.post(`/gate-passes/${id}/verify`),
   denyGatePassExit: (id, data) => apiClient.post(`/gate-passes/${id}/deny`, data),
+  cancelGatePass: (id, reason) => apiClient.post(`/gate-passes/${id}/cancel`, reason ? { reason } : {}),
 };

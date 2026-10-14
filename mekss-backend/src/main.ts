@@ -16,6 +16,10 @@ async function bootstrap(): Promise<void> {
   const origins = (config.get<string>('CORS_ORIGINS') || config.get<string>('FRONTEND_URL') || 'http://localhost:5173')
     .split(',').map((origin) => origin.trim()).filter(Boolean);
 
+  // Rate limiting keys on req.ip; behind the frontend nginx that must come from X-Forwarded-For.
+  // Default trusts only private/loopback hops (the docker network), so clients cannot spoof it.
+  const trustProxy = config.get<string>('TRUST_PROXY', 'loopback, linklocal, uniquelocal');
+  app.getHttpAdapter().getInstance().set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
   app.enableShutdownHooks();
   app.use(requestContextMiddleware);
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));

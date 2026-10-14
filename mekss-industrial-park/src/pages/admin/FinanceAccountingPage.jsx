@@ -34,6 +34,7 @@ import {
   BadgeCheck,
   CalendarClock,
   History,
+  Ban,
 } from 'lucide-react';
 import { invoiceApi, printInvoicePayload } from '../../services/api/invoice.api';
 import { messageApi } from '../../services/api/message.api';
@@ -63,6 +64,7 @@ const operationButtons = [
   { mode: 'installments', label: 'تقسیط', icon: SplitSquareHorizontal, permission: 'canOperate', hideForInstallment: true },
   { mode: 'settle', label: 'تسویه دستی', icon: BadgeCheck, permission: 'canOperate' },
   { mode: 'extend', label: 'تمدید مهلت', icon: CalendarClock, permission: 'canOperate' },
+  { mode: 'cancel', label: 'لغو قبض', icon: Ban, permission: 'canOperate' },
 ];
 
 const formatRial = (value) => `${Number(value || 0).toLocaleString('fa-IR')} ریال`;

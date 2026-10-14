@@ -11,6 +11,7 @@ import {
   House,
   IdCard,
   Images,
+  Inbox,
   Lightbulb,
   MapPinned,
   Megaphone,
@@ -135,6 +136,7 @@ export const appServices = [
   { id: 'messages', path: '/messages', title: 'پیام‌ها', shortTitle: 'پیام‌ها', description: 'گفتگو با مدیریت و واحدها', icon: MessageCircle, group: 'comms', roles: ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'EMPLOYEE'], badgeKey: 'unreadMessages', keywords: ['نامه', 'گفتگو', 'صندوق'] },
   { id: 'admin-announcements', path: '/admin/announcements', title: 'مدیریت اطلاعیه‌ها', shortTitle: 'اطلاعیه‌ها', description: 'انتشار اطلاعیه برای واحدها', icon: Megaphone, group: 'comms', roles: ['SUPER_ADMIN', 'PARK_MANAGER'], keywords: ['خبر', 'اعلان'] },
   { id: 'announcements', path: '/announcements', title: 'اطلاعیه‌ها', shortTitle: 'اطلاعیه‌ها', description: 'آخرین اطلاعیه‌های رسمی', icon: Bell, group: 'comms', roles: ['FACTORY_OWNER', 'GOVERNMENT_OFFICIAL', 'SECURITY_GUARD', 'EMPLOYEE'], keywords: ['خبر', 'اعلان'] },
+  { id: 'feedback-inbox', path: '/admin/feedback', title: 'صندوق انتقادات و پیشنهادات', shortTitle: 'صندوق نظرات', description: 'مشاهده نظرات ثبت‌شده کاربران', icon: Inbox, group: 'comms', roles: ['SUPER_ADMIN', 'PARK_MANAGER'], keywords: ['شکایت', 'انتقاد', 'نظر', 'پیشنهاد'] },
   { id: 'feedback', path: '/feedback', title: 'انتقادات و پیشنهادات', shortTitle: 'پیشنهادات', description: 'نظر خود را با ما در میان بگذارید', icon: Lightbulb, group: 'comms', roles: ALL_ROLES, keywords: ['شکایت', 'انتقاد', 'نظر'] },
 
   // Administration and reports

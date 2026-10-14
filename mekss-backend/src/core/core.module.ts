@@ -17,6 +17,9 @@ import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
 import { StorageService } from './storage.service';
 import { GatePassEvents } from './gate-pass-events';
+import { EphemeralStore } from './security/ephemeral-store';
+import { RateLimitService } from './security/rate-limit.service';
+import { CaptchaService } from './security/captcha.service';
 
 @Module({
   imports: [
@@ -43,6 +46,9 @@ import { GatePassEvents } from './gate-pass-events';
     StorageService,
     FilesService,
     GatePassEvents,
+    EphemeralStore,
+    RateLimitService,
+    CaptchaService,
     JwtAuthGuard,
     RolesGuard,
     { provide: APP_FILTER, useClass: ApiExceptionFilter },

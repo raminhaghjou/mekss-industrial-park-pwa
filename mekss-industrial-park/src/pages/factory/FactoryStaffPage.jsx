@@ -21,18 +21,20 @@ import {
   TableRow,
   TableCell,
 } from '@heroui/react';
-import { KeyRound, MessageSquareText, UserPlus, Users } from 'lucide-react';
+import { KeyRound, MessageSquareText, Pencil, Trash2, UserPlus, Users } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { useActiveFactory } from '../../providers/ActiveFactoryProvider';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { requestTypeLabels } from '../../constants/persianLabels';
 import { EmptyState } from '../../components/common/EmptyState';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { PasswordInput } from '../../components/common/PasswordInput';
 import { ResponsiveTable } from '../../components/common/ResponsiveTable';
 import { StaffAccessLevelPicker } from '../../components/staff/StaffAccessLevelPicker';
 import {
   STAFF_PASSWORD_HINT,
+  STAFF_PASSWORD_PATTERN,
   generateStaffPassword,
   normalizeStaffPhone,
   validateStaffForm,
@@ -70,15 +72,84 @@ export const FactoryStaffPage = () => {
 
   const updateMutation = useMutation({
     mutationFn: ({ userId, data }) => factoryApi.updateStaff(activeFactoryId, userId, data),
-    onSuccess: () => {
-      showNotification('وضعیت کارمند به‌روز شد', 'success');
+    onSuccess: (_, variables) => {
+      showNotification(variables.successMessage || 'وضعیت کارمند به‌روز شد', 'success');
       queryClient.invalidateQueries({ queryKey: ['factory-staff', activeFactoryId] });
     },
     onError: (err) => showNotification(getErrorMessage(err, 'به‌روزرسانی کارمند ناموفق بود'), 'error'),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (userId) => factoryApi.deleteStaff(activeFactoryId, userId),
+    onSuccess: (response) => {
+      showNotification(
+        response?.data?.deactivated
+          ? 'این کارمند سابقه کاری در سامانه دارد؛ برای حفظ سوابق، حساب او حذف نشد و غیرفعال شد.'
+          : 'کارمند حذف شد.',
+        response?.data?.deactivated ? 'warning' : 'success',
+      );
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['factory-staff', activeFactoryId] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'حذف کارمند ناموفق بود'), 'error'),
+  });
+
   const [permissionEditId, setPermissionEditId] = useState(null);
   const [permissionDraft, setPermissionDraft] = useState([]);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editDraft, setEditDraft] = useState({ name: '', phoneNumber: '' });
+  const [passwordTarget, setPasswordTarget] = useState(null);
+  const [passwordDraft, setPasswordDraft] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const editErrors = useMemo(
+    () => (editTarget ? validateStaffForm(editDraft, { requirePassword: false }) : {}),
+    [editDraft, editTarget],
+  );
+  const passwordError = passwordDraft && !STAFF_PASSWORD_PATTERN.test(passwordDraft)
+    ? `رمز عبور معتبر نیست؛ ${STAFF_PASSWORD_HINT}.`
+    : '';
+
+  const openEdit = (member) => {
+    setEditDraft({ name: member.name || '', phoneNumber: member.phoneNumber || '' });
+    setEditTarget(member);
+  };
+  const saveEdit = () => {
+    if (!editTarget || Object.keys(editErrors).length) return;
+    const data = {};
+    const name = editDraft.name.trim();
+    if (name !== editTarget.name) data.name = name;
+    if (editDraft.phoneNumber !== editTarget.phoneNumber) data.phoneNumber = editDraft.phoneNumber;
+    if (!Object.keys(data).length) {
+      setEditTarget(null);
+      return;
+    }
+    updateMutation.mutate(
+      {
+        userId: editTarget.id,
+        data,
+        successMessage: data.phoneNumber
+          ? 'اطلاعات کارمند ذخیره شد؛ نشست‌های قبلی او بسته شد و باید با شماره جدید وارد شود.'
+          : 'اطلاعات کارمند ذخیره شد.',
+      },
+      { onSuccess: () => setEditTarget(null) },
+    );
+  };
+  const openPasswordReset = (member) => {
+    setPasswordDraft(generateStaffPassword());
+    setPasswordTarget(member);
+  };
+  const savePassword = () => {
+    if (!passwordTarget || !STAFF_PASSWORD_PATTERN.test(passwordDraft)) return;
+    updateMutation.mutate(
+      {
+        userId: passwordTarget.id,
+        data: { password: passwordDraft },
+        successMessage: 'رمز عبور بازنشانی شد؛ کارمند در ورود بعدی باید رمز خود را تغییر دهد.',
+      },
+      { onSuccess: () => setPasswordTarget(null) },
+    );
+  };
 
   const errors = useMemo(() => validateStaffForm(form), [form]);
   const visibleErrors = showErrors ? errors : {};
@@ -253,6 +324,36 @@ export const FactoryStaffPage = () => {
                             >
                               {member.isActive ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="tertiary"
+                              isIconOnly
+                              aria-label={`ویرایش ${member.name}`}
+                              isDisabled={updateMutation.isPending}
+                              onPress={() => openEdit(member)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="tertiary"
+                              isIconOnly
+                              aria-label={`بازنشانی رمز ${member.name}`}
+                              isDisabled={updateMutation.isPending}
+                              onPress={() => openPasswordReset(member)}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger-soft"
+                              isIconOnly
+                              aria-label={`حذف ${member.name}`}
+                              isDisabled={deleteMutation.isPending}
+                              onPress={() => setDeleteTarget(member)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                           {permissionEditId === member.id && (
                             <div className="mt-3 rounded-xl border border-default-200 p-3">
@@ -286,6 +387,88 @@ export const FactoryStaffPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={Boolean(editTarget)}
+        title="ویرایش اطلاعات کارمند"
+        description="با تغییر شماره موبایل، نشست‌های فعلی کارمند بسته می‌شود و باید با شماره جدید وارد شود."
+        confirmLabel="ذخیره"
+        loading={updateMutation.isPending}
+        disabled={Object.keys(editErrors).length > 0}
+        onConfirm={saveEdit}
+        onClose={() => { if (!updateMutation.isPending) setEditTarget(null); }}
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="factory-staff-edit-name" className="text-xs">نام و نام خانوادگی</Label>
+            <Input
+              id="factory-staff-edit-name"
+              value={editDraft.name}
+              maxLength={120}
+              onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))}
+              className="rounded-xl"
+            />
+            {editErrors.name ? <p className="text-[11px] text-danger-600">{editErrors.name}</p> : null}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="factory-staff-edit-phone" className="text-xs">موبایل (نام کاربری)</Label>
+            <Input
+              id="factory-staff-edit-phone"
+              dir="ltr"
+              inputMode="numeric"
+              value={editDraft.phoneNumber}
+              onChange={(e) => setEditDraft((p) => ({ ...p, phoneNumber: normalizeStaffPhone(e.target.value) }))}
+              className="rounded-xl"
+            />
+            {editErrors.phoneNumber ? <p className="text-[11px] text-danger-600">{editErrors.phoneNumber}</p> : null}
+          </div>
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(passwordTarget)}
+        title="بازنشانی رمز عبور"
+        description={passwordTarget ? `رمز جدید «${passwordTarget.name}» را خودتان به او اعلام کنید؛ برای امنیت، رمز پیامک نمی‌شود و فقط اطلاع بازنشانی برای او ارسال می‌شود. همه نشست‌های فعلی او بسته می‌شود و در ورود بعدی باید رمز را تغییر دهد.` : ''}
+        confirmLabel="بازنشانی رمز"
+        loading={updateMutation.isPending}
+        disabled={!STAFF_PASSWORD_PATTERN.test(passwordDraft)}
+        onConfirm={savePassword}
+        onClose={() => { if (!updateMutation.isPending) setPasswordTarget(null); }}
+      >
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="factory-staff-reset-password" className="text-xs">رمز عبور جدید</Label>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-brand)] hover:underline"
+              onClick={() => setPasswordDraft(generateStaffPassword())}
+            >
+              <KeyRound className="h-3 w-3" />
+              تولید رمز
+            </button>
+          </div>
+          <PasswordInput
+            id="factory-staff-reset-password"
+            value={passwordDraft}
+            onChange={(e) => setPasswordDraft(e.target.value)}
+            className="rounded-xl"
+          />
+          <p className={`text-[11px] ${passwordError ? 'text-danger-600' : 'text-foreground-500'}`}>
+            {passwordError || STAFF_PASSWORD_HINT}
+          </p>
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="حذف کارمند"
+        description={deleteTarget ? `حساب «${deleteTarget.name}» حذف شود؟ اگر این کارمند سابقه‌ای (درخواست، پیام یا عملیات ثبت‌شده) داشته باشد، برای حفظ سوابق فقط غیرفعال می‌شود.` : ''}
+        confirmLabel="حذف"
+        confirmColor="danger"
+        loading={deleteMutation.isPending}
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+        onClose={() => { if (!deleteMutation.isPending) setDeleteTarget(null); }}
+      />
     </div>
   );
 };

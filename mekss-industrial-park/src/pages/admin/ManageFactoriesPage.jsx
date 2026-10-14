@@ -45,6 +45,8 @@ import {
   Wallet,
   Ban,
   LockOpen,
+  Trash2,
+  UserCog,
 } from 'lucide-react';
 import { factoryApi } from '../../services/api/factory.api';
 import { useNotification } from '../../providers/NotificationProvider';
@@ -71,7 +73,9 @@ const requiredProfileFields = ['name', 'licenseNumber', 'nationalId', 'activityT
 const optionalTextFields = ['phoneNumber2', 'landline', 'fax', 'email', 'website', 'description'];
 const profileFields = [...requiredProfileFields, ...optionalTextFields, 'employees'];
 const createFields = [...profileFields, 'parkId', 'managerId'];
-/** @typedef {{ type: 'create' | 'update' | 'approve' | 'reject' | 'approvePending' | 'rejectPending' | 'suspend' | 'unsuspend', id?: string, payload?: Record<string, any>, reason?: string }} FactoryOperation */
+/** @typedef {{ type: 'create' | 'update' | 'approve' | 'reject' | 'approvePending' | 'rejectPending' | 'suspend' | 'unsuspend' | 'delete' | 'changeOwner', id?: string, payload?: Record<string, any>, reason?: string, managerId?: string }} FactoryOperation */
+/** Operations whose server errors are already specific Persian messages. */
+const SERVER_WORDED_OPERATIONS = ['delete', 'changeOwner'];
 const emptyForm = {
   name: '',
   licenseNumber: '',
@@ -292,6 +296,9 @@ const ManageFactoriesPage = () => {
   const [rejectTarget, setRejectTarget] = React.useState(null);
   const [suspendTarget, setSuspendTarget] = React.useState(null);
   const [unsuspendTarget, setUnsuspendTarget] = React.useState(null);
+  const [deleteTarget, setDeleteTarget] = React.useState(null);
+  const [ownerTarget, setOwnerTarget] = React.useState(null);
+  const [nextOwnerId, setNextOwnerId] = React.useState('');
   const [mutationLocked, setMutationLocked] = React.useState(false);
   const mutationLockRef = React.useRef(false);
   const detail404Ref = React.useRef(null);
@@ -364,6 +371,8 @@ const ManageFactoriesPage = () => {
       if (operation.type === 'rejectPending') return factoryApi.rejectPendingChanges(operation.id);
       if (operation.type === 'suspend') return factoryApi.suspendFactory(operation.id, operation.reason);
       if (operation.type === 'unsuspend') return factoryApi.unsuspendFactory(operation.id);
+      if (operation.type === 'delete') return factoryApi.deleteFactory(operation.id);
+      if (operation.type === 'changeOwner') return factoryApi.changeOwner(operation.id, operation.managerId);
       return factoryApi.rejectFactory(operation.id, operation.reason);
     },
     onSuccess: async (response, /** @type {FactoryOperation} */ operation) => {
@@ -378,6 +387,11 @@ const ManageFactoriesPage = () => {
       if (operation.type === 'reject') setRejectTarget(null);
       if (operation.type === 'suspend') setSuspendTarget(null);
       if (operation.type === 'unsuspend') setUnsuspendTarget(null);
+      if (operation.type === 'delete') {
+        setDeleteTarget(null);
+        if (detailId === operation.id) setDetailId(null);
+      }
+      if (operation.type === 'changeOwner') setOwnerTarget(null);
       const messages = {
         create: 'واحد صنعتی ثبت و داده‌های مدیریتی به‌روزرسانی شد.',
         update: 'اطلاعات واحد صنعتی ذخیره و دوباره دریافت شد.',
@@ -387,6 +401,8 @@ const ManageFactoriesPage = () => {
         rejectPending: 'تغییرات حساس واحد صنعتی رد شد.',
         suspend: 'واحد صنعتی مسدود شد و به مالک اطلاع داده شد.',
         unsuspend: 'مسدودی واحد صنعتی برداشته شد.',
+        delete: 'واحد صنعتی حذف شد.',
+        changeOwner: 'مدیر واحد صنعتی تغییر کرد و به هر دو نفر اطلاع داده شد.',
       };
       showNotification(messages[operation.type], 'success');
     },
@@ -401,8 +417,11 @@ const ManageFactoriesPage = () => {
         rejectPending: 'رد تغییرات حساس ناموفق بود.',
         suspend: 'مسدودسازی واحد صنعتی ناموفق بود.',
         unsuspend: 'رفع مسدودی واحد صنعتی ناموفق بود.',
+        delete: 'حذف واحد صنعتی ناموفق بود.',
+        changeOwner: 'تغییر مدیر واحد صنعتی ناموفق بود.',
       };
-      showNotification(factoryError(error, fallbacks[operation.type]), 'error');
+      const describe = SERVER_WORDED_OPERATIONS.includes(operation.type) ? getErrorMessage : factoryError;
+      showNotification(describe(error, fallbacks[operation.type]), 'error');
     },
     onSettled: () => {
       mutationLockRef.current = false;
@@ -674,6 +693,27 @@ const ManageFactoriesPage = () => {
                             رفع مسدودی
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onPress={() => { setNextOwnerId(''); setOwnerTarget(factory); }}
+                          isDisabled={!online || mutationPending}
+                          className="rounded-xl font-medium flex items-center gap-1"
+                        >
+                          <UserCog className="h-4 w-4" />
+                          تغییر مدیر
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger-soft"
+                          isIconOnly
+                          aria-label={`حذف واحد ${factory.name}`}
+                          onPress={() => setDeleteTarget(factory)}
+                          isDisabled={!online || mutationPending}
+                          className="rounded-xl"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                       {factory.status === 'SUSPENDED' && factory.suspendedReason && (
                         <p className="mt-1 text-center text-xs text-danger" title={factory.suspendedReason}>
@@ -917,6 +957,44 @@ const ManageFactoriesPage = () => {
         onConfirm={() => { if (unsuspendTarget) runMutation({ type: 'unsuspend', id: unsuspendTarget.id }); }}
         onClose={() => { if (!mutationPending) setUnsuspendTarget(null); }}
       />
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="حذف واحد صنعتی"
+        description={deleteTarget ? `«${deleteTarget.name}» برای همیشه حذف شود؟ حذف فقط برای واحدی ممکن است که هیچ سابقه‌ای (برگ خروج، قبض، درخواست، کارمند یا موجودی کیف پول) ندارد؛ در غیر این صورت از «مسدودسازی» استفاده کنید.` : ''}
+        confirmLabel="حذف دائمی"
+        confirmColor="danger"
+        loading={mutationPending}
+        disabled={!online}
+        onConfirm={() => { if (deleteTarget) runMutation({ type: 'delete', id: deleteTarget.id }); }}
+        onClose={() => { if (!mutationPending) setDeleteTarget(null); }}
+      />
+      <ConfirmDialog
+        open={Boolean(ownerTarget)}
+        title="تغییر مالک / مدیر واحد"
+        description={ownerTarget ? `مدیر فعلی «${ownerTarget.name}»: ${ownerTarget.manager?.name || ownerTarget.manager?.phoneNumber || '—'}. پس از تغییر، دسترسی مدیریت واحد به مدیر جدید منتقل می‌شود و به هر دو نفر پیامک ارسال خواهد شد.` : ''}
+        confirmLabel="ثبت مدیر جدید"
+        loading={mutationPending}
+        disabled={!online || !nextOwnerId}
+        onConfirm={() => { if (ownerTarget && nextOwnerId) runMutation({ type: 'changeOwner', id: ownerTarget.id, managerId: nextOwnerId }); }}
+        onClose={() => { if (!mutationPending) setOwnerTarget(null); }}
+      >
+        {ownerTarget && (
+          owners.filter((owner) => owner.id !== ownerTarget.managerId).length === 0 ? (
+            <p className="text-sm text-warning">کاربر «مالک واحد» تاییدشده دیگری در محدوده شما وجود ندارد؛ ابتدا حساب مالک جدید را ایجاد و تایید کنید.</p>
+          ) : (
+            <FormSelect
+              label="مدیر جدید"
+              value={nextOwnerId}
+              onChange={setNextOwnerId}
+              options={owners
+                .filter((owner) => owner.id !== ownerTarget.managerId)
+                .map((owner) => ({ value: owner.id, label: owner.name ? `${owner.name} (${owner.phoneNumber})` : owner.phoneNumber }))}
+              isDisabled={mutationPending}
+              placeholder="انتخاب مالک جدید..."
+            />
+          )
+        )}
+      </ConfirmDialog>
     </div>
   );
 };

@@ -93,6 +93,7 @@ enum InvoiceAdjustmentType {
   EXTENSION
   SETTLEMENT
   INSTALLMENT
+  CANCELLATION
 }
 
 enum PaymentStatus {
@@ -108,6 +109,8 @@ enum GatePassStatus {
   REJECTED
   COMPLETED
   EXPIRED
+  /// Withdrawn by the factory or the park before the vehicle left; terminal.
+  CANCELLED
 }
 
 enum CargoType {

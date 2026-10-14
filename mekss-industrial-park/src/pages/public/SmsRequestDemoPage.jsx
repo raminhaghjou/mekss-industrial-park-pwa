@@ -7,6 +7,8 @@ import { publicApi } from '../../services/api/public.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
 import { digitsOnly } from '../../utils/digits';
+import { CaptchaField } from '../../components/common/CaptchaField';
+import { useCaptcha } from '../../hooks/useCaptcha';
 
 const codes = [
   { code: '1', title: 'سفارش خدمات', desc: 'درخواست خدمات عمومی شهرک (نظافت، باربری و ...)' },
@@ -17,6 +19,7 @@ const codes = [
 export const SmsRequestDemoPage = () => {
   const { showNotification } = useNotification();
   const [form, setForm] = useState({ phoneNumber: '', code: '1', text: '' });
+  const captcha = useCaptcha('sms-request');
 
   const mutation = useMutation({
     mutationFn: (payload) => publicApi.submitSmsRequest(payload),
@@ -25,6 +28,8 @@ export const SmsRequestDemoPage = () => {
       setForm((prev) => ({ ...prev, text: '' }));
     },
     onError: (error) => showNotification(getErrorMessage(error, 'ثبت درخواست پیامکی ناموفق بود'), 'error'),
+    // The server burns a challenge on every check, right or wrong.
+    onSettled: () => captcha.refresh(),
   });
 
   const submit = (e) => {
@@ -33,10 +38,16 @@ export const SmsRequestDemoPage = () => {
       showNotification('شماره موبایل باید با ۰۹ و ۱۱ رقم باشد', 'error');
       return;
     }
+    if (!captcha.isReady) {
+      showNotification('کد امنیتی تصویر را وارد کنید', 'error');
+      return;
+    }
     mutation.mutate({
       phoneNumber: form.phoneNumber,
       code: form.code,
       text: form.text.trim() || undefined,
+      captchaId: captcha.captchaId,
+      captchaAnswer: captcha.answer,
     });
   };
 
@@ -112,9 +123,13 @@ export const SmsRequestDemoPage = () => {
             />
           </label>
 
+          <div className="mb-5">
+            <CaptchaField captcha={captcha} disabled={mutation.isPending} />
+          </div>
+
           <button
             type="submit"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !captcha.captchaId}
             className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-brand)] text-sm font-bold text-[var(--color-on-brand)] transition hover:bg-[var(--color-brand-hover)] disabled:opacity-60 sm:w-auto sm:px-8"
           >
             {mutation.isPending ? <Spinner size="sm" /> : <Send className="h-4 w-4" />}

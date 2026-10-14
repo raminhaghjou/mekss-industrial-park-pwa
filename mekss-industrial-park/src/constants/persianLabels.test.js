@@ -29,7 +29,7 @@ describe('canonical Persian enum labels', () => {
     expect(Object.keys(requestStatusLabels).sort()).toEqual(['APPROVED', 'CANCELLED', 'PENDING', 'REJECTED'].sort());
     expect(Object.keys(requestPriorityLabels).sort()).toEqual(['HIGH', 'LOW', 'MEDIUM', 'URGENT'].sort());
     expect(Object.keys(invoiceStatusLabels).sort()).toEqual(['AWAITING_CONFIRMATION', 'CANCELLED', 'INSTALLMENTS', 'OVERDUE', 'PAID', 'PENDING'].sort());
-    expect(Object.keys(gatePassStatusLabels).sort()).toEqual(['APPROVED', 'COMPLETED', 'EXPIRED', 'PENDING', 'REJECTED'].sort());
+    expect(Object.keys(gatePassStatusLabels).sort()).toEqual(['APPROVED', 'CANCELLED', 'COMPLETED', 'EXPIRED', 'PENDING', 'REJECTED'].sort());
     expect(Object.keys(factoryStatusLabels).sort()).toEqual(['ACTIVE', 'INACTIVE', 'PENDING', 'SUSPENDED'].sort());
     expect(Object.keys(advertisementStatusLabels).sort()).toEqual(['APPROVED', 'EXPIRED', 'PENDING', 'REJECTED'].sort());
     expect(Object.keys(parkStatusLabels).sort()).toEqual(['ACTIVE', 'INACTIVE'].sort());

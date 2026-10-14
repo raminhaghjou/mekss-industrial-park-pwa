@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   updateFactory: vi.fn(),
   approveFactory: vi.fn(),
   rejectFactory: vi.fn(),
+  deleteFactory: vi.fn(),
+  changeOwner: vi.fn(),
   notify: vi.fn(),
 }));
 
@@ -24,6 +26,8 @@ vi.mock('../../services/api/factory.api', () => ({
     updateFactory: mocks.updateFactory,
     approveFactory: mocks.approveFactory,
     rejectFactory: mocks.rejectFactory,
+    deleteFactory: mocks.deleteFactory,
+    changeOwner: mocks.changeOwner,
   },
 }));
 vi.mock('../../providers/NotificationProvider', () => ({
@@ -64,7 +68,10 @@ const pendingFactory = {
 const managedPage = { data: { items: [pendingFactory], total: 1, page: 1, pageSize: 12 } };
 const managementScope = { data: {
   parks: [{ id: 'park-1', name: 'شهرک آزمون' }],
-  owners: [{ id: 'owner-1', name: 'مالک آزمون', phoneNumber: '09121111111' }],
+  owners: [
+    { id: 'owner-1', name: 'مالک آزمون', phoneNumber: '09121111111' },
+    { id: 'owner-2', name: 'مالک دوم', phoneNumber: '09122222222' },
+  ],
 } };
 
 const deferred = () => {
@@ -265,6 +272,32 @@ describe('ManageFactoriesPage', () => {
     ]));
     invalidation.resolve();
     await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith(expect.stringContaining('تایید واحد صنعتی'), 'success'));
+  });
+
+  it('confirms a factory delete and surfaces the server blocker message verbatim', async () => {
+    const blocker = 'این واحد صنعتی دارای برگ خروج است و قابل حذف نیست؛ به جای حذف، آن را مسدود کنید.';
+    mocks.deleteFactory.mockRejectedValueOnce({ response: { status: 409, data: { message: blocker } } });
+    await click(document.querySelector('button[aria-label="حذف واحد فولاد آزمون"]'));
+    expect(document.body.textContent).toContain('برای همیشه حذف شود؟');
+    await click(button('حذف دائمی'));
+    expect(mocks.deleteFactory).toHaveBeenCalledWith('factory-1');
+    await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith(blocker, 'error'));
+    expect(mocks.notify.mock.calls.some(([, severity]) => severity === 'success')).toBe(false);
+
+    mocks.deleteFactory.mockResolvedValueOnce({ data: { id: 'factory-1', deleted: true } });
+    await click(button('حذف دائمی'));
+    await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith('واحد صنعتی حذف شد.', 'success'));
+  });
+
+  it('changes the owner only to a different eligible owner', async () => {
+    mocks.changeOwner.mockResolvedValueOnce({ data: { ...pendingFactory, managerId: 'owner-2' } });
+    await click(button('تغییر مدیر'));
+    expect(button('ثبت مدیر جدید').disabled).toBe(true);
+    await choose('مدیر جدید', 'مالک دوم (09122222222)');
+    expect([...document.querySelectorAll('[role="option"]')].some((element) => element.textContent?.includes('مالک آزمون'))).toBe(false);
+    await click(button('ثبت مدیر جدید'));
+    expect(mocks.changeOwner).toHaveBeenCalledWith('factory-1', 'owner-2');
+    await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith(expect.stringContaining('مدیر واحد صنعتی تغییر کرد'), 'success'));
   });
 
   it('whitelists create and edit payloads so lifecycle and assignment fields never leak into profile updates', async () => {

@@ -5,7 +5,7 @@ import {
 } from '@heroui/react';
 import {
   Ticket, CheckCircle2, XCircle, Clock3, User, Car, CalendarClock, Download, ShieldCheck, Package, Phone, IdCard,
-  Truck, Send, Building2, FileText,
+  Truck, Send, Building2, FileText, Ban,
 } from 'lucide-react';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
@@ -52,10 +52,10 @@ const TABS = [
   },
   {
     id: 'rejected',
-    label: 'رد شده',
-    match: (status) => status === 'REJECTED' || status === 'EXPIRED',
+    label: 'رد / لغو شده',
+    match: (status) => status === 'REJECTED' || status === 'EXPIRED' || status === 'CANCELLED',
     emptyTitle: 'مورد رد‌شده‌ای نیست',
-    emptyDescription: 'برگ‌های رد یا منقضی‌شده اینجا دیده می‌شوند.',
+    emptyDescription: 'برگ‌های رد، لغو یا منقضی‌شده اینجا دیده می‌شوند.',
   },
 ];
 
@@ -65,6 +65,7 @@ const statusTone = {
   COMPLETED: { chip: 'success', bar: 'bg-success-500', icon: CheckCircle2 },
   REJECTED: { chip: 'danger', bar: 'bg-danger-500', icon: XCircle },
   EXPIRED: { chip: 'default', bar: 'bg-default-400', icon: Clock3 },
+  CANCELLED: { chip: 'default', bar: 'bg-default-400', icon: Ban },
 };
 
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString('fa-IR-u-ca-persian', { dateStyle: 'medium', timeStyle: 'short' }) : '');
@@ -175,6 +176,7 @@ export const ApproveGatePassesPage = () => {
   const [plate, setPlate] = useState('');
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['gate-passes', 'managed', fromDate, toDate, nationalId, plate],
@@ -219,6 +221,19 @@ export const ApproveGatePassesPage = () => {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }) => gatePassApi.cancelGatePass(id, reason),
+    onSuccess: async () => {
+      showNotification('برگ خروج لغو شد و به واحد و نگهبانی اطلاع داده شد.', 'success');
+      setCancelTarget(null);
+      await refresh();
+    },
+    onError: async (err) => {
+      showNotification(getErrorMessage(err, 'لغو برگ خروج ناموفق بود.'), 'error');
+      await refresh();
+    },
+  });
+
   const passes = useMemo(() => data || [], [data]);
   const activeTab = TABS.find((item) => item.id === tab) || TABS[0];
   const counts = useMemo(
@@ -237,7 +252,7 @@ export const ApproveGatePassesPage = () => {
       })
   ), [passes, activeTab]);
 
-  const busy = approveMutation.isPending || rejectMutation.isPending;
+  const busy = approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending;
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -396,6 +411,21 @@ export const ApproveGatePassesPage = () => {
                         <ReviewTimeline pass={pass} />
                       </div>
 
+                      {pass.status === 'CANCELLED' && pass.notes ? (
+                        <p className="whitespace-pre-wrap rounded-xl border border-default-200 bg-default-50 px-3 py-2 text-sm text-foreground-600 dark:border-white/10 dark:bg-white/5">
+                          {pass.notes}
+                        </p>
+                      ) : null}
+
+                      {pass.status === 'APPROVED' ? (
+                        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-default-100 pt-3 dark:border-white/5">
+                          <Button variant="ghost" className="gap-2 rounded-xl text-danger" isDisabled={busy} onPress={() => setCancelTarget(pass)}>
+                            <Ban className="h-4 w-4" />
+                            لغو برگ خروج
+                          </Button>
+                        </div>
+                      ) : null}
+
                       {pass.status === 'REJECTED' && pass.notes ? (
                         <p className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-800 dark:border-danger-900 dark:bg-danger-950/30 dark:text-danger-200">
                           <span className="font-semibold">{rejectionLabel(pass)}</span>
@@ -457,6 +487,20 @@ export const ApproveGatePassesPage = () => {
         loading={rejectMutation.isPending}
         onConfirm={(reason) => rejectTarget && rejectMutation.mutate({ id: rejectTarget.id, reason })}
         onClose={() => setRejectTarget(null)}
+      />
+      <ConfirmDialog
+        open={Boolean(cancelTarget)}
+        title="لغو برگ خروج"
+        description={cancelTarget
+          ? `برگ خروج واحد «${cancelTarget.factory?.name || ''}» (پلاک ${displayIranLicensePlate(cancelTarget.licensePlate)}) لغو می‌شود و نگهبانی اجازه خروج نخواهد داد. این کار برگشت‌پذیر نیست.`
+          : ''}
+        showReason
+        reasonLabel="دلیل لغو"
+        confirmLabel="لغو برگ خروج"
+        confirmColor="danger"
+        loading={cancelMutation.isPending}
+        onConfirm={(reason) => cancelTarget && cancelMutation.mutate({ id: cancelTarget.id, reason })}
+        onClose={() => setCancelTarget(null)}
       />
     </div>
   );

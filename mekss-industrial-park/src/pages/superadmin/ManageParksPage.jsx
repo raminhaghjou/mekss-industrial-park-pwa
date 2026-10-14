@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, Table, TableContent, TableHeader, TableColumn, TableBody, TableRow, TableCell, Button, Chip, Input, ModalBackdrop, ModalContainer, ModalDialog, ModalHeader, ModalBody, ModalFooter, Skeleton, Alert, AlertContent, AlertTitle, AlertDescription, Spinner } from '@heroui/react';
-import { Plus, Pencil, Trash2, MapPin } from 'lucide-react';
+import { Plus, Pencil, Trash2, MapPin, Power } from 'lucide-react';
 import { parkApi } from '../../services/api/park.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
@@ -21,6 +21,7 @@ export const ManageParksPage = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [statusTarget, setStatusTarget] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [showErrors, setShowErrors] = useState(false);
   const { showNotification } = useNotification();
@@ -51,6 +52,16 @@ export const ManageParksPage = () => {
       queryClient.invalidateQueries({ queryKey: ['parks'] });
     },
     onError: (err) => showNotification(getErrorMessage(err, 'ویرایش شهرک ناموفق بود'), 'error'),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (/** @type {{id: string, status: 'ACTIVE' | 'INACTIVE'}} */ { id, status }) => parkApi.updatePark(id, { status }),
+    onSuccess: (_res, { status }) => {
+      showNotification(status === 'ACTIVE' ? 'شهرک فعال شد' : 'شهرک غیرفعال شد', 'success');
+      setStatusTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['parks'] });
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'تغییر وضعیت شهرک ناموفق بود'), 'error'),
   });
 
   const deleteMutation = useMutation({
@@ -168,10 +179,19 @@ export const ManageParksPage = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button variant="tertiary" size="sm" isIconOnly onPress={() => startEdit(park)}>
+                        <Button variant="tertiary" size="sm" isIconOnly aria-label={`ویرایش ${park.name}`} onPress={() => startEdit(park)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="danger-soft" size="sm" isIconOnly onPress={() => setDeleteTarget(park.id)}>
+                        <Button
+                          variant="tertiary"
+                          size="sm"
+                          isIconOnly
+                          aria-label={park.status === 'ACTIVE' ? `غیرفعال کردن ${park.name}` : `فعال کردن ${park.name}`}
+                          onPress={() => setStatusTarget(park)}
+                        >
+                          <Power className={`h-4 w-4 ${park.status === 'ACTIVE' ? 'text-warning-600' : 'text-success-600'}`} />
+                        </Button>
+                        <Button variant="danger-soft" size="sm" isIconOnly aria-label={`حذف ${park.name}`} onPress={() => setDeleteTarget(park.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -244,6 +264,18 @@ export const ManageParksPage = () => {
         </ModalBackdrop>
       )}
 
+      <ConfirmDialog
+        open={Boolean(statusTarget)}
+        title={statusTarget?.status === 'ACTIVE' ? 'غیرفعال کردن شهرک' : 'فعال کردن شهرک'}
+        description={statusTarget?.status === 'ACTIVE'
+          ? `با غیرفعال شدن «${statusTarget?.name}»، ثبت واحد صنعتی جدید در آن و انتخاب آن در فرم‌ها ممکن نیست. اطلاعات و واحدهای فعلی دست نمی‌خورند و هر زمان می‌توانید دوباره فعالش کنید.`
+          : `«${statusTarget?.name || ''}» دوباره فعال می‌شود و در فرم‌ها قابل انتخاب خواهد بود.`}
+        confirmLabel={statusTarget?.status === 'ACTIVE' ? 'غیرفعال کن' : 'فعال کن'}
+        confirmColor={statusTarget?.status === 'ACTIVE' ? 'danger' : 'primary'}
+        loading={statusMutation.isPending}
+        onConfirm={() => statusTarget && statusMutation.mutate({ id: statusTarget.id, status: statusTarget.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
+        onClose={() => setStatusTarget(null)}
+      />
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="حذف شهرک صنعتی"

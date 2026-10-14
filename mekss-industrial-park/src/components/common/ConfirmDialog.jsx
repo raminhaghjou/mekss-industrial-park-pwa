@@ -21,6 +21,8 @@ export const ConfirmDialog = ({
   cancelLabel = 'انصراف',
   confirmColor = 'primary',
   requireReason = false,
+  /** Shows the reason box without making it mandatory. */
+  showReason = false,
   reasonLabel = 'دلیل',
   loading = false,
   disabled = false,
@@ -55,16 +57,18 @@ export const ConfirmDialog = ({
           <ModalBody className="gap-3">
             {description && <p className="text-sm text-foreground-500">{description}</p>}
             {children}
-            {requireReason && (
+            {(requireReason || showReason) && (
               <div className="flex flex-col gap-1">
-                <Label className="text-xs font-medium text-foreground-600">{reasonLabel}</Label>
+                <Label className="text-xs font-medium text-foreground-600">{requireReason ? reasonLabel : `${reasonLabel} (اختیاری)`}</Label>
                 <TextArea
+                  aria-label={reasonLabel}
                   placeholder={`${reasonLabel} را وارد کنید...`}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   variant="primary"
                   rows={3}
-                  required
+                  maxLength={2000}
+                  required={requireReason}
                   className="rounded-xl"
                   disabled={loading}
                 />

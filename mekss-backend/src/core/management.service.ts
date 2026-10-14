@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from './audit.service';
 import { AuthenticatedUser } from './auth.guard';
-import { AdvertisementAdminQueryDto, CreateAdvertisementCategoryDto, CreateAdvertisementDto, CreateBannerDto, CreateFeedbackDto, PublicAdvertisementQueryDto, UpdateAdvertisementCategoryDto, UpdateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, InvoiceDiscountDto, InvoiceExtendDueDto, InvoiceInstallmentsDto, InvoiceItemDto, InvoiceSettleDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateBannerDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
+import { AdvertisementAdminQueryDto, CreateAdvertisementCategoryDto, CreateAdvertisementDto, CreateBannerDto, CreateFeedbackDto, PublicAdvertisementQueryDto, UpdateAdvertisementCategoryDto, UpdateAdvertisementDto, CreateAnnouncementDto, CreateEmergencyDto, CreateFactoryDto, CreateFactoryStaffDto, CreateManagedUserDto, CreateParkDto, CreateParkStaffDto, FactoryAdminQueryDto, FeedbackInboxQueryDto, InvoiceDiscountDto, InvoiceExtendDueDto, InvoiceInstallmentsDto, InvoiceItemDto, InvoiceSettleDto, PublicSmsRequestDto, RegisterFactoryDto, SendDirectMessageDto, UpdateAnnouncementDto, UpdateBannerDto, UpdateFactoryDto, UpdateFactoryStaffDto, UpdateManagedUserDto, UpdateMarketRateDto, UpdateParkDto, UpdateParkStaffDto } from './management.dto';
 import {
   addDays,
   calendarDaysLate,
@@ -1628,6 +1628,85 @@ export class ManagementService {
     return updated;
   }
 
+  /**
+   * Withdraws a pass before the vehicle leaves (factory side or park management). An approved
+   * pass is already on the gate's list, so guards are told not to let it out. The wallet fee is
+   * not refunded, matching rejected passes.
+   */
+  async cancelGatePass(actor: AuthenticatedUser, id: string, reason?: string | null) {
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER && actor.role !== Role.FACTORY_OWNER) {
+      throw new ForbiddenException('You cannot cancel gate passes');
+    }
+    const pass = await this.prisma.gatePass.findUnique({
+      where: { id },
+      include: {
+        factory: {
+          select: {
+            name: true,
+            parkId: true,
+            managerId: true,
+            manager: { select: { phoneNumber: true } },
+            park: { select: { guardPhone: true } },
+          },
+        },
+      },
+    });
+    if (!pass) throw new NotFoundException('Gate pass not found');
+    await this.assertFactoryAccess(actor, pass.factoryId);
+    const cancellable: GatePassStatus[] = [GatePassStatus.PENDING, GatePassStatus.APPROVED, GatePassStatus.REJECTED];
+    if (!cancellable.includes(pass.status)) {
+      throw new ConflictException('فقط برگ خروجِ در انتظار، تاییدشده یا ردشده قابل لغو است؛ خروج انجام‌شده یا منقضی قابل لغو نیست.');
+    }
+    const cleanReason = reason?.trim().slice(0, 2000) || null;
+    const cancelNote = cleanReason ? `لغو شد: ${cleanReason}` : 'لغو شد';
+    const claimed = await this.prisma.gatePass.updateMany({
+      where: { id, status: pass.status },
+      data: { status: GatePassStatus.CANCELLED, notes: pass.notes ? `${pass.notes}\n${cancelNote}` : cancelNote },
+    });
+    if (claimed.count !== 1) throw new ConflictException('وضعیت برگ خروج هم‌زمان تغییر کرد؛ صفحه را تازه کنید.');
+    const updated = await this.prisma.gatePass.findUniqueOrThrow({
+      where: { id },
+      include: {
+        factory: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true, phoneNumber: true } },
+        approvedBy: { select: { id: true, name: true } },
+        verifiedBy: { select: { id: true, name: true } },
+      },
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'GATE_PASS_CANCELLED',
+      entity: 'GatePass',
+      entityId: id,
+      changes: { from: pass.status, ...(cleanReason ? { reason: cleanReason } : {}) },
+    });
+    this.gatePassEvents.emit({ gatePassId: id, factoryId: pass.factoryId, kind: 'cancelled' });
+
+    const summary = `واحد «${pass.factory?.name || ''}» · راننده ${pass.driverName} · پلاک ${pass.licensePlate}`;
+    const text = `${summary} لغو شد (${formatJalaliDateTime(new Date())}).${cleanReason ? ` دلیل: ${cleanReason}` : ''}`;
+    if (pass.status === GatePassStatus.APPROVED) {
+      await this.notifyParkStaff(
+        pass.factory?.parkId,
+        {
+          guards: true,
+          sms: `MEKSS: برگ خروج لغو شد؛ اجازه خروج ندهید. ${summary}`,
+          extraPhones: [pass.factory?.park?.guardPhone],
+        },
+        'لغو برگ خروج تاییدشده',
+        `${text} این خودرو مجوز خروج ندارد.`,
+        'WARNING',
+      );
+    } else if (pass.status === GatePassStatus.PENDING) {
+      await this.notifyParkStaff(pass.factory?.parkId, {}, 'لغو برگ خروج', text, 'INFO');
+    }
+    const ownerId = pass.factory?.managerId;
+    if (ownerId && ownerId !== actor.id) {
+      await this.notifyUser(ownerId, 'لغو برگ خروج', text, 'WARNING');
+      if (pass.factory?.manager?.phoneNumber) await this.safeSendSms(pass.factory.manager.phoneNumber, `MEKSS: برگ خروج ${text}`);
+    }
+    return updated;
+  }
+
   async gatePassByQr(actor: AuthenticatedUser, code: string) {
     const raw = String(code || '').trim();
     if (!raw) throw new NotFoundException('Gate pass not found');
@@ -2281,6 +2360,43 @@ export class ManagementService {
     });
     await this.audit.record({ userId: actor.id, action: 'INVOICE_DISCOUNTED', entity: 'Invoice', entityId: id, changes: { discountAmount } });
     await this.notifyInvoicePayers(existing, 'تخفیف قبض', `برای قبض «${existing.invoiceNumber}» تخفیف ${formatRial(discountAmount)} ریال اعمال شد.`, 'INFO');
+    return this.presentInvoice(updated);
+  }
+
+  /** Voids an unpaid invoice; the row and its history stay for the books. */
+  async cancelInvoice(actor: AuthenticatedUser, id: string, reason?: string | null) {
+    const existing = await this.prisma.invoice.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Invoice not found');
+    await this.assertInvoiceOperator(actor, existing, 'finance');
+    this.assertInvoiceOpen(existing.status);
+    await this.assertNoPaymentInFlight(id);
+    const note = reason?.trim().slice(0, 1000) || null;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.invoice.updateMany({
+        where: { id, status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] } },
+        data: { status: InvoiceStatus.CANCELLED },
+      });
+      if (claimed.count !== 1) throw new ConflictException('وضعیت قبض هم‌زمان تغییر کرد؛ صفحه را تازه کنید.');
+      await tx.invoiceAdjustment.create({
+        data: {
+          invoiceId: id,
+          actorId: actor.id,
+          type: InvoiceAdjustmentType.CANCELLATION,
+          amount: this.money(Number(existing.totalAmount)),
+          note,
+          details: { previousStatus: existing.status } as Prisma.InputJsonObject,
+        },
+      });
+      return tx.invoice.findUniqueOrThrow({ where: { id }, include: { factory: true, items: { orderBy: { sortOrder: 'asc' } } } });
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'INVOICE_CANCELLED',
+      entity: 'Invoice',
+      entityId: id,
+      changes: { from: existing.status, ...(note ? { reason: note } : {}) },
+    });
+    await this.notifyInvoicePayers(existing, 'لغو قبض', `قبض «${existing.invoiceNumber}» لغو شد و نیازی به پرداخت آن نیست.${note ? ` توضیح: ${note}` : ''}`, 'INFO');
     return this.presentInvoice(updated);
   }
 
@@ -3215,9 +3331,75 @@ export class ManagementService {
         recipientParkId: input.recipientParkId || null,
         senderId: actor.id,
       },
+      include: { sender: { select: { name: true } } },
     });
     await this.audit.record({ userId: actor.id, action: 'FEEDBACK_CREATED', entity: 'Feedback', entityId: item.id });
+    await this.notifyParkStaff(
+      item.recipientParkId,
+      { superAdmins: !item.recipientParkId },
+      'انتقاد و پیشنهاد جدید',
+      `«${item.subject}» از طرف ${item.sender?.name || actor.phoneNumber}. از بخش «صندوق انتقادات و پیشنهادات» مشاهده کنید.`,
+      'INFO',
+    );
     return item;
+  }
+
+  /** Park managers read feedback addressed to their parks; super admins read everything. */
+  async feedbackInbox(actor: AuthenticatedUser, query: FeedbackInboxQueryDto = {}) {
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('You cannot read feedback');
+    }
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
+    const scope: Prisma.FeedbackWhereInput[] = [];
+    if (actor.role === Role.PARK_MANAGER) {
+      const parkIds = await this.managedParkIds(actor);
+      if (query.parkId && !parkIds.includes(query.parkId)) throw new ForbiddenException('You do not have access to this park');
+      scope.push({ recipientParkId: { in: query.parkId ? [query.parkId] : parkIds } });
+    } else {
+      if (query.target === 'PLATFORM') scope.push({ recipientParkId: null });
+      if (query.target === 'PARK') scope.push({ recipientParkId: { not: null } });
+      if (query.parkId) scope.push({ recipientParkId: query.parkId });
+    }
+    const search = query.search?.trim();
+    if (search) {
+      scope.push({
+        OR: [
+          { subject: { contains: search, mode: 'insensitive' } },
+          { body: { contains: search, mode: 'insensitive' } },
+          { sender: { name: { contains: search, mode: 'insensitive' } } },
+          { sender: { phoneNumber: { contains: search } } },
+        ],
+      });
+    }
+    const where: Prisma.FeedbackWhereInput = scope.length ? { AND: scope } : {};
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.feedback.findMany({
+        where,
+        select: {
+          id: true,
+          subject: true,
+          body: true,
+          createdAt: true,
+          recipientPark: { select: { id: true, name: true } },
+          sender: {
+            select: {
+              id: true,
+              name: true,
+              phoneNumber: true,
+              role: true,
+              managedFactories: { select: { id: true, name: true }, take: 3, orderBy: { name: 'asc' } },
+              employeeOfFactory: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.feedback.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
   }
 
   async advertisementCreationScope(actor: AuthenticatedUser) {
@@ -4613,27 +4795,85 @@ export class ManagementService {
 
   async updateFactoryStaff(actor: AuthenticatedUser, factoryId: string, userId: string, input: UpdateFactoryStaffDto) {
     await this.assertOwnedFactory(actor, factoryId);
-    if (input.canApproveRequestTypes === undefined && input.isActive === undefined) {
-      throw new BadRequestException('At least one staff field is required');
-    }
+    const keys = Object.keys(input).filter((key) => (input as Record<string, unknown>)[key] !== undefined);
+    if (!keys.length) throw new BadRequestException('At least one staff field is required');
     const existing = await this.prisma.user.findFirst({
       where: { id: userId, employeeOfFactoryId: factoryId, role: Role.EMPLOYEE },
       select: { id: true },
     });
     if (!existing) throw new NotFoundException('Staff user not found');
     const data: Prisma.UserUpdateInput = {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.phoneNumber !== undefined ? { phoneNumber: input.phoneNumber } : {}),
       ...(input.canApproveRequestTypes !== undefined ? { canApproveRequestTypes: input.canApproveRequestTypes } : {}),
-      ...(input.isActive !== undefined ? { isActive: input.isActive, ...(input.isActive === false ? { sessionVersion: { increment: 1 } } : {}) } : {}),
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     };
-    const updated = await this.prisma.user.update({ where: { id: userId }, data, select: STAFF_USER_SELECT });
+    // Any credential or access change ends the staff member's open sessions.
+    const revokeSessions = Boolean(input.password) || input.isActive === false || input.phoneNumber !== undefined;
+    if (input.password) {
+      data.password = await bcrypt.hash(input.password, 12);
+      data.mustChangePassword = true;
+    }
+    if (revokeSessions) data.sessionVersion = { increment: 1 };
+    let updated;
+    try {
+      updated = await this.prisma.user.update({ where: { id: userId }, data, select: STAFF_USER_SELECT });
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2002') throw new ConflictException('این شماره موبایل قبلاً در سامانه ثبت شده است.');
+      throw error;
+    }
+    if (revokeSessions) {
+      await this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    }
     await this.audit.record({
       userId: actor.id,
       action: 'FACTORY_STAFF_UPDATED',
       entity: 'User',
       entityId: userId,
-      changes: input as unknown as Prisma.InputJsonObject,
+      changes: { ...input, password: input.password ? '[redacted]' : undefined } as unknown as Prisma.InputJsonObject,
     });
+    if (input.password && updated.phoneNumber) {
+      const factory = await this.prisma.factory.findUnique({ where: { id: factoryId }, select: { name: true } });
+      await this.sendStaffCredentialsSms(
+        { phoneNumber: updated.phoneNumber },
+        factory?.name ? `واحد صنعتی «${factory.name}»` : 'واحد صنعتی',
+        'password-reset',
+      );
+    }
     return updated;
+  }
+
+  /** Deletes a staff account; one with work history is deactivated instead so the records keep their author. */
+  async deleteFactoryStaff(actor: AuthenticatedUser, factoryId: string, userId: string) {
+    await this.assertOwnedFactory(actor, factoryId);
+    if (actor.id === userId) throw new ForbiddenException('You cannot delete your own account');
+    const existing = await this.prisma.user.findFirst({
+      where: { id: userId, employeeOfFactoryId: factoryId, role: Role.EMPLOYEE },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Staff user not found');
+
+    const blockers = await this.userDeleteBlockers(this.prisma, userId);
+    if (blockers.length) {
+      await this.prisma.user.update({ where: { id: userId }, data: { isActive: false, sessionVersion: { increment: 1 } } });
+      await this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await this.audit.record({
+        userId: actor.id,
+        action: 'FACTORY_STAFF_DEACTIVATED',
+        entity: 'User',
+        entityId: userId,
+        changes: { factoryId, reason: 'protected_relations', blockers },
+      });
+      return { id: userId, deleted: false, deactivated: true, blockers };
+    }
+    try {
+      await this.prisma.user.delete({ where: { id: userId } });
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2003') throw this.userDeleteConflict([]);
+      throw error;
+    }
+    await this.audit.record({ userId: actor.id, action: 'FACTORY_STAFF_DELETED', entity: 'User', entityId: userId, changes: { factoryId } });
+    return { id: userId, deleted: true, deactivated: false };
   }
 
   async listParkStaff(actor: AuthenticatedUser, parkId?: string) {
@@ -5746,6 +5986,95 @@ export class ManagementService {
     if (factory.managerId) await this.notifyUser(factory.managerId, suspended ? 'مسدودسازی واحد' : 'رفع مسدودی واحد', message, suspended ? 'WARNING' : 'SUCCESS');
     if (factory.manager?.phoneNumber) await this.safeSendSms(factory.manager.phoneNumber, `MEKSS: ${message}`);
     return updated;
+  }
+
+  /** Removes a unit registered by mistake. Units with any business history must be suspended instead. */
+  async deleteFactory(actor: AuthenticatedUser, id: string) {
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('Only park managers can delete factories');
+    }
+    const factory = await this.factoryRecord(actor, id, this.prisma);
+    try {
+      await this.auditedTransaction(
+        actor,
+        { action: 'FACTORY_DELETED', entity: 'Factory', entityId: id, changes: { name: factory.name, parkId: factory.parkId, managerId: factory.managerId } },
+        async (tx) => {
+          const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT "id" FROM "Factory" WHERE "id" = ${id} FOR UPDATE`);
+          if (!locked.length) throw new NotFoundException('Factory not found');
+          const blockers = await this.factoryDeleteBlockers(tx, id);
+          if (blockers.length) throw this.factoryDeleteConflict(blockers);
+          await tx.factory.delete({ where: { id } });
+        },
+      );
+    } catch (error) {
+      if (this.prismaErrorCode(error) === 'P2003') throw this.factoryDeleteConflict([]);
+      throw error;
+    }
+    if (factory.managerId) {
+      await this.notifyUser(factory.managerId, 'حذف واحد صنعتی', `واحد «${factory.name}» توسط مدیریت شهرک از سامانه حذف شد.`, 'WARNING');
+    }
+    return { id, deleted: true };
+  }
+
+  private async factoryDeleteBlockers(tx: Prisma.TransactionClient, factoryId: string): Promise<string[]> {
+    const checks: Array<[string, Promise<number>]> = [
+      ['برگ خروج', tx.gatePass.count({ where: { factoryId } })],
+      ['صورتحساب', tx.invoice.count({ where: { factoryId } })],
+      ['درخواست', tx.request.count({ where: { factoryId } })],
+      ['اطلاعیه', tx.announcement.count({ where: { factoryId } })],
+      ['تراکنش کیف پول', tx.walletTopUp.count({ where: { factoryId } })],
+      ['حساب کارکنان', tx.user.count({ where: { employeeOfFactoryId: factoryId } })],
+      ['پرسنل ثبت‌شده', tx.factoryEmployee.count({ where: { factoryId } })],
+    ];
+    const [counts, wallet] = await Promise.all([
+      Promise.all(checks.map(([, count]) => count)),
+      tx.factory.findUnique({ where: { id: factoryId }, select: { gatePassWalletBalance: true } }),
+    ]);
+    const blockers = checks.filter((_check, index) => counts[index] > 0).map(([label]) => label);
+    if (Number(wallet?.gatePassWalletBalance || 0) > 0) blockers.push('موجودی کیف پول');
+    return blockers;
+  }
+
+  private factoryDeleteConflict(blockers: string[]) {
+    const detail = blockers.length ? ` (${blockers.join('، ')})` : '';
+    return new ConflictException(`این واحد صنعتی سوابق کاری دارد${detail} و قابل حذف نیست؛ به‌جای حذف، واحد را مسدود کنید.`);
+  }
+
+  /** Hands a unit to another factory-owner account (e.g. sale of the unit or a new CEO). */
+  async changeFactoryOwner(actor: AuthenticatedUser, id: string, managerId: string) {
+    if (actor.role !== Role.SUPER_ADMIN && actor.role !== Role.PARK_MANAGER) {
+      throw new ForbiddenException('Only park managers can change the factory owner');
+    }
+    const current = await this.factoryRecord(actor, id, this.prisma);
+    if (current.managerId === managerId) throw new BadRequestException('این کاربر هم‌اکنون مدیر همین واحد است.');
+    const item = await this.auditedTransaction(
+      actor,
+      { action: 'FACTORY_OWNER_CHANGED', entity: 'Factory', entityId: id, changes: { from: current.managerId, to: managerId } },
+      async (tx) => {
+        const owner = await tx.user.findFirst({
+          where: { id: managerId, role: Role.FACTORY_OWNER, isActive: true, isApproved: true },
+          select: { id: true },
+        });
+        if (!owner) throw new BadRequestException('مدیر جدید باید کاربر فعال و تاییدشده با نقش «مدیر واحد» باشد.');
+        if (actor.role === Role.PARK_MANAGER) {
+          // Same owner pool the factory form offers: unassigned owners or owners already in this manager's parks.
+          const parkIds = await this.managedParkIds(actor, tx);
+          const elsewhere = await tx.factory.count({ where: { managerId, parkId: { notIn: parkIds } } });
+          if (elsewhere) throw new ForbiddenException('این مدیر واحد در شهرک دیگری واحد دارد؛ این تغییر را مدیر سامانه انجام دهد.');
+        }
+        const claimed = await tx.factory.updateMany({ where: { id, managerId: current.managerId }, data: { managerId } });
+        if (claimed.count !== 1) throw new ConflictException('مدیر این واحد هم‌زمان تغییر کرد؛ صفحه را تازه کنید.');
+        const updated = await tx.factory.findUnique({ where: { id }, select: FACTORY_MANAGEMENT_SELECT });
+        if (!updated) throw new NotFoundException('Factory not found');
+        return updated;
+      },
+    );
+    const text = `مدیریت واحد «${current.name}» از «${current.manager?.name || '—'}» به «${item.manager?.name || '—'}» منتقل شد.`;
+    if (current.managerId) await this.notifyUser(current.managerId, 'انتقال مدیریت واحد', text, 'WARNING');
+    await this.notifyUser(managerId, 'انتقال مدیریت واحد', `${text} اکنون می‌توانید این واحد را مدیریت کنید.`, 'SUCCESS');
+    if (current.manager?.phoneNumber) await this.safeSendSms(current.manager.phoneNumber, `MEKSS: ${text}`);
+    if (item.manager?.phoneNumber) await this.safeSendSms(item.manager.phoneNumber, `MEKSS: ${text}`);
+    return item;
   }
 
   private async assertOwnedFactory(actor: AuthenticatedUser, factoryId: string) {

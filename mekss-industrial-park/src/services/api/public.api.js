@@ -8,5 +8,6 @@ export const publicApi = {
   getFactories: () => apiClient.get('/public/factories'),
   getFactory: (id) => apiClient.get(`/public/factories/${id}`),
   getShops: () => apiClient.get('/public/shops'),
+  getCaptcha: () => apiClient.get('/public/captcha'),
   submitSmsRequest: (data) => apiClient.post('/public/sms-requests', data),
 };

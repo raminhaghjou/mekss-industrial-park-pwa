@@ -117,6 +117,7 @@ services:
       MELIPAYAMAK_OTP_BODY_ID: ${MEKSS_MELIPAYAMAK_OTP_BODY_ID:-}
       # Encrypts secrets saved from the admin panel; changing it means re-entering them.
       SETTINGS_ENCRYPTION_KEY: ${MEKSS_SETTINGS_ENCRYPTION_KEY:-}
+      CAPTCHA_SECRET: ${MEKSS_CAPTCHA_SECRET:-}
       KAVEH_NEGAR_API_KEY: ${MEKSS_KAVEH_NEGAR_API_KEY:-}
       SMS_SENDER: ${MEKSS_LOCAL_SMS_SENDER:-1000596446}
       ZARINPAL_MERCHANT_ID: ""
@@ -135,9 +136,10 @@ services:
     volumes:
       - anpr-models:/app/models/iran-plate:ro
     depends_on:
-      # Healthy = models are in the shared volume and warmed up, so engine B can load them at startup.
+      # Plate recognition is optional: the site must come up even if engine A is unhealthy.
+      # Engine B retries loading the shared models on its own, so `started` is enough.
       anpr:
-        condition: service_healthy
+        condition: service_started
       postgres:
         condition: service_healthy
       redis:

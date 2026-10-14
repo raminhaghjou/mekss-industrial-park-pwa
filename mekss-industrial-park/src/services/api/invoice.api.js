@@ -14,6 +14,7 @@ export const invoiceApi = {
   splitInstallments: (id, data) => apiClient.post(`/invoices/${id}/installments`, data),
   settle: (id, data) => apiClient.post(`/invoices/${id}/settle`, data),
   extendDue: (id, data) => apiClient.post(`/invoices/${id}/extend-due`, data),
+  cancel: (id, data) => apiClient.post(`/invoices/${id}/cancel`, data),
   downloadImportTemplate: (params) => apiClient.get('/invoices/import/template', { params, responseType: 'blob' }),
   importInvoices: (file, /** @type {{ dryRun?: boolean, target?: string }} */ { dryRun, target } = { dryRun: true }) => {
     const form = new FormData();

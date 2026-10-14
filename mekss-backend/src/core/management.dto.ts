@@ -243,8 +243,29 @@ export class CreateFactoryStaffDto {
 }
 
 export class UpdateFactoryStaffDto {
+  @Transform(trimString) @IsOptional() @IsString() @Length(2, 120) name?: string;
+  @Transform(normalizeIranianPhone) @IsOptional() @Matches(iranianPhone) phoneNumber?: string;
+  /** Sets a new temporary password; the staff member must change it at next login. */
+  @IsOptional() @IsString() @Matches(strongPassword, { message: 'password must be 10-128 characters and contain letters and numbers' }) password?: string;
   @IsOptional() @IsArray() @ArrayMaxSize(20) @ArrayUnique() @IsEnum(RequestType, { each: true }) canApproveRequestTypes?: RequestType[];
   @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class ChangeFactoryOwnerDto {
+  @IsString() @Matches(opaqueId) managerId!: string;
+}
+
+export class OptionalReasonDto {
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) reason?: string | null;
+}
+
+export class FeedbackInboxQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10_000) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number;
+  @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(120) search?: string | null;
+  /** Super admin only: PLATFORM = sent to the platform team, PARK = sent to a park. */
+  @IsOptional() @IsIn(['PLATFORM', 'PARK']) target?: 'PLATFORM' | 'PARK';
+  @IsOptional() @IsString() @Matches(opaqueId) parkId?: string;
 }
 
 export class CreateParkStaffDto {
@@ -300,6 +321,8 @@ export class PublicSmsRequestDto {
   @Transform(normalizeIranianPhone) @Matches(iranianPhone) phoneNumber!: string;
   @Transform(trimString) @IsString() @Length(1, 8) code!: string;
   @Transform(trimNullableString) @IsOptional() @IsString() @MaxLength(2000) text?: string | null;
+  @IsString() @MaxLength(200) captchaId!: string;
+  @Transform(asciiDigitsTrimmed) @IsString() @Matches(/^\d{4,8}$/, { message: 'کد امنیتی را وارد کنید' }) captchaAnswer!: string;
 }
 
 /** Vehicle types accepted for new gate passes; TRUCK stays in the enum only for historical records. */

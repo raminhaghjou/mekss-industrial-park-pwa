@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
   CardContent,
@@ -27,13 +27,19 @@ import {
   ListBoxItem,
   Label,
 } from '@heroui/react';
-import { Download, Pencil, Plus, Printer, Ticket } from 'lucide-react';
+import { Ban, Download, Pencil, Plus, Printer, Ticket } from 'lucide-react';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { useNotification } from '../../providers/NotificationProvider';
+import { useAuth } from '../../providers/AuthProvider';
+
+const CANCEL_ROLES = ['SUPER_ADMIN', 'PARK_MANAGER', 'FACTORY_OWNER'];
 import { displayIranLicensePlate } from '../../utils/iranLicensePlate';
 import IranLicensePlateBadge from '../../components/common/IranLicensePlateBadge';
 import { semanticFilter } from '../../utils/semanticSearch';
 import { gatePassApi } from '../../services/api/gatePass.api';
 import { getErrorMessage } from '../../utils/apiError';
 import {
+  CANCELLABLE_GATE_PASS_STATUSES,
   cargoTypeLabels,
   gatePassRejectionStage,
   gatePassStatusLabels as statusLabels,
@@ -54,6 +60,7 @@ const statusColors = {
   REJECTED: 'danger',
   COMPLETED: 'success',
   EXPIRED: 'default',
+  CANCELLED: 'default',
 };
 
 const exportCsv = (rows) => {
@@ -86,9 +93,28 @@ export const GatePassesPage = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const queryClient = useQueryClient();
+  const { showNotification } = useNotification();
+  const { user } = useAuth();
+  const mayCancel = CANCEL_ROLES.includes(user?.role);
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['gate-passes'],
     queryFn: () => gatePassApi.getGatePasses().then((res) => res.data),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }) => gatePassApi.cancelGatePass(id, reason),
+    onSuccess: () => {
+      showNotification('برگ خروج لغو شد.', 'success');
+      setCancelTarget(null);
+    },
+    onError: (err) => showNotification(getErrorMessage(err, 'لغو برگ خروج ناموفق بود.'), 'error'),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['gate-passes'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    ]),
   });
 
   const passes = useMemo(() => {
@@ -218,6 +244,7 @@ export const GatePassesPage = () => {
                   <TableBody>
                     {passes.map((pass) => {
                       const canEdit = pass.status === 'PENDING' || pass.status === 'REJECTED';
+                      const canCancel = mayCancel && CANCELLABLE_GATE_PASS_STATUSES.includes(pass.status);
                       return (
                         <TableRow key={pass.id} id={pass.id}>
                           <TableCell>{pass.driverName}</TableCell>
@@ -258,16 +285,30 @@ export const GatePassesPage = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="tertiary"
-                                className="rounded-xl gap-1"
-                                onPress={() => setPrintingPass(pass)}
-                                aria-label={`پرینت برگ خروج ${pass.driverName || ''}`}
-                              >
-                                <Printer className="h-3.5 w-3.5" />
-                                پرینت
-                              </Button>
+                              {pass.status !== 'CANCELLED' && (
+                                <Button
+                                  size="sm"
+                                  variant="tertiary"
+                                  className="rounded-xl gap-1"
+                                  onPress={() => setPrintingPass(pass)}
+                                  aria-label={`پرینت برگ خروج ${pass.driverName || ''}`}
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                  پرینت
+                                </Button>
+                              )}
+                              {canCancel && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="rounded-xl gap-1 text-danger"
+                                  isDisabled={cancelMutation.isPending}
+                                  onPress={() => setCancelTarget(pass)}
+                                >
+                                  <Ban className="h-3.5 w-3.5" />
+                                  لغو
+                                </Button>
+                              )}
                               {canEdit && (
                                 <Button
                                   size="sm"
@@ -295,6 +336,21 @@ export const GatePassesPage = () => {
       {printingPass && (
         <GatePassPrintDialog pass={printingPass} onClose={() => setPrintingPass(null)} />
       )}
+
+      <ConfirmDialog
+        open={Boolean(cancelTarget)}
+        title="لغو برگ خروج"
+        description={cancelTarget
+          ? `برگ خروج راننده ${cancelTarget.driverName} با پلاک ${displayIranLicensePlate(cancelTarget.licensePlate)} لغو می‌شود${cancelTarget.status === 'APPROVED' ? ' و به نگهبانی اطلاع داده می‌شود که اجازه خروج ندهد' : ''}. هزینهٔ صدور برگ بازگردانده نمی‌شود و این کار برگشت‌پذیر نیست.`
+          : ''}
+        showReason
+        reasonLabel="دلیل لغو"
+        confirmLabel="لغو برگ خروج"
+        confirmColor="danger"
+        loading={cancelMutation.isPending}
+        onConfirm={(reason) => cancelTarget && cancelMutation.mutate({ id: cancelTarget.id, reason })}
+        onClose={() => setCancelTarget(null)}
+      />
     </div>
   );
 };

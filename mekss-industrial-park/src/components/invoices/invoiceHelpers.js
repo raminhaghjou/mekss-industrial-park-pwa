@@ -16,6 +16,7 @@ export const INVOICE_OPERATION_TITLES = {
   installments: 'تقسیط قبض',
   settle: 'تسویه دستی',
   extend: 'تمدید مهلت پرداخت',
+  cancel: 'لغو قبض',
   history: 'تاریخچهٔ تغییرات قبض',
 };
 

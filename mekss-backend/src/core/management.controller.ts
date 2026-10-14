@@ -2,9 +2,11 @@ import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Put, Query,
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { memoryStorage } from 'multer';
 import { AuthenticatedUser, JwtAuthGuard, Public, Roles, RolesGuard } from './auth.guard';
+import { CaptchaService } from './security/captcha.service';
+import { RATE_RULES, RateLimitService, clientIp } from './security/rate-limit.service';
 import { IMPORT_MAX_FILE_BYTES } from './invoice-import';
 import { SmsGateway } from './sms.gateway';
 import { SmsSettingsService } from './sms/sms-settings.service';
@@ -26,7 +28,10 @@ import {
   CreateAdvertisementCategoryDto,
   CreateAnnouncementDto,
   CreateAdvertisementDto,
+  ChangeFactoryOwnerDto,
   CreateFeedbackDto,
+  FeedbackInboxQueryDto,
+  OptionalReasonDto,
   PublicAdvertisementQueryDto,
   UpdateAdvertisementCategoryDto,
   UpdateAdvertisementFeaturedSettingDto,
@@ -83,6 +88,8 @@ export class ManagementController {
     private readonly management: ManagementService,
     private readonly sms: SmsGateway,
     private readonly smsConfig: SmsSettingsService,
+    private readonly captcha: CaptchaService,
+    private readonly rateLimit: RateLimitService,
   ) {}
 
   @Get('users/pending-registrations') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Users') pendingRegistrations(@Req() req: AuthenticatedRequest) { return this.management.pendingRegistrations(currentUser(req)); }
@@ -115,6 +122,7 @@ export class ManagementController {
   @Get('factories/:id/staff') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') factoryStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.listFactoryStaff(currentUser(req), params.id); }
   @Post('factories/:id/staff') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') createFactoryStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: CreateFactoryStaffDto) { return this.management.createFactoryStaff(currentUser(req), params.id, body); }
   @Patch('factories/:id/staff/:userId') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') updateFactoryStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueUserIdParamDto, @Body() body: UpdateFactoryStaffDto) { return this.management.updateFactoryStaff(currentUser(req), params.id, params.userId, body); }
+  @Delete('factories/:id/staff/:userId') @Roles(Role.FACTORY_OWNER) @ApiTags('Factories') deleteFactoryStaff(@Req() req: AuthenticatedRequest, @Param() params: OpaqueUserIdParamDto) { return this.management.deleteFactoryStaff(currentUser(req), params.id, params.userId); }
   @Get('factories/:id/wallet') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Factories') factoryWallet(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.factoryWallet(currentUser(req), params.id); }
   @Post('factories/:id/wallet/top-up') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') factoryWalletTopUp(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: WalletTopUpDto) { return this.management.topUpFactoryWallet(currentUser(req), params.id, body.amount); }
   @Post('factories/:id/wallet/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Factories') factoryWalletPay(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: StartWalletTopUpDto) { return this.management.startWalletTopUp(currentUser(req), params.id, body.amount); }
@@ -128,6 +136,8 @@ export class ManagementController {
   @Post('factories/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') rejectFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.decideFactory(currentUser(req), params.id, false, body.reason); }
   @Post('factories/:id/suspend') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') suspendFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.setFactorySuspended(currentUser(req), params.id, true, body.reason); }
   @Post('factories/:id/unsuspend') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') unsuspendFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.setFactorySuspended(currentUser(req), params.id, false); }
+  @Post('factories/:id/owner') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') changeFactoryOwner(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ChangeFactoryOwnerDto) { return this.management.changeFactoryOwner(currentUser(req), params.id, body.managerId); }
+  @Delete('factories/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Factories') deleteFactory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteFactory(currentUser(req), params.id); }
 
   @Get('gate-passes') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePasses(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
     return this.management.listGatePasses(currentUser(req), {
@@ -151,6 +161,7 @@ export class ManagementController {
   @Post('gate-passes/:id/reject') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Gate passes') rejectGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'reject', body.reason); }
   @Post('gate-passes/:id/verify') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') verifyGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassAction(currentUser(req), params.id, 'verify'); }
   @Post('gate-passes/:id/deny') @Roles(Role.SUPER_ADMIN, Role.SECURITY_GUARD) @ApiTags('Gate passes') denyGatePassExit(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: ReasonDto) { return this.management.gatePassAction(currentUser(req), params.id, 'deny', body.reason); }
+  @Post('gate-passes/:id/cancel') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Gate passes') cancelGatePass(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: OptionalReasonDto) { return this.management.cancelGatePass(currentUser(req), params.id, body.reason); }
   @Get('gate-passes/:id') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Gate passes') gatePassDetail(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.gatePassDetail(currentUser(req), params.id); }
 
   @Get('invoices') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Invoices') invoices(@Req() req: AuthenticatedRequest, @Query() query: ListInvoicesQueryDto) {
@@ -178,6 +189,7 @@ export class ManagementController {
   @Post('invoices/:id/installments') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') splitInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceInstallmentsDto) { return this.management.splitInvoiceIntoInstallments(currentUser(req), params.id, body); }
   @Post('invoices/:id/settle') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') settleInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceSettleDto) { return this.management.settleInvoiceManually(currentUser(req), params.id, body); }
   @Post('invoices/:id/extend-due') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') extendInvoiceDue(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: InvoiceExtendDueDto) { return this.management.extendInvoiceDueDate(currentUser(req), params.id, body); }
+  @Post('invoices/:id/cancel') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') cancelInvoice(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Body() body: OptionalReasonDto) { return this.management.cancelInvoice(currentUser(req), params.id, body.reason); }
   @Post('invoices/:id/pay') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER) @ApiTags('Invoices') startPayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto, @Headers('idempotency-key') idempotencyKey?: string) { return this.management.startPayment(currentUser(req), params.id, idempotencyKey); }
   @Post('invoices/:id/confirm-payment') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Invoices') confirmInvoicePayment(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.confirmInvoicePayment(currentUser(req), params.id); }
 
@@ -217,6 +229,7 @@ export class ManagementController {
   @Delete('advertisement-categories/:id') @Roles(Role.SUPER_ADMIN) @ApiTags('Advertisements') deleteAdvertisementCategory(@Req() req: AuthenticatedRequest, @Param() params: OpaqueIdParamDto) { return this.management.deleteAdvertisementCategory(currentUser(req), params.id); }
   @Get('settings/advertisement-featured') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Settings') advertisementFeaturedSettings() { return this.management.getAdvertisementFeaturedSettings(); }
   @Patch('settings/advertisement-featured') @Roles(Role.SUPER_ADMIN) @ApiTags('Settings') updateAdvertisementFeaturedSettings(@Req() req: AuthenticatedRequest, @Body() body: UpdateAdvertisementFeaturedSettingDto) { return this.management.updateAdvertisementFeaturedSettings(currentUser(req), body.monthlyCap); }
+  @Get('feedback') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER) @ApiTags('Feedback') feedbackInbox(@Req() req: AuthenticatedRequest, @Query() query: FeedbackInboxQueryDto) { return this.management.feedbackInbox(currentUser(req), query); }
   @Post('feedback') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE, Role.SECURITY_GUARD, Role.GOVERNMENT_OFFICIAL) @ApiTags('Feedback') createFeedback(@Req() req: AuthenticatedRequest, @Body() body: CreateFeedbackDto) { return this.management.createFeedback(currentUser(req), body); }
 
   @Post('messages') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.FACTORY_OWNER, Role.EMPLOYEE) @ApiTags('Messages') sendDirectMessage(@Req() req: AuthenticatedRequest, @Body() body: SendDirectMessageDto) { return this.management.sendDirectMessage(currentUser(req), body); }
@@ -252,7 +265,20 @@ export class ManagementController {
   @Public()
   @Get('public/shops') @ApiTags('Public') publicShops() { return this.management.publicShops(); }
   @Public()
-  @Post('public/sms-requests') @ApiTags('Public') publicSmsRequest(@Body() body: PublicSmsRequestDto) { return this.management.createPublicSmsRequest(body); }
+  @Get('public/captcha') @ApiTags('Public') async publicCaptcha(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.rateLimit.consume('captcha', [{ key: clientIp(req), rule: RATE_RULES.captchaPerIp }]);
+    res.setHeader('Cache-Control', 'no-store');
+    return this.captcha.issue();
+  }
+  @Public()
+  @Post('public/sms-requests') @ApiTags('Public') async publicSmsRequest(@Req() req: Request, @Body() body: PublicSmsRequestDto) {
+    await this.rateLimit.consume('public-sms', [
+      { key: clientIp(req), rule: RATE_RULES.publicSmsPerIp },
+      { key: body.phoneNumber, rule: RATE_RULES.publicSmsPerPhone },
+    ]);
+    await this.captcha.verify(body.captchaId, body.captchaAnswer);
+    return this.management.createPublicSmsRequest(body);
+  }
 
   @Get('reports') @Roles(Role.SUPER_ADMIN, Role.PARK_MANAGER, Role.GOVERNMENT_OFFICIAL) @ApiTags('Reports') report(@Req() req: AuthenticatedRequest, @Query() query: ReportQueryDto) { return this.management.report(currentUser(req), query.type as 'financial' | 'gatepass' | 'requests', query.from, query.to); }
 

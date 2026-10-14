@@ -44,11 +44,21 @@ class Settings:
     photo_det_conf: float = 0.15
     photo_max_candidates: int = 5
     live_max_candidates: int = 2
+    # Models shipped inside the image; used for any file missing from `model_dir` (e.g. a broken volume).
+    bundled_model_dir: Path | None = None
+
+
+def _bundled_model_dir() -> Path | None:
+    raw = os.environ.get("ANPR_BUNDLED_MODEL_DIR")
+    if raw is not None:
+        return Path(raw) if raw.strip() else None
+    return Path(__file__).resolve().parent.parent / "models" / "bundled"
 
 
 def load_settings() -> Settings:
     cpu = os.cpu_count() or 2
     return Settings(
+        bundled_model_dir=_bundled_model_dir(),
         model_dir=Path(os.environ.get("ANPR_MODEL_DIR", Path(__file__).resolve().parent.parent / "models")),
         det_conf=_env_float("ANPR_DET_CONF", 0.25),
         det_iou=_env_float("ANPR_DET_IOU", 0.45),

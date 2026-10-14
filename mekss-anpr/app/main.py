@@ -65,6 +65,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             except ModelsMissingError as exc:
                 state["error"] = str(exc)
                 logger.error("ANPR engine not ready: %s", exc)
+            except Exception as exc:  # noqa: BLE001 - keep /health answering so the cause shows in the logs
+                state["error"] = f"engine failed to start: {exc}"
+                logger.exception("ANPR engine failed to start")
         yield
 
     app = FastAPI(title="MEKSS ANPR", version="1.0.0", lifespan=lifespan, docs_url=None, redoc_url=None)

@@ -48,6 +48,7 @@ const preservedRoutePaths = [
   'admin/requests',
   'admin/messages',
   'admin/announcements',
+  'admin/feedback',
   'admin/park-staff',
   'admin/advertisements',
   'admin/reports',

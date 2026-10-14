@@ -60,7 +60,7 @@ const Field = ({ label, children, hint = '' }) => (
 
 /**
  * One dialog for every financial operation on an invoice (issuer edit, discount,
- * installments, manual settlement, due-date extension) plus the adjustment history.
+ * installments, manual settlement, due-date extension, cancellation) plus the adjustment history.
  * @param {{ invoice: any, mode: keyof typeof INVOICE_OPERATION_TITLES | null, onClose: () => void }} props
  */
 export const InvoiceOperationDialog = ({ invoice, mode, onClose }) => {
@@ -180,6 +180,9 @@ export const InvoiceOperationDialog = ({ invoice, mode, onClose }) => {
       }
       if (mode === 'extend') {
         return invoiceApi.extendDue(invoice.id, withNote({ dueDate: noonUtc(dueDate) }));
+      }
+      if (mode === 'cancel') {
+        return invoiceApi.cancel(invoice.id, note.trim() ? { reason: note.trim() } : {});
       }
       return null;
     },
@@ -436,6 +439,23 @@ export const InvoiceOperationDialog = ({ invoice, mode, onClose }) => {
         {noteField}
       </>
     );
+  } else if (mode === 'cancel') {
+    body = (
+      <>
+        {summary}
+        <Alert status="danger">
+          <AlertContent>
+            <AlertTitle>لغو قبض برگشت‌پذیر نیست</AlertTitle>
+            <AlertDescription>
+              قبض لغوشده قابل پرداخت نیست و در سوابق مالی با وضعیت «لغو شده» باقی می‌ماند. به پرداخت‌کننده اطلاع داده می‌شود.
+            </AlertDescription>
+          </AlertContent>
+        </Alert>
+        <Field label="دلیل لغو (اختیاری)">
+          <TextArea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} className="rounded-xl" />
+        </Field>
+      </>
+    );
   } else if (mode === 'history') {
     const adjustments = history.data?.adjustments || [];
     const installments = history.data?.installments || [];
@@ -508,9 +528,9 @@ export const InvoiceOperationDialog = ({ invoice, mode, onClose }) => {
               {mode === 'history' ? 'بستن' : 'انصراف'}
             </Button>
             {mode !== 'history' && (
-              <Button variant="primary" onPress={submit} isDisabled={mutation.isPending} className="w-full gap-2 rounded-xl font-bold sm:w-auto">
+              <Button variant={mode === 'cancel' ? 'danger' : 'primary'} onPress={submit} isDisabled={mutation.isPending} className="w-full gap-2 rounded-xl font-bold sm:w-auto">
                 {mutation.isPending ? <Spinner size="sm" /> : null}
-                ثبت
+                {mode === 'cancel' ? 'لغو قبض' : 'ثبت'}
               </Button>
             )}
           </ModalFooter>

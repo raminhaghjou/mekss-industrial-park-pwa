@@ -82,11 +82,20 @@ def main() -> int:
             print(f"ok       {name} (cached)")
             continue
         bundled = ROOT / "models" / meta["bundled"] if meta.get("bundled") else None
-        if bundled is not None and bundled.exists():
-            print(f"copy     {bundled.relative_to(ROOT)}")
-            shutil.copy2(bundled, dest)
-        elif name.endswith(".labels.json") and (ROOT / "models" / name).exists() and out != ROOT / "models":
-            shutil.copy2(ROOT / "models" / name, dest)
+        local = ROOT / "models" / name
+        source = (
+            bundled if bundled is not None and bundled.exists()
+            else local if name.endswith(".labels.json") and local.exists() and out != ROOT / "models"
+            else None
+        )
+        if source is not None:
+            try:
+                print(f"copy     {source.relative_to(ROOT)}")
+                shutil.copyfile(source, dest)
+            except OSError as exc:
+                print(f"ERROR    {name}: cannot write to {dest}: {exc}", file=sys.stderr)
+                failures += 1
+                continue
         elif not meta.get("required") and args.skip_optional:
             print(f"skip     {name} (optional; set ANPR_FETCH_OPTIONAL=1 to download)")
             continue
@@ -109,7 +118,11 @@ def main() -> int:
         lock[name] = digest
         print(f"ok       {name} {dest.stat().st_size / 1e6:.1f} MB sha256={digest[:16]}…")
 
-    (out / "manifest.lock.json").write_text(json.dumps(lock, indent=2), encoding="utf-8")
+    try:
+        (out / "manifest.lock.json").write_text(json.dumps(lock, indent=2), encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR    manifest.lock.json: {exc}", file=sys.stderr)
+        failures += 1
     if args.pin:
         for name, digest in lock.items():
             manifest["files"][name]["sha256"] = digest

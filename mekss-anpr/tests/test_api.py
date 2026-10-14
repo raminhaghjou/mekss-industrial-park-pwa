@@ -68,9 +68,55 @@ def test_rejects_bad_and_oversized_images():
 
 
 def test_not_ready_without_models(tmp_path):
-    with client_for(None, model_dir=tmp_path) as client:
+    with client_for(None, model_dir=tmp_path, bundled_model_dir=None) as client:
         assert client.get("/ready").status_code == 503
         assert client.post("/v1/recognize", content=b"jpeg").status_code == 503
+
+
+def _touch_models(directory: Path, *names: str) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        (directory / name).write_bytes(b"x")
+
+
+def test_resolves_missing_models_from_the_bundled_copy(tmp_path):
+    from app.pipeline.engine import resolve_model_files
+
+    volume = tmp_path / "volume"
+    bundled = tmp_path / "image" / "bundled"
+    _touch_models(volume, MODEL_FILES["detector"])
+    _touch_models(bundled, MODEL_FILES["detector"], MODEL_FILES["recognizer"])
+    _touch_models(bundled.parent, MODEL_FILES["labels"])
+    settings = load_settings().__class__(**{**load_settings().__dict__, "model_dir": volume, "bundled_model_dir": bundled})
+
+    files = resolve_model_files(settings)
+
+    assert files["detector"] == volume / MODEL_FILES["detector"]
+    assert files["recognizer"] == bundled / MODEL_FILES["recognizer"]
+    assert files["labels"] == bundled.parent / MODEL_FILES["labels"]
+    assert not files["detector_fallback"].exists()
+
+
+def test_reports_every_missing_model(tmp_path):
+    from app.pipeline.engine import ModelsMissingError, resolve_model_files
+
+    settings = load_settings().__class__(**{**load_settings().__dict__, "model_dir": tmp_path, "bundled_model_dir": None})
+    with pytest.raises(ModelsMissingError, match="ocr_crnn.onnx"):
+        resolve_model_files(settings)
+
+
+def test_unexpected_engine_failure_keeps_health_up(tmp_path, monkeypatch):
+    import app.main as main_module
+
+    def boom(_settings):
+        raise RuntimeError("onnxruntime exploded")
+
+    monkeypatch.setattr(main_module, "AnprEngine", boom)
+    with client_for(None, model_dir=tmp_path) as client:
+        assert client.get("/health").status_code == 200
+        res = client.get("/ready")
+        assert res.status_code == 503
+        assert "onnxruntime exploded" in res.json()["error"]
 
 
 def test_sheds_load_when_saturated():

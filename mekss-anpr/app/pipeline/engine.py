@@ -72,17 +72,31 @@ def guided_boxes(shape: tuple[int, int]) -> list[Detection]:
     return [Detection((w - bw) // 2, int(h * 0.39), bw, bh, 0.0, "guided")]
 
 
+def resolve_model_files(settings: Settings) -> dict[str, Path]:
+    """Locate each model in `model_dir`, falling back to the copies bundled in the image."""
+    model_dir = Path(settings.model_dir)
+    dirs = [model_dir]
+    if settings.bundled_model_dir is not None:
+        bundled = Path(settings.bundled_model_dir)
+        dirs += [bundled, bundled.parent]
+    files = {
+        key: next((d / name for d in dirs if (d / name).is_file()), model_dir / name)
+        for key, name in MODEL_FILES.items()
+    }
+    missing = [MODEL_FILES[key] for key, path in files.items() if key != "detector_fallback" and not path.is_file()]
+    if missing:
+        searched = ", ".join(str(d) for d in dirs)
+        raise ModelsMissingError(f"missing model files ({', '.join(missing)}); searched {searched}")
+    return files
+
+
 class AnprEngine:
     def __init__(self, settings: Settings) -> None:
         import onnxruntime as ort
 
         self.settings = settings
         model_dir = Path(settings.model_dir)
-        missing = [
-            name for key, name in MODEL_FILES.items() if key != "detector_fallback" and not (model_dir / name).exists()
-        ]
-        if missing:
-            raise ModelsMissingError(f"missing model files in {model_dir}: {', '.join(missing)}")
+        files = resolve_model_files(settings)
 
         opts = ort.SessionOptions()
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -91,8 +105,8 @@ class AnprEngine:
         opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
 
         self.detector = YoloDetector(
-            model_dir / MODEL_FILES["detector"],
-            model_dir / MODEL_FILES["detector_fallback"],
+            files["detector"],
+            files["detector_fallback"],
             settings.det_size,
             settings.det_fallback_size,
             settings.det_conf,
@@ -100,7 +114,7 @@ class AnprEngine:
             opts,
             photo_conf=settings.photo_det_conf,
         )
-        self.recognizer = CrnnRecognizer(model_dir / MODEL_FILES["recognizer"], model_dir / MODEL_FILES["labels"], opts)
+        self.recognizer = CrnnRecognizer(files["recognizer"], files["labels"], opts)
         self.model_version = self._model_version(model_dir)
 
     @staticmethod

@@ -19,6 +19,7 @@ const statusColors = {
   REJECTED: 'danger',
   COMPLETED: 'accent',
   EXPIRED: 'default',
+  CANCELLED: 'default',
 };
 
 const GatePassList = ({ passes }) => {

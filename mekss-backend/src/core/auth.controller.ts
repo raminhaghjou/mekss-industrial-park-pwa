@@ -7,6 +7,7 @@ import {
 import { OtpPurpose, Role } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { AuthenticatedUser, JwtAuthGuard } from './auth.guard';
+import { RATE_RULES, RateLimitService, clientIp } from './security/rate-limit.service';
 
 const iranianPhone = /^09\d{9}$/;
 const opaqueId = /^[A-Za-z0-9_-]{1,128}$/;
@@ -109,7 +110,7 @@ class UpdateProfileDto {
 @ApiTags('Authentication')
 @Controller('api/v1/auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService, private readonly rateLimit: RateLimitService) {}
 
   @Get('check-phone')
   checkPhone(@Query() query: CheckPhoneDto) {
@@ -121,7 +122,8 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  login(@Body() body: LoginDto, @Req() request: any) {
+  async login(@Body() body: LoginDto, @Req() request: any) {
+    await this.rateLimit.consume('login', [{ key: clientIp(request), rule: RATE_RULES.loginPerIp }]);
     return this.auth.login(
       { phoneNumber: body.phoneNumber, username: body.username, password: body.password },
       this.metadata(request),
@@ -130,19 +132,29 @@ export class AuthController {
 
   @Post('otp/send')
   @HttpCode(200)
-  sendLoginOtp(@Body() body: SendOtpDto) { return this.auth.sendOtp(body.phoneNumber, OtpPurpose.LOGIN); }
+  async sendLoginOtp(@Body() body: SendOtpDto, @Req() request: any) {
+    await this.limitOtpSend(request, body.phoneNumber);
+    return this.auth.sendOtp(body.phoneNumber, OtpPurpose.LOGIN);
+  }
 
   @Post('otp/verify')
   @HttpCode(200)
-  verifyLoginOtp(@Body() body: VerifyOtpDto, @Req() request: any) { return this.auth.verifyLoginOtp(body.phoneNumber, body.otp, this.metadata(request)); }
+  async verifyLoginOtp(@Body() body: VerifyOtpDto, @Req() request: any) {
+    await this.rateLimit.consume('otp-verify', [{ key: clientIp(request), rule: RATE_RULES.otpVerifyPerIp }]);
+    return this.auth.verifyLoginOtp(body.phoneNumber, body.otp, this.metadata(request));
+  }
 
   @Post('password/forgot')
   @HttpCode(200)
-  forgotPassword(@Body() body: SendOtpDto) { return this.auth.sendOtp(body.phoneNumber, OtpPurpose.PASSWORD_RESET); }
+  async forgotPassword(@Body() body: SendOtpDto, @Req() request: any) {
+    await this.limitOtpSend(request, body.phoneNumber);
+    return this.auth.sendOtp(body.phoneNumber, OtpPurpose.PASSWORD_RESET);
+  }
 
   @Post('password/reset')
   @HttpCode(200)
-  async resetPassword(@Body() body: ResetPasswordDto) {
+  async resetPassword(@Body() body: ResetPasswordDto, @Req() request: any) {
+    await this.rateLimit.consume('otp-verify', [{ key: clientIp(request), rule: RATE_RULES.otpVerifyPerIp }]);
     const result = await this.auth.resetPasswordWithGeneratedTemp(body.phoneNumber, body.otp);
     return { message: 'Temporary password sent via SMS', ...result };
   }
@@ -193,4 +205,12 @@ export class AuthController {
   async logout(@Req() request: { user: AuthenticatedUser }, @Body() body: Partial<RefreshDto>) { await this.auth.logout(request.user.id, body.refreshToken); return { message: 'Logged out successfully' }; }
 
   private metadata(request: any) { return { ipAddress: request.ip, userAgent: request.headers['user-agent'] }; }
+
+  /** Every OTP costs an SMS: cap per client address and per target phone (anti SMS-bombing). */
+  private limitOtpSend(request: any, phoneNumber: string) {
+    return this.rateLimit.consume('otp-send', [
+      { key: clientIp(request), rule: RATE_RULES.otpPerIp },
+      { key: phoneNumber, rule: RATE_RULES.otpPerPhone },
+    ]);
+  }
 }

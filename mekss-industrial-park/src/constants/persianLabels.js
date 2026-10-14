@@ -81,6 +81,7 @@ export const invoiceAdjustmentTypeLabels = {
   EXTENSION: 'تمدید مهلت',
   SETTLEMENT: 'تسویه دستی',
   INSTALLMENT: 'تقسیط',
+  CANCELLATION: 'لغو قبض',
 };
 
 export const manualSettlementMethodLabels = {
@@ -103,7 +104,11 @@ export const gatePassStatusLabels = {
   REJECTED: 'رد شده',
   COMPLETED: 'خروج تایید شد',
   EXPIRED: 'منقضی شده',
+  CANCELLED: 'لغو شده',
 };
+
+/** Statuses from which the factory or park management may still withdraw a pass. */
+export const CANCELLABLE_GATE_PASS_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
 
 /** Who rejected a REJECTED gate pass: the guard sets verifiedById, the park manager only approvedById. */
 export const gatePassRejectionStage = (pass) => {

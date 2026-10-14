@@ -52,7 +52,7 @@ const TABS = [
   {
     id: 'rejected',
     label: 'رد شده',
-    match: (status) => status === 'REJECTED' || status === 'EXPIRED',
+    match: (status) => status === 'REJECTED' || status === 'EXPIRED' || status === 'CANCELLED',
     emptyTitle: 'مورد رد‌شده‌ای ثبت نشده',
     emptyDescription: 'برگ‌هایی که رد یا منقضی شوند اینجا نمایش داده می‌شوند.',
   },
@@ -94,6 +94,12 @@ const statusTone = {
     bar: 'bg-default-400',
     soft: 'bg-default-100 text-foreground-600 dark:bg-white/10',
     icon: Clock3,
+  },
+  CANCELLED: {
+    chip: 'default',
+    bar: 'bg-default-400',
+    soft: 'bg-default-100 text-foreground-600 dark:bg-white/10',
+    icon: XCircle,
   },
 };
 

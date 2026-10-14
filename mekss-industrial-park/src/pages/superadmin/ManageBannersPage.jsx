@@ -25,6 +25,7 @@ import { filesApi } from '../../services/api/files.api';
 import { parkApi } from '../../services/api/park.api';
 import { useNotification } from '../../providers/NotificationProvider';
 import { getErrorMessage } from '../../utils/apiError';
+import { toAsciiDigits } from '../../utils/digits';
 import { AuthenticatedImage } from '../../components/common/AuthenticatedImage';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import JalaliDatePicker from '../../components/common/JalaliDatePicker';
@@ -169,6 +170,7 @@ const ManageBannersPage = () => {
   const [editing, setEditing] = React.useState(/** @type {any} */ (null));
   const [form, setForm] = React.useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = React.useState(/** @type {any} */ (null));
+  const [formError, setFormError] = React.useState('');
   const [uploadingKinds, setUploadingKinds] = React.useState(/** @type {string[]} */ ([]));
   const imageUploading = uploadingKinds.length > 0;
   const setKindUploading = React.useCallback((kind, busy) => {
@@ -201,8 +203,13 @@ const ManageBannersPage = () => {
       setFormOpen(false);
       setEditing(null);
       setForm(emptyForm);
+      setFormError('');
     },
-    onError: (error) => showNotification(getErrorMessage(error, 'ذخیره بنر ناموفق بود.'), 'error'),
+    onError: (error) => {
+      const message = getErrorMessage(error, 'ذخیره بنر ناموفق بود.');
+      setFormError(message);
+      showNotification(message, 'error');
+    },
   });
 
   const toggleMutation = useMutation({
@@ -227,11 +234,13 @@ const ManageBannersPage = () => {
   const openCreate = () => {
     setEditing(null);
     setForm({ ...emptyForm, sortOrder: String(banners.length) });
+    setFormError('');
     setFormOpen(true);
   };
 
   const openEdit = (banner) => {
     setEditing(banner);
+    setFormError('');
     setForm({
       title: banner.title || '',
       desktopImageId: banner.desktopImageId || '',
@@ -252,37 +261,45 @@ const ManageBannersPage = () => {
     setFormOpen(false);
     setEditing(null);
     setForm(emptyForm);
+    setFormError('');
   };
 
   const set = (patch) => setForm((current) => ({ ...current, ...patch }));
 
+  const fail = (message) => {
+    setFormError(message);
+    showNotification(message, 'error');
+  };
+
   const submit = (event) => {
     event.preventDefault();
+    setFormError('');
     if (imageUploading) {
-      showNotification('تا پایان بارگذاری تصویر صبر کنید.', 'error');
+      fail('تا پایان بارگذاری تصویر صبر کنید.');
       return;
     }
     const title = form.title.trim();
     if (title.length < 2) {
-      showNotification('عنوان بنر را وارد کنید (حداقل ۲ نویسه).', 'error');
+      fail('عنوان بنر را وارد کنید (حداقل ۲ نویسه).');
       return;
     }
     if (!form.desktopImageId || !form.mobileImageId) {
-      showNotification('تصویر دسکتاپ و تصویر موبایل هر دو الزامی است.', 'error');
+      const missing = [!form.desktopImageId && 'تصویر دسکتاپ', !form.mobileImageId && 'تصویر موبایل'].filter(Boolean).join(' و ');
+      fail(`${missing} بارگذاری نشده است؛ برای هر بنر هر دو تصویر الزامی است.`);
       return;
     }
     const linkUrl = form.linkUrl.trim();
     if (!isAllowedBannerLink(linkUrl)) {
-      showNotification('لینک باید با https:// یا / (مسیر داخلی سامانه) شروع شود.', 'error');
+      fail('لینک باید با https:// یا / (مسیر داخلی سامانه) شروع شود.');
       return;
     }
     const sortOrder = Number(form.sortOrder || 0);
     if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 10000) {
-      showNotification('ترتیب نمایش باید عددی بین ۰ تا ۱۰۰۰۰ باشد.', 'error');
+      fail('اولویت نمایش باید عددی بین ۰ تا ۱۰۰۰۰ باشد.');
       return;
     }
     if (form.startsAt && form.endsAt && new Date(form.endsAt).getTime() <= new Date(form.startsAt).getTime()) {
-      showNotification('تاریخ پایان نمایش باید بعد از تاریخ شروع باشد.', 'error');
+      fail('تاریخ پایان نمایش باید بعد از تاریخ شروع باشد.');
       return;
     }
     saveMutation.mutate({
@@ -355,7 +372,7 @@ const ManageBannersPage = () => {
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground-500">
                   <span>محدوده: {banner.park?.name || 'همه شهرک‌ها'}</span>
-                  <span>ترتیب: {Number(banner.sortOrder || 0).toLocaleString('fa-IR')}</span>
+                  <span>اولویت نمایش: {Number(banner.sortOrder || 0).toLocaleString('fa-IR')}</span>
                   <span>کلیک: {Number(banner.clickCount || 0).toLocaleString('fa-IR')}</span>
                   {banner.startsAt && <span>از {formatFaDateTime(banner.startsAt)}</span>}
                   {banner.endsAt && <span>تا {formatFaDateTime(banner.endsAt)}</span>}
@@ -425,8 +442,20 @@ const ManageBannersPage = () => {
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <Label className="text-xs font-medium text-foreground-600">ترتیب نمایش</Label>
-                      <Input value={form.sortOrder} inputMode="numeric" dir="ltr" onChange={(e) => set({ sortOrder: e.target.value.replace(/[^\d]/g, '') })} variant="primary" className="rounded-xl" />
+                      <Label htmlFor="banner-sort-order" className="text-xs font-medium text-foreground-600">اولویت نمایش (ترتیب در اسلایدر)</Label>
+                      <Input
+                        id="banner-sort-order"
+                        value={form.sortOrder}
+                        inputMode="numeric"
+                        dir="ltr"
+                        aria-describedby="banner-sort-order-help"
+                        onChange={(e) => set({ sortOrder: toAsciiDigits(e.target.value).replace(/[^\d]/g, '').slice(0, 5) })}
+                        variant="primary"
+                        className="rounded-xl"
+                      />
+                      <span id="banner-sort-order-help" className="text-[11px] leading-relaxed text-foreground-500">
+                        بنرها در داشبورد به‌نوبت می‌چرخند. عدد کوچک‌تر زودتر نمایش داده می‌شود: ۰ یعنی اولین بنر، ۱ دومی و… اگر دو بنر عدد یکسان داشته باشند، بنر جدیدتر زودتر می‌آید.
+                      </span>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -444,6 +473,14 @@ const ManageBannersPage = () => {
                     بنر فعال باشد
                   </label>
                 </ModalBody>
+                {formError && (
+                  <Alert status="danger" role="alert" data-testid="banner-form-error">
+                    <AlertContent>
+                      <AlertTitle>بنر ذخیره نشد</AlertTitle>
+                      <AlertDescription>{formError}</AlertDescription>
+                    </AlertContent>
+                  </Alert>
+                )}
                 <ModalFooter className="flex justify-end gap-2">
                   <Button type="button" variant="tertiary" className="rounded-xl" onPress={closeForm} isDisabled={saveMutation.isPending}>انصراف</Button>
                   <Button type="submit" variant="primary" className="rounded-xl font-bold" isDisabled={saveMutation.isPending || imageUploading}>

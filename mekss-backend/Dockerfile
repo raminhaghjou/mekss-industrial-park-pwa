@@ -1,20 +1,26 @@
 # Build stage: install the full lockfile dependency set before Prisma generation and Nest compilation.
 # Debian (glibc) rather than Alpine: onnxruntime-node and sharp ship glibc prebuilt binaries.
+# Build stage
 FROM node:20-bookworm-slim AS builder
+
+# (اختیاری ولی توصیه‌شده) میرور apt ایرانی
+RUN sed -i 's|deb.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+ && sed -i 's|security.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-
+# تنظیم میرور ایرانی + پایداری شبکه
 RUN npm config set registry https://package-mirror.liara.ir/repository/npm/ \
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-mintimeout 20000 \
  && npm config set fetch-retry-maxtimeout 120000 \
  && npm config set maxsockets 3
 
+COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY prisma ./prisma
@@ -22,15 +28,27 @@ COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 RUN npx prisma generate && npm run build
 
-# Runtime stage: keep only production dependencies and generated runtime artifacts.
+# Runtime stage
 FROM node:20-bookworm-slim AS runtime
+
+# میرور apt
+RUN sed -i 's|deb.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+ && sed -i 's|security.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends dumb-init openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1001 --system mekss \
     && useradd --uid 1001 --system --gid mekss --no-create-home mekss
+
 WORKDIR /app
+
+# مهم: دوباره میرور را تنظیم کن
+RUN npm config set registry https://package-mirror.liara.ir/repository/npm/ \
+ && npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm config set maxsockets 3
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
@@ -39,10 +57,10 @@ COPY --from=builder --chown=mekss:mekss /app/dist ./dist
 COPY --from=builder --chown=mekss:mekss /app/prisma ./prisma
 COPY --from=builder --chown=mekss:mekss /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=mekss:mekss /app/node_modules/@prisma/client ./node_modules/@prisma/client
-# Engine B (in-process ANPR) reads the same ONNX models as the Python service; mount the shared volume here.
-RUN mkdir -p uploads logs models/iran-plate && chown -R mekss:mekss uploads logs models
-ENV ANPR_MODEL_DIR=/app/models/iran-plate
 
+RUN mkdir -p uploads logs models/iran-plate && chown -R mekss:mekss uploads logs models
+
+ENV ANPR_MODEL_DIR=/app/models/iran-plate
 USER 1001
 EXPOSE 3000
 

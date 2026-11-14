@@ -7,6 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     ANPR_FETCH_OPTIONAL=0 \
     ANPR_WORKERS=2
 
+# تغییر میرور Debian به ایران‌سرور قبل از apt-get update
+RUN sed -i 's|deb.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+     && sed -i 's|security.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+     && sed -i 's|deb.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list 2>/dev/null || true \
+     && sed -i 's|security.debian.org|mirror.iranserver.com|g' /etc/apt/sources.list 2>/dev/null || true
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 dumb-init curl \
     && rm -rf /var/lib/apt/lists/* \
